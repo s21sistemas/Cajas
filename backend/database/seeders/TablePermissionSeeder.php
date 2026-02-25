@@ -58,6 +58,7 @@ class TablePermissionSeeder extends Seeder
             'vehicles.view', 'vehicles.create', 'vehicles.edit', 'vehicles.delete',
             'deliveries.view', 'deliveries.create', 'deliveries.edit', 'deliveries.delete',
             'settings.view', 'settings.create', 'settings.edit', 'settings.delete',
+            'reports.view', 'reports.create', 'reports.edit', 'reports.delete',
         ];
     }
 
