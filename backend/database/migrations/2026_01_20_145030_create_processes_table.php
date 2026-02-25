@@ -13,19 +13,15 @@ return new class extends Migration
     {
         Schema::create('processes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('part_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('machine_id')->constrained()->restrictOnDelete();
+            $table->string('code')->unique();
+            $table->string('name');
             $table->string('process_type');
             $table->string('description')->nullable();
-            $table->unsignedInteger('sequence');
+            $table->boolean('requires_machine')->default(false);
             $table->decimal('estimated_time_min', 6, 2)->nullable();
-            $table->string('status')->default('pending');
-            $table->integer('order_index')->nullable();
+            $table->string('status')->default('active');
             $table->timestamps();
-
-            $table->unique(['part_id', 'sequence']);
         });
-
     }
 
     /**

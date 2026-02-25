@@ -13,7 +13,27 @@ return new class extends Migration
     {
         Schema::create('employee_accounts', function (Blueprint $table) {
             $table->id();
+            // Relación con empleados
+            $table->foreignId('employee_id')
+                ->constrained()
+                ->restrictOnDelete();
+
+            $table->string('employee_name');
+            $table->string('department');
+
+            $table->decimal('base_salary', 12, 2)->default(0);
+            $table->decimal('loans', 12, 2)->default(0);
+            $table->decimal('discounts', 12, 2)->default(0);
+            $table->decimal('overtime', 12, 2)->default(0);
+            $table->decimal('guards', 12, 2)->default(0);
+
+            // Calculado o persistido (tú decides)
+            $table->decimal('net_balance', 12, 2)->default(0);
+
             $table->timestamps();
+
+            $table->index('employee_id');
+            $table->index('department');
         });
     }
 

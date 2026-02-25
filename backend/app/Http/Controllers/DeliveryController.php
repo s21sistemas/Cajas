@@ -4,9 +4,34 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Delivery;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
-class DeliveryController extends Controller
+class DeliveryController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware(
+                PermissionMiddleware::using('deliveries.view'),
+                only: ['index', 'show']
+            ),
+            new Middleware(
+                PermissionMiddleware::using('deliveries.create'),
+                only: ['store']
+            ),
+            new Middleware(
+                PermissionMiddleware::using('deliveries.edit'),
+                only: ['update']
+            ),
+            new Middleware(
+                PermissionMiddleware::using('deliveries.delete'),
+                only: ['destroy']
+            ),
+        ];
+    }
+
     public function index()
     {
         $query = Delivery::with('vehicle');

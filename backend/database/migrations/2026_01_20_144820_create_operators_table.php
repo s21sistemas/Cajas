@@ -18,9 +18,9 @@ return new class extends Migration
             $table->string('shift')->nullable();
             $table->string('specialty')->nullable();
             $table->boolean('active')->default(true);
-            $table->string('phone');
-            $table->string('email')->unique();
-            $table->date('hire_date');
+            $table->string('phone')->nullable();
+            $table->string('email')->unique()->nullable();
+            $table->date('hire_date')->nullable();
             $table->timestamps();
         });
     }

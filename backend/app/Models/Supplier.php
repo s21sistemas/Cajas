@@ -17,6 +17,7 @@ class Supplier extends Model
         'phone',
         'address',
         'city',
+        'state',
         'contact',
         'category',
         'lead_time',

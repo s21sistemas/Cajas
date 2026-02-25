@@ -17,7 +17,7 @@ class BranchController extends Controller implements HasMiddleware
         return [
             new Middleware(
                 PermissionMiddleware::using('branches.view'),
-                only: ['index', 'show']
+                only: ['index', 'show', 'stats']
             ),
 
             new Middleware(
@@ -39,9 +39,48 @@ class BranchController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $perPage = $request->integer('per_page', 15);
-        $items = Branch::with('client')->orderBy('name')->paginate($perPage);
-        return response()->json($items);
+        $perPage = $request->integer('per_page', 100);
+        $query = Branch::with('client');
+
+        // Búsqueda
+        if ($search = $request->get('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('code', 'like', "%{$search}%")
+                    ->orWhere('city', 'like', "%{$search}%")
+                    ->orWhereHas('client', function ($clientQuery) use ($search) {
+                        $clientQuery->where('name', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        // Filtro por estado
+        if ($status = $request->get('status')) {
+            $query->where('status', $status);
+        }
+
+        // Filtro por cliente
+        if ($clientId = $request->get('client_id')) {
+            $query->where('client_id', $clientId);
+        }
+
+        $sortBy = $request->get('sort_by', 'name');
+        $sortOrder = $request->get('sort_order', 'asc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        return response()->json($query->paginate($perPage));
+    }
+
+    public function stats()
+    {
+        $stats = [
+            'total' => Branch::count(),
+            'active' => Branch::where('status', 'active')->count(),
+            'inactive' => Branch::where('status', 'inactive')->count(),
+            'cities' => Branch::distinct('city')->count(),
+        ];
+
+        return response()->json($stats);
     }
 
     public function store(Request $request)

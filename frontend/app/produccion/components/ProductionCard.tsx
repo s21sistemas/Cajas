@@ -1,0 +1,193 @@
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Play, Pause, Check, XCircle, Filter, PackagePlus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { ProductionOrder, ProductionStatus } from '../types';
+
+interface ProductionCardProps {
+  production: ProductionOrder;
+  onStart: (p: ProductionOrder) => void;
+  onPause: (p: ProductionOrder) => void;
+  onComplete: (p: ProductionOrder) => void;
+  onResume: (p: ProductionOrder) => void;
+  onCancel: (p: ProductionOrder) => void;
+  onRegisterParts: (p: ProductionOrder) => void;
+  onEdit: (p: ProductionOrder) => void;
+  onDelete: (p: ProductionOrder) => void;
+  loadingAction?: string | null;
+}
+
+const STATUS_CONFIG: Record<ProductionStatus, { label: string; color: string }> = {
+  pending: { label: 'Pendiente', color: 'bg-muted text-muted-foreground' },
+  in_progress: { label: 'En Proceso', color: 'bg-primary/20 text-primary' },
+  paused: { label: 'Pausado', color: 'bg-yellow-500/20 text-yellow-500' },
+  completed: { label: 'Completado', color: 'bg-green-500/20 text-green-500' },
+  cancelled: { label: 'Cancelado', color: 'bg-destructive/20 text-destructive' },
+};
+
+export function ProductionCard({
+  production,
+  onStart,
+  onPause,
+  onComplete,
+  onResume,
+  onCancel,
+  onRegisterParts,
+  onEdit,
+  onDelete,
+  loadingAction,
+}: ProductionCardProps) {
+  const progress = production.targetParts
+    ? Math.min(100, Math.round(((production.goodParts || 0) / production.targetParts) * 100))
+    : 0;
+
+  const isEditable = production.status === 'pending' || production.status === 'paused';
+  const isDeletable = production.status !== 'completed';
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <p className="font-mono text-xs text-muted-foreground">{production.code}</p>
+              {isEditable && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6" 
+                  onClick={() => onEdit(production)}
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              )}
+              {isDeletable && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 text-destructive hover:text-destructive"
+                  onClick={() => onDelete(production)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+            <CardTitle className="text-lg mt-1">{production.processName}</CardTitle>
+          </div>
+          <Badge className={cn('text-xs', STATUS_CONFIG[production.status]?.color || 'bg-muted text-muted-foreground')}>
+            {STATUS_CONFIG[production.status]?.label || production.status}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Progreso</span>
+          <span className="font-medium">{progress}%</span>
+        </div>
+        <Progress value={progress} className="h-2" />
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="bg-secondary/50 rounded p-2">
+            <p className="text-xs text-muted-foreground">Meta</p>
+            <p className="font-bold">{production.targetParts}</p>
+          </div>
+          <div className="bg-green-500/10 rounded p-2">
+            <p className="text-xs text-muted-foreground">Buenas</p>
+            <p className="font-bold text-green-600">{production.goodParts}</p>
+          </div>
+          <div className="bg-destructive/10 rounded p-2">
+            <p className="text-xs text-muted-foreground">Scrap</p>
+            <p className="font-bold text-destructive">{production.scrapParts}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Filter className="h-3 w-3" />
+          <span>{production.requiresMachine ? production.machineName || 'Sin asignar' : 'Manual'}</span>
+          <span className="mx-1">•</span>
+          <span>{production.operatorName || 'Sin operador'}</span>
+        </div>
+        
+        {/* Acciones principales */}
+        <div className="flex flex-col gap-2 pt-2">
+          {production.status === 'pending' && (
+            <Button size="sm" className="w-full bg-green-600 hover:bg-green-700" onClick={() => onStart(production)} disabled={!!loadingAction}>
+              {loadingAction === 'start' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+          
+          {production.status === 'in_progress' && (
+            <div className="grid grid-cols-3 gap-2">
+              <Button size="icon" variant="outline" onClick={() => onPause(production)} disabled={!!loadingAction} title="Pausar">
+                {loadingAction === 'pause' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Pause className="h-4 w-4" />
+                )}
+              </Button>
+              <Button size="icon" className="bg-green-600 hover:bg-green-700" onClick={() => onComplete(production)} disabled={!!loadingAction} title="Completar">
+                {loadingAction === 'complete' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+              </Button>
+              <Button size="icon" variant="secondary" onClick={() => onRegisterParts(production)} disabled={!!loadingAction} title="Registrar Piezas">
+                {loadingAction === 'registerParts' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <PackagePlus className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          )}
+          
+          {production.status === 'paused' && (
+            <>
+              <div className="grid grid-cols-2 gap-2 justify-items-center">
+                <Button size="icon" onClick={() => onResume(production)} disabled={!!loadingAction} title="Reanudar">
+                  {loadingAction === 'resume' ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button size="icon" variant="destructive" onClick={() => onCancel(production)} disabled={!!loadingAction} title="Cancelar">
+                  {loadingAction === 'cancel' ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <XCircle className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <Button size="sm" variant="secondary" className="w-full" onClick={() => onRegisterParts(production)} disabled={!!loadingAction}>
+                {loadingAction === 'registerParts' ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <PackagePlus className="h-4 w-4 mr-2" />
+                )}
+                {loadingAction === 'registerParts' ? 'Registrando...' : 'Registrar Piezas'}
+              </Button>
+            </>
+          )}
+          
+          {production.status === 'completed' && (
+            <div className="text-center text-sm text-muted-foreground py-2">
+              Producción finalizada
+            </div>
+          )}
+          
+          {production.status === 'cancelled' && (
+            <div className="text-center text-sm text-muted-foreground py-2">
+              Producción cancelada
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

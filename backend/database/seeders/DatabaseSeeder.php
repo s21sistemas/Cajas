@@ -24,5 +24,15 @@ class DatabaseSeeder extends Seeder
         $this->call([
             SuperAdminSeeder::class,
         ]);
+
+        // 3. Crear catálogo de datos
+        // $this->call([
+        //     CatalogSeeder::class,
+        // ]);
+
+        // // 4. Crear órdenes de trabajo (después de catálogos)
+        // $this->call([
+        //     WorkOrderSeeder::class,
+        // ]);
     }
 }

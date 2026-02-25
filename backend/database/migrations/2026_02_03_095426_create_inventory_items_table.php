@@ -20,7 +20,8 @@ return new class extends Migration
                 'raw_material',
                 'component',
                 'tool',
-                'consumable'
+                'consumable',
+                'finished_product'
             ]);
 
             $table->decimal('quantity', 15, 2)->default(0);
@@ -28,6 +29,8 @@ return new class extends Migration
             $table->decimal('max_stock', 15, 2)->nullable();
 
             $table->decimal('unit_cost', 15, 2);
+            $table->string('unit')->nullable();
+            $table->string('warehouse', 100)->nullable();
 
             $table->string('location')->nullable();
 

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use \Spatie\Permission\Middleware\PermissionMiddleware;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Spatie\Permission\Models\Permission;
 
 class PermissionController extends Controller implements HasMiddleware
 {

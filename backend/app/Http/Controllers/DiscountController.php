@@ -105,4 +105,22 @@ class DiscountController extends Controller implements HasMiddleware
         $discount->delete();
         return response()->json(null, 204);
     }
+
+    /**
+     * Pause discount.
+     */
+    public function pause(Request $request, Discount $discount)
+    {
+        $discount->update(['status' => 'paused']);
+        return response()->json($discount->load('employee'));
+    }
+
+    /**
+     * Resume discount.
+     */
+    public function resume(Request $request, Discount $discount)
+    {
+        $discount->update(['status' => 'active']);
+        return response()->json($discount->load('employee'));
+    }
 }

@@ -4,9 +4,34 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Vehicle;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
-class VehicleController extends Controller
+class VehicleController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware(
+                PermissionMiddleware::using('vehicles.view'),
+                only: ['index', 'show']
+            ),
+            new Middleware(
+                PermissionMiddleware::using('vehicles.create'),
+                only: ['store']
+            ),
+            new Middleware(
+                PermissionMiddleware::using('vehicles.edit'),
+                only: ['update']
+            ),
+            new Middleware(
+                PermissionMiddleware::using('vehicles.delete'),
+                only: ['destroy']
+            ),
+        ];
+    }
+
     public function index()
     {
         return Vehicle::orderByDesc('created_at')->get();

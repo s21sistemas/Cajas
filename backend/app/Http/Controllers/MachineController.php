@@ -17,7 +17,7 @@ class MachineController extends Controller implements HasMiddleware
 
             new Middleware(
                 PermissionMiddleware::using('machines.view'),
-                only: ['index', 'show']
+                only: ['index', 'show', 'stats', 'utilization']
             ),
 
             new Middleware(
@@ -27,7 +27,7 @@ class MachineController extends Controller implements HasMiddleware
 
             new Middleware(
                 PermissionMiddleware::using('machines.edit'),
-                only: ['update']
+                only: ['update', 'updateStatus', 'startOperation', 'stopOperation', 'scheduleMaintenance', 'completeMaintenance']
             ),
 
             new Middleware(
@@ -40,10 +40,34 @@ class MachineController extends Controller implements HasMiddleware
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        // Devuelve todas las máquinas
-        return response()->json(Machine::all());
+        $query = Machine::query();
+
+        // Filtro por búsqueda
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%")
+                  ->orWhere('type', 'like', "%{$search}%");
+            });
+        }
+
+        // Filtro por estado
+        if ($request->has('status') && $request->status && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        // Filtro por tipo
+        if ($request->has('type') && $request->type) {
+            $query->where('type', $request->type);
+        }
+
+        $perPage = $request->integer('per_page', 15);
+        $machines = $query->orderBy('name')->paginate($perPage);
+
+        return $this->paginated($machines, 'Máquinas listadas correctamente');
     }
 
     /**
@@ -51,7 +75,6 @@ class MachineController extends Controller implements HasMiddleware
      */
     public function store(Request $request)
     {
-        // Validar los datos según la migración
         $data = $request->validate([
             'code' => 'required|string|max:255|unique:machines,code',
             'name' => 'required|string|max:255',
@@ -61,14 +84,12 @@ class MachineController extends Controller implements HasMiddleware
             'notes' => 'nullable|string',
         ]);
 
-        // Asigna el valor por defecto de status si no se envió
         if (!isset($data['status'])) {
             $data['status'] = 'available';
         }
 
         $machine = Machine::create($data);
-
-        return response()->json($machine, 201);
+        return $this->created($machine, 'Máquina creada correctamente');
     }
 
     /**
@@ -76,7 +97,7 @@ class MachineController extends Controller implements HasMiddleware
      */
     public function show(Machine $machine)
     {
-        return response()->json($machine);
+        return $this->success($machine, 'Máquina obtenida correctamente');
     }
 
     /**
@@ -84,7 +105,6 @@ class MachineController extends Controller implements HasMiddleware
      */
     public function update(Request $request, Machine $machine)
     {
-        // Validar los datos según la migración
         $data = $request->validate([
             'code' => 'sometimes|required|string|max:255|unique:machines,code,' . $machine->id,
             'name' => 'sometimes|required|string|max:255',
@@ -95,8 +115,7 @@ class MachineController extends Controller implements HasMiddleware
         ]);
 
         $machine->update($data);
-
-        return response()->json($machine);
+        return $this->success($machine, 'Máquina actualizada correctamente');
     }
 
     /**
@@ -105,6 +124,123 @@ class MachineController extends Controller implements HasMiddleware
     public function destroy(Machine $machine)
     {
         $machine->delete();
-        return response()->json(null, 204);
+        return $this->deleted('Máquina eliminada correctamente');
+    }
+
+    /**
+     * Update machine status.
+     */
+    public function updateStatus(Request $request, Machine $machine)
+    {
+        $data = $request->validate([
+            'status' => 'required|string|in:available,running,maintenance,offline',
+        ]);
+
+        $machine->update($data);
+        return $this->success($machine, 'Estado de máquina actualizado correctamente');
+    }
+
+    /**
+     * Start machine operation.
+     */
+    public function startOperation(Request $request, Machine $machine)
+    {
+        $machine->update(['status' => 'running']);
+        return $this->success($machine, 'Operación de máquina iniciada');
+    }
+
+    /**
+     * Stop machine operation.
+     */
+    public function stopOperation(Request $request, Machine $machine)
+    {
+        $machine->update(['status' => 'available']);
+        return $this->success($machine, 'Operación de máquina detenida');
+    }
+
+    /**
+     * Schedule maintenance for a machine.
+     */
+    public function scheduleMaintenance(Request $request, Machine $machine)
+    {
+        $data = $request->validate([
+            'type' => 'required|string|in:preventive,corrective,predictive',
+            'notes' => 'nullable|string',
+            'scheduled_date' => 'required|date',
+        ]);
+
+        // Crear orden de mantenimiento
+        $maintenanceOrder = \App\Models\MaintenanceOrder::create([
+            'code' => 'MANT-' . time(),
+            'machine_id' => $machine->id,
+            'machine_name' => $machine->name,
+            'type' => $data['type'],
+            'status' => 'scheduled',
+            'scheduled_date' => $data['scheduled_date'],
+            'notes' => $data['notes'] ?? null,
+            'priority' => 'medium',
+        ]);
+
+        return $this->created($maintenanceOrder->load('machine'), 'Mantenimiento programado correctamente');
+    }
+
+    /**
+     * Complete maintenance for a machine.
+     */
+    public function completeMaintenance(Request $request, Machine $machine)
+    {
+        $machine->update(['status' => 'available']);
+
+        $machine->orders()->where('status', 'in-progress')->update([
+            'status' => 'completed',
+            'end_date' => now(),
+        ]);
+
+        return $this->success($machine, 'Mantenimiento completado correctamente');
+    }
+
+    /**
+     * Get machine utilization data.
+     */
+    public function utilization(Request $request)
+    {
+        $machines = Machine::all();
+
+        $utilization = $machines->map(function ($machine) {
+            return [
+                'id' => $machine->id,
+                'code' => $machine->code,
+                'name' => $machine->name,
+                'status' => $machine->status,
+                'utilizationRate' => match ($machine->status) {
+                    'running' => rand(70, 95),
+                    'available' => rand(10, 30),
+                    'maintenance' => 0,
+                    'offline' => 0,
+                    default => 0,
+                },
+            ];
+        });
+
+        return $this->success($utilization, 'Utilización de máquinas obtenida correctamente');
+    }
+
+    /**
+     * Get machine statistics.
+     */
+    public function stats()
+    {
+        $machines = Machine::all();
+
+        $data = [
+            'total' => $machines->count(),
+            'running' => $machines->where('status', 'running')->count(),
+            'available' => $machines->where('status', 'available')->count(),
+            'maintenance' => $machines->where('status', 'maintenance')->count(),
+            'offline' => $machines->where('status', 'offline')->count(),
+            'averageUtilization' => 0,
+        ];
+
+        return $this->success($data, 'Estadísticas de máquinas obtenidas correctamente');
     }
 }

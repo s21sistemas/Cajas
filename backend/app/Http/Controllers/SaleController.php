@@ -17,12 +17,12 @@ class SaleController extends Controller implements HasMiddleware
         return [
             new Middleware(
                 PermissionMiddleware::using('sales.view'),
-                only: ['index', 'show']
+                only: ['index', 'show', 'stats']
             ),
 
             new Middleware(
                 PermissionMiddleware::using('sales.create'),
-                only: ['store']
+                only: ['store', 'recordPayment']
             ),
 
             new Middleware(
@@ -109,5 +109,61 @@ class SaleController extends Controller implements HasMiddleware
     {
         $sale->delete();
         return response()->json(null, 204);
+    }
+
+    /**
+     * Record a payment for a sale.
+     */
+    public function recordPayment(Request $request, Sale $sale)
+    {
+        $validator = Validator::make($request->all(), [
+            'amount' => 'required|numeric|min:0',
+            'payment_method' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $data = $validator->validated();
+
+        // Actualizar el monto pagado
+        $newPaid = $sale->paid + $data['amount'];
+        $sale->update(['paid' => $newPaid]);
+
+        // Actualizar estado según el monto pagado
+        if ($newPaid >= $sale->total) {
+            $sale->update(['status' => 'paid']);
+        } elseif ($newPaid > 0) {
+            $sale->update(['status' => 'partial']);
+        }
+
+        // Aquí podrías crear un registro de movimiento bancario o cuenta por cobrar
+        // Por simplicidad, solo actualizamos la venta
+
+        return response()->json($sale->load('client'));
+    }
+
+    /**
+     * Get sales statistics.
+     */
+    public function stats()
+    {
+        $sales = Sale::all();
+
+        $totalRevenue = $sales->sum('total');
+        $totalPaid = $sales->sum('paid');
+        $pendingAmount = $totalRevenue - $totalPaid;
+
+        return response()->json([
+            'total' => $sales->count(),
+            'pending' => $sales->where('status', 'pending')->count(),
+            'paid' => $sales->where('status', 'paid')->count(),
+            'partial' => $sales->where('status', 'partial')->count(),
+            'overdue' => $sales->where('status', 'overdue')->count(),
+            'totalRevenue' => $totalRevenue,
+            'totalPaid' => $totalPaid,
+            'pendingAmount' => $pendingAmount,
+        ]);
     }
 }

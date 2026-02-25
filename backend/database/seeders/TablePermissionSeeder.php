@@ -36,8 +36,8 @@ class TablePermissionSeeder extends Seeder
             'processes.view', 'processes.create', 'processes.edit', 'processes.delete',
             'productions.view', 'productions.create', 'productions.edit', 'productions.delete',
             'operators.view', 'operators.create', 'operators.edit', 'operators.delete',
-            'cncprograms.view', 'cncprograms.create', 'cncprograms.edit', 'cncprograms.delete',
-            'parts.view', 'parts.create', 'parts.edit', 'parts.delete',
+            'warehouse.view', 'warehouse.create', 'warehouse.edit', 'warehouse.delete',
+            'materials.view', 'materials.create', 'materials.edit', 'materials.delete',
             'bankaccounts.view', 'bankaccounts.create', 'bankaccounts.edit', 'bankaccounts.delete',
             'accountstatements.view', 'accountstatements.create', 'accountstatements.edit', 'accountstatements.delete',
             'banktransactions.view', 'banktransactions.create', 'banktransactions.edit', 'banktransactions.delete',
@@ -45,6 +45,8 @@ class TablePermissionSeeder extends Seeder
             'employees.view', 'employees.create', 'employees.edit', 'employees.delete',
             'employeeaccounts.view', 'employeeaccounts.create', 'employeeaccounts.edit', 'employeeaccounts.delete',
             'loantypes.view', 'loantypes.create', 'loantypes.edit', 'loantypes.delete',
+            'loans.view', 'loans.create', 'loans.edit', 'loans.delete',
+            'loanpayments.view', 'loanpayments.create', 'loanpayments.edit', 'loanpayments.delete',
             'discounttypes.view', 'discounttypes.create', 'discounttypes.edit', 'discounttypes.delete',
             'vacationrequests.view', 'vacationrequests.create', 'vacationrequests.edit', 'vacationrequests.delete',
             'discounts.view', 'discounts.create', 'discounts.edit', 'discounts.delete',
@@ -53,6 +55,8 @@ class TablePermissionSeeder extends Seeder
             'overtimes.view', 'overtimes.create', 'overtimes.edit', 'overtimes.delete',
             'absences.view', 'absences.create', 'absences.edit', 'absences.delete',
             'maintenanceorders.view', 'maintenanceorders.create', 'maintenanceorders.edit', 'maintenanceorders.delete',
+            'vehicles.view', 'vehicles.create', 'vehicles.edit', 'vehicles.delete',
+            'deliveries.view', 'deliveries.create', 'deliveries.edit', 'deliveries.delete',
             'settings.view', 'settings.create', 'settings.edit', 'settings.delete',
         ];
     }
@@ -73,7 +77,7 @@ class TablePermissionSeeder extends Seeder
                 [
                     'workorders.view', 'workorders.create', 'workorders.edit',
                     'productions.view', 'productions.create', 'productions.edit',
-                    'parts.view', 'parts.create', 'parts.edit',
+                    'materials.view', 'materials.create', 'materials.edit',
                     'machines.view', 'processes.view', 'operators.view', 'cncprograms.view',
                     'inventoryitems.view', 'warehouselocations.view', 'qritems.view',
                 ]

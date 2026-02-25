@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Client;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use \Spatie\Permission\Middleware\PermissionMiddleware;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -16,7 +16,7 @@ class ClientController extends Controller implements HasMiddleware
         return [
             new Middleware(
                 PermissionMiddleware::using('clients.view'),
-                only: ['index', 'show']
+                only: ['index', 'show', 'stats']
             ),
 
             new Middleware(
@@ -36,74 +36,110 @@ class ClientController extends Controller implements HasMiddleware
         ];
     }
 
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        $perPage = $request->integer('per_page', 15);
-        $clients = Client::orderBy('name')->paginate($perPage);
+        $query = Client::query();
+
+        if ($status = $request->get('status')) {
+            $query->where('status', $status);
+        }
+
+        if ($search = $request->get('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('code', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        $sortBy = $request->get('sort_by', 'name');
+        $sortOrder = $request->get('sort_order', 'asc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        return response()->json($query->paginate(5));
+    }
+
+    public function selectListClient(): JsonResponse
+    {
+        $clients = Client::where('status', 'active')->get();
         return response()->json($clients);
     }
 
-    public function store(Request $request)
+    public function stats(): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $stats = [
+            'total' => Client::count(),
+            'active' => Client::where('status', 'active')->count(),
+            'inactive' => Client::where('status', 'inactive')->count(),
+            'blocked' => Client::where('status', 'blocked')->count(),
+            'totalCredit' => (float) Client::sum('credit_limit'),
+            'totalBalance' => (float) Client::sum('balance'),
+        ];
+
+        return response()->json($stats);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
             'code' => 'required|string|max:255|unique:clients,code',
             'name' => 'required|string|max:255',
             'rfc' => 'nullable|string|max:13',
             'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:20',
             'address' => 'required|string|max:255',
             'city' => 'required|string|max:255',
             'state' => 'required|string|max:255',
-            'credit_limit' => 'sometimes|numeric|min:0',
-            'balance' => 'sometimes|numeric',
-            'status' => 'sometimes|in:active,inactive,blocked',
+            'credit_limit' => 'nullable|numeric|min:0',
+            'balance' => 'nullable|numeric|min:0',
+            'status' => 'nullable|in:active,inactive,blocked',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        $client = Client::create(array_merge($validated, [
+            'credit_limit' => $validated['credit_limit'] ?? 0,
+            'balance' => $validated['balance'] ?? 0,
+            'status' => $validated['status'] ?? 'active',
+        ]));
 
-        $data = $validator->validated();
-        $data['credit_limit'] = $data['credit_limit'] ?? 0;
-        $data['balance'] = $data['balance'] ?? 0;
-        $data['status'] = $data['status'] ?? 'active';
-
-        $client = Client::create($data);
         return response()->json($client, 201);
     }
 
-    public function show(Client $client)
+    public function show(Client $client): JsonResponse
     {
         return response()->json($client);
     }
 
-    public function update(Request $request, Client $client)
+    public function update(Request $request, Client $client): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'code' => 'sometimes|required|string|max:255|unique:clients,code,' . $client->id,
             'name' => 'sometimes|required|string|max:255',
             'rfc' => 'nullable|string|max:13',
             'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:20',
             'address' => 'sometimes|required|string|max:255',
             'city' => 'sometimes|required|string|max:255',
             'state' => 'sometimes|required|string|max:255',
-            'credit_limit' => 'sometimes|numeric|min:0',
-            'balance' => 'sometimes|numeric',
-            'status' => 'sometimes|in:active,inactive,blocked',
+            'credit_limit' => 'nullable|numeric|min:0',
+            'balance' => 'nullable|numeric|min:0',
+            'status' => 'nullable|in:active,inactive,blocked',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        $client->update($validated);
 
-        $client->update($validator->validated());
         return response()->json($client);
     }
 
-    public function destroy(Client $client)
+    public function destroy(Client $client): JsonResponse
     {
+        if ($client->sales()->exists() || $client->quotes()->exists()) {
+            return response()->json([
+                'message' => 'No se puede eliminar el cliente porque tiene ventas o cotizaciones asociadas',
+            ], 422);
+        }
+
         $client->delete();
+
         return response()->json(null, 204);
     }
 }

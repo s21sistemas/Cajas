@@ -17,7 +17,7 @@ class MaintenanceOrderController extends Controller implements HasMiddleware
         return [
             new Middleware(
                 PermissionMiddleware::using('maintenanceorders.view'),
-                only: ['index', 'show']
+                only: ['index', 'show', 'stats', 'upcoming', 'byMachine']
             ),
 
             new Middleware(
@@ -27,7 +27,7 @@ class MaintenanceOrderController extends Controller implements HasMiddleware
 
             new Middleware(
                 PermissionMiddleware::using('maintenanceorders.edit'),
-                only: ['update']
+                only: ['update', 'start', 'complete']
             ),
 
             new Middleware(
@@ -47,7 +47,7 @@ class MaintenanceOrderController extends Controller implements HasMiddleware
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'code' => 'required|string|max:255|unique:maintenance_orders,code',
+            'code' => 'sometimes|string|max:255|unique:maintenance_orders,code',
             'machine_id' => 'required|exists:machines,id',
             'type' => 'required|in:preventive,corrective,predictive,emergency',
             'priority' => 'sometimes|in:low,medium,high,critical',
@@ -70,6 +70,11 @@ class MaintenanceOrderController extends Controller implements HasMiddleware
 
         $data = $validator->validated();
 
+        // Generar código automáticamente si no se proporciona
+        if (!isset($data['code'])) {
+            $data['code'] = 'MTO-' . date('Ymd') . '-' . str_pad(MaintenanceOrder::whereDate('created_at', today())->count() + 1, 4, '0', STR_PAD_LEFT);
+        }
+
         $machine = Machine::findOrFail($data['machine_id']);
         $data['machine_name'] = $machine->name;
         $data['priority'] = $data['priority'] ?? 'medium';
@@ -91,6 +96,7 @@ class MaintenanceOrderController extends Controller implements HasMiddleware
     public function update(Request $request, MaintenanceOrder $maintenanceOrder)
     {
         $validator = Validator::make($request->all(), [
+            'machine_id' => 'sometimes|exists:machines,id',
             'type' => 'sometimes|in:preventive,corrective,predictive,emergency',
             'priority' => 'sometimes|in:low,medium,high,critical',
             'status' => 'sometimes|in:scheduled,in-progress,completed,cancelled',
@@ -110,7 +116,15 @@ class MaintenanceOrderController extends Controller implements HasMiddleware
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $maintenanceOrder->update($validator->validated());
+        $data = $validator->validated();
+
+        // Si machine_id cambió, actualizar machine_name
+        if (isset($data['machine_id'])) {
+            $machine = Machine::findOrFail($data['machine_id']);
+            $data['machine_name'] = $machine->name;
+        }
+
+        $maintenanceOrder->update($data);
         return response()->json($maintenanceOrder->load('machine'));
     }
 
@@ -118,5 +132,94 @@ class MaintenanceOrderController extends Controller implements HasMiddleware
     {
         $maintenanceOrder->delete();
         return response()->json(null, 204);
+    }
+
+    /**
+     * Start maintenance order.
+     */
+    public function start(Request $request, MaintenanceOrder $maintenanceOrder)
+    {
+        $maintenanceOrder->update([
+            'status' => 'in-progress',
+            'start_date' => now(),
+        ]);
+
+        // Actualizar estado de la máquina
+        $machine = $maintenanceOrder->machine;
+        $machine->update(['status' => 'maintenance']);
+
+        return response()->json($maintenanceOrder->load('machine'));
+    }
+
+    /**
+     * Complete maintenance order.
+     */
+    public function complete(Request $request, MaintenanceOrder $maintenanceOrder)
+    {
+        $data = $request->validate([
+            'actual_hours' => 'sometimes|numeric|min:0',
+            'actual_cost' => 'sometimes|numeric|min:0',
+            'notes' => 'nullable|string',
+        ]);
+
+        $maintenanceOrder->update(array_merge($data, [
+            'status' => 'completed',
+            'end_date' => now(),
+        ]));
+
+        // Actualizar estado de la máquina
+        $machine = $maintenanceOrder->machine;
+        $machine->update(['status' => 'available']);
+
+        return response()->json($maintenanceOrder->load('machine'));
+    }
+
+    /**
+     * Get maintenance order statistics.
+     */
+    public function stats()
+    {
+        $orders = MaintenanceOrder::all();
+
+        return response()->json([
+            'total' => $orders->count(),
+            'pending' => $orders->where('status', 'scheduled')->count(),
+            'inProgress' => $orders->where('status', 'in-progress')->count(),
+            'completed' => $orders->where('status', 'completed')->count(),
+            'overdue' => $orders->where('status', 'scheduled')
+                ->where('scheduled_date', '<', now())
+                ->count(),
+            'totalCost' => $orders->sum('actual_cost') ?: $orders->sum('estimated_cost'),
+        ]);
+    }
+
+    /**
+     * Get upcoming maintenance orders.
+     */
+    public function upcoming(Request $request)
+    {
+        $days = $request->integer('days', 7);
+
+        $orders = MaintenanceOrder::with('machine')
+            ->where('status', 'scheduled')
+            ->where('scheduled_date', '>=', now())
+            ->where('scheduled_date', '<=', now()->addDays($days))
+            ->orderBy('scheduled_date')
+            ->get();
+
+        return response()->json($orders);
+    }
+
+    /**
+     * Get maintenance orders by machine.
+     */
+    public function byMachine(Machine $machine)
+    {
+        $orders = MaintenanceOrder::with('machine')
+            ->where('machine_id', $machine->id)
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json($orders);
     }
 }

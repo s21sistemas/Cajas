@@ -17,7 +17,7 @@ class ServiceOrderController extends Controller implements HasMiddleware
         return [
             new Middleware(
                 PermissionMiddleware::using('serviceorders.view'),
-                only: ['index', 'show']
+                only: ['index', 'show', 'stats']
             ),
 
             new Middleware(
@@ -27,7 +27,7 @@ class ServiceOrderController extends Controller implements HasMiddleware
 
             new Middleware(
                 PermissionMiddleware::using('serviceorders.edit'),
-                only: ['update']
+                only: ['update', 'updateStatus']
             ),
 
             new Middleware(
@@ -113,5 +113,41 @@ class ServiceOrderController extends Controller implements HasMiddleware
     {
         $serviceOrder->delete();
         return response()->json(null, 204);
+    }
+
+    /**
+     * Update service order status.
+     */
+    public function updateStatus(Request $request, ServiceOrder $serviceOrder)
+    {
+        $data = $request->validate([
+            'status' => 'required|string|in:pending,scheduled,in_progress,completed,cancelled',
+        ]);
+
+        $serviceOrder->update($data);
+
+        // Actualizar fecha de completado si aplica
+        if ($data['status'] === 'completed') {
+            $serviceOrder->update(['completed_date' => now()]);
+        }
+
+        return response()->json($serviceOrder->load('client'));
+    }
+
+    /**
+     * Get service order statistics.
+     */
+    public function stats()
+    {
+        $orders = ServiceOrder::all();
+
+        return response()->json([
+            'total' => $orders->count(),
+            'pending' => $orders->where('status', 'pending')->count(),
+            'scheduled' => $orders->where('status', 'scheduled')->count(),
+            'inProgress' => $orders->where('status', 'in_progress')->count(),
+            'completed' => $orders->where('status', 'completed')->count(),
+            'cancelled' => $orders->where('status', 'cancelled')->count(),
+        ]);
     }
 }

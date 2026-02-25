@@ -16,10 +16,19 @@ return new class extends Migration
             $table->string('code')->unique();
             $table->string('name');
             $table->text('description')->nullable();
+            $table->string('category')->nullable();
+            $table->decimal('price', 10, 2)->nullable();
+            $table->decimal('cost', 10, 2)->nullable();
+            $table->string('unit')->nullable();
+            $table->integer('stock')->default(0);
+            $table->integer('min_stock')->default(0);
             $table->enum('status', [
                 'diseño',
                 'en_producción',
-                'completado'
+                'completado',
+                'active',
+                'inactive',
+                'discontinued'
             ])->default('diseño');
             $table->timestamps();
         });

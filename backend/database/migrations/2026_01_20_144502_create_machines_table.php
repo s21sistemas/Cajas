@@ -16,7 +16,10 @@ return new class extends Migration
             $table->string('code')->unique();
             $table->string('name');
             $table->string('type'); // lathe, milling, cnc...
-            $table->unsignedTinyInteger('axes');
+            $table->unsignedTinyInteger('axes')->nullable();
+            $table->string('brand')->nullable();
+            $table->string('model')->nullable();
+            $table->string('location')->nullable();
             $table->string('status')->default('available');
             $table->text('notes')->nullable();
             $table->timestamps();

@@ -13,10 +13,12 @@ class InventoryItem extends Model
         'code',
         'name',
         'category',
+        'warehouse',
         'quantity',
         'min_stock',
         'max_stock',
         'unit_cost',
+        'unit',
         'location',
         'last_movement',
     ];

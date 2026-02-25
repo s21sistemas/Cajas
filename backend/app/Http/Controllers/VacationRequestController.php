@@ -107,4 +107,53 @@ class VacationRequestController extends Controller implements HasMiddleware
         $vacationRequest->delete();
         return response()->json(null, 204);
     }
+
+    /**
+     * Approve vacation request.
+     */
+    public function approve(Request $request, VacationRequest $vacationRequest)
+    {
+        $validator = Validator::make($request->all(), [
+            'approved_by' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $data = $validator->validated();
+        $data['status'] = 'approved';
+        
+        $vacationRequest->update($data);
+        return response()->json($vacationRequest->load('employee'));
+    }
+
+    /**
+     * Reject vacation request.
+     */
+    public function reject(Request $request, VacationRequest $vacationRequest)
+    {
+        $validator = Validator::make($request->all(), [
+            'reason' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $data = $validator->validated();
+        $data['status'] = 'rejected';
+        
+        $vacationRequest->update($data);
+        return response()->json($vacationRequest->load('employee'));
+    }
+
+    /**
+     * Mark vacation as taken.
+     */
+    public function taken(Request $request, VacationRequest $vacationRequest)
+    {
+        $vacationRequest->update(['status' => 'taken']);
+        return response()->json($vacationRequest->load('employee'));
+    }
 }

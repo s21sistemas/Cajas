@@ -39,6 +39,7 @@ class UserController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
+        $perPage = 100;
         $users = User::query()
             ->with(['roles', 'permissions'])
             ->paginate($perPage)
@@ -68,7 +69,7 @@ class UserController extends Controller implements HasMiddleware
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:6',
-            'role_id' => 'required|exists:roles,id',
+            'role_id' => 'nullable|exists:roles,id',
             'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
@@ -85,11 +86,11 @@ class UserController extends Controller implements HasMiddleware
             'password' => $data['password'],
         ]);
 
-        // Buscar rol correctamente
-        $role = Role::findById($data['role_id'], 'web');
-
-        // Asignar rol con Spatie
-        $user->syncRoles([$role]);
+        // Asignar rol si se proporcionó
+        if (!empty($data['role_id'])) {
+            $role = Role::findById($data['role_id'], 'web');
+            $user->syncRoles([$role]);
+        }
 
         // Retornar usuario con roles cargados
         return $user->load('roles');
@@ -111,7 +112,7 @@ class UserController extends Controller implements HasMiddleware
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $user->id,
             'password' => 'nullable|min:6',
-            'role_id' => 'required|exists:roles,id',
+            'role_id' => 'nullable|exists:roles,id',
             'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
@@ -130,9 +131,11 @@ class UserController extends Controller implements HasMiddleware
 
         $user->update($data);
 
-        $role = Role::findById($data['role_id'], 'web');
-
-        $user->syncRoles([$role]);
+        // Actualizar rol si se proporcionó
+        if (!empty($data['role_id'])) {
+            $role = Role::findById($data['role_id'], 'web');
+            $user->syncRoles([$role]);
+        }
 
         return $user->load('roles');
     }

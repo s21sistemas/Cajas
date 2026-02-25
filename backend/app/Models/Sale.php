@@ -13,6 +13,7 @@ class Sale extends Model
         'invoice',
         'client_id',
         'client_name',
+        'quote_id',
         'quote_ref',
         'items',
         'subtotal',
@@ -36,5 +37,10 @@ class Sale extends Model
     public function client()
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function quote()
+    {
+        return $this->belongsTo(Quote::class);
     }
 }

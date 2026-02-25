@@ -14,8 +14,9 @@ class Quote extends Model
         'client_id',
         'client_name',
         'title',
-        'items',
+        'items_count',
         'subtotal',
+        'tax_percentage',
         'tax',
         'total',
         'status',
@@ -24,8 +25,9 @@ class Quote extends Model
     ];
 
     protected $casts = [
-        'items' => 'integer',
+        'items_count' => 'integer',
         'subtotal' => 'decimal:2',
+        'tax_percentage' => 'decimal:2',
         'tax' => 'decimal:2',
         'total' => 'decimal:2',
         'valid_until' => 'date',
@@ -34,5 +36,15 @@ class Quote extends Model
     public function client()
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function items()
+    {
+        return $this->hasMany(QuoteItem::class);
+    }
+
+    public function sale()
+    {
+        return $this->hasOne(Sale::class);
     }
 }

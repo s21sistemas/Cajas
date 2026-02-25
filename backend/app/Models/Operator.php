@@ -3,19 +3,25 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Operator extends Model
 {
+    use HasFactory;
     protected $fillable = [
         'employee_code',
         'name',
         'shift',
         'specialty',
         'active',
+        'phone',
+        'email',
+        'hire_date',
     ];
 
     protected $casts = [
         'active' => 'boolean',
+        'hire_date' => 'date',
     ];
 
     public function productions()

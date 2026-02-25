@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\Role;
+use App\Models\Permission;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -34,7 +36,13 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'user' => $user,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'roles' => $user->getRoleNames()->toArray(),
+                'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
+            ],
             'token' => $user->createToken('api')->plainTextToken,
         ], 201);
     }
@@ -53,14 +61,28 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'user' => $user,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'roles' => $user->getRoleNames()->toArray(),
+                'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
+            ],
             'token' => $user->createToken('api')->plainTextToken,
         ]);
     }
 
     public function get_user(Request $request)
     {
-        return $request->user();
+        $user = $request->user();
+        
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'roles' => $user->getRoleNames()->toArray(),
+            'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
+        ]);
     }
 
     public function logout(Request $request)

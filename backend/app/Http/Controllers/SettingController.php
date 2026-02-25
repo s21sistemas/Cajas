@@ -59,10 +59,16 @@ class SettingController extends Controller implements HasMiddleware
             $group = $settings->where('module', $module);
             $data = [];
             foreach ($group as $setting) {
-                // value es JSON, puede ser escalar o compuesto. Convierte.
-                $data[$setting->key] = is_string($setting->value)
-                    ? json_decode($setting->value, true)
-                    : $setting->value;
+                // value puede ser JSON o string escalar. Intenta decodificar como JSON,
+                // si falla devuelve el string original
+                if (is_string($setting->value)) {
+                    $decoded = json_decode($setting->value, true);
+                    $data[$setting->key] = ($decoded !== null || json_last_error() === JSON_ERROR_NONE) 
+                        ? $decoded 
+                        : $setting->value;
+                } else {
+                    $data[$setting->key] = $setting->value;
+                }
             }
             $result[$module] = $data;
         }
@@ -86,9 +92,16 @@ class SettingController extends Controller implements HasMiddleware
 
         $data = [];
         foreach ($settings as $setting) {
-            $data[$setting->key] = is_string($setting->value)
-                ? json_decode($setting->value, true)
-                : $setting->value;
+            // value puede ser JSON o string escalar. Intenta decodificar como JSON,
+            // si falla devuelve el string original
+            if (is_string($setting->value)) {
+                $decoded = json_decode($setting->value, true);
+                $data[$setting->key] = ($decoded !== null || json_last_error() === JSON_ERROR_NONE) 
+                    ? $decoded 
+                    : $setting->value;
+            } else {
+                $data[$setting->key] = $setting->value;
+            }
         }
 
         return response()->json([
@@ -133,11 +146,14 @@ class SettingController extends Controller implements HasMiddleware
             ]);
         }
 
+        $decoded = json_decode($payload, true);
+        $value = json_last_error() === JSON_ERROR_NONE ? $decoded : $payload;
+
         return response()->json([
             'message' => 'Setting guardado correctamente.',
             'module' => $module,
             'key' => $key,
-            'value' => json_decode($payload, true)
+            'value' => $value
         ]);
     }
 

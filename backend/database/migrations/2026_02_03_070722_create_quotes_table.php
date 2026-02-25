@@ -8,6 +8,10 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
+     * 
+     * Tabla consolidada de quotes:
+     * - Estructura base (2026_02_03_070722)
+     * - items renombrado a items_count (2026_02_15_230240)
      */
     public function up(): void
     {
@@ -20,9 +24,11 @@ return new class extends Migration
 
             $table->string('title');
 
-            $table->unsignedInteger('items')->default(0);
+            // Columna rename: items -> items_count
+            $table->unsignedInteger('items_count')->default(0);
 
             $table->decimal('subtotal', 15, 2)->default(0);
+            $table->decimal('tax_percentage', 5, 2)->default(16)->comment('Porcentaje de IVA');
             $table->decimal('tax', 15, 2)->default(0);
             $table->decimal('total', 15, 2)->default(0);
 

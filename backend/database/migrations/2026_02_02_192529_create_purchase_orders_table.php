@@ -21,6 +21,9 @@ return new class extends Migration
             // número total de ítems (no el detalle)
             $table->integer('items')->default(0);
 
+            $table->decimal('subtotal', 14, 2)->default(0)->comment('Subtotal sin IVA');
+            $table->decimal('iva_percentage', 5, 2)->default(16)->comment('Porcentaje de IVA');
+            $table->decimal('iva', 14, 2)->default(0)->comment('Monto del IVA');
             $table->decimal('total', 14, 2)->default(0);
 
             $table->enum('status', [

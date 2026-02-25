@@ -105,4 +105,38 @@ class OvertimeController extends Controller implements HasMiddleware
         $overtime->delete();
         return response()->json(null, 204);
     }
+
+    /**
+     * Approve overtime record.
+     */
+    public function approve(Request $request, Overtime $overtime)
+    {
+        $validator = Validator::make($request->all(), [
+            'status' => 'sometimes|in:pending,approved,paid',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $overtime->update(['status' => 'approved']);
+        return response()->json($overtime->load('employee'));
+    }
+
+    /**
+     * Mark overtime as paid.
+     */
+    public function pay(Request $request, Overtime $overtime)
+    {
+        $validator = Validator::make($request->all(), [
+            'status' => 'sometimes|in:pending,approved,paid',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $overtime->update(['status' => 'paid']);
+        return response()->json($overtime->load('employee'));
+    }
 }

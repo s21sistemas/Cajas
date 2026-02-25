@@ -3,39 +3,26 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Process extends Model
 {
+    use HasFactory;
+    
     protected $fillable = [
-        'part_id',
-        'machine_id',
+        'code',
+        'name',
         'process_type',
         'description',
-        'sequence',
+        'requires_machine',
         'estimated_time_min',
         'status',
-        'order_index',
     ];
 
     protected $casts = [
-        'sequence' => 'integer',
+        'requires_machine' => 'boolean',
         'estimated_time_min' => 'decimal:2',
     ];
-
-    public function part()
-    {
-        return $this->belongsTo(Part::class);
-    }
-
-    public function machine()
-    {
-        return $this->belongsTo(Machine::class);
-    }
-
-    public function cncPrograms()
-    {
-        return $this->hasMany(CncProgram::class);
-    }
 
     public function productions()
     {

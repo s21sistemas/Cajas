@@ -23,6 +23,7 @@ return new class extends Migration
 
             $table->string('address');
             $table->string('city');
+            $table->string('state')->nullable();
 
             $table->string('contact');
 

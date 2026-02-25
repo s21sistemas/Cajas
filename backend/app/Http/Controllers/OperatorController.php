@@ -38,9 +38,41 @@ class OperatorController extends Controller implements HasMiddleware
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Operator::all());
+        $perPage = $request->input('per_page', 10);
+        $search = $request->input('search');
+        
+        $query = Operator::query();
+        
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('employee_code', 'like', "%{$search}%")
+                  ->orWhere('shift', 'like', "%{$search}%")
+                  ->orWhere('specialty', 'like', "%{$search}%");
+            });
+        }
+        
+        $operators = $query->paginate($perPage);
+        
+        return response()->json($operators);
+    }
+
+    /**
+     * Display operator statistics.
+     */
+    public function stats()
+    {
+        $total = Operator::count();
+        $active = Operator::where('active', true)->count();
+        $inactive = Operator::where('active', false)->count();
+        
+        return response()->json([
+            'total' => $total,
+            'active' => $active,
+            'inactive' => $inactive,
+        ]);
     }
 
     /**
@@ -54,6 +86,9 @@ class OperatorController extends Controller implements HasMiddleware
             'shift' => 'nullable|string|max:255',
             'specialty' => 'nullable|string|max:255',
             'active' => 'sometimes|boolean',
+            'phone' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'hire_date' => 'nullable|date',
         ]);
 
         $operator = Operator::create($data);
@@ -80,6 +115,9 @@ class OperatorController extends Controller implements HasMiddleware
             'shift' => 'nullable|string|max:255',
             'specialty' => 'nullable|string|max:255',
             'active' => 'sometimes|boolean',
+            'phone' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'hire_date' => 'nullable|date',
         ]);
 
         $operator->update($data);

@@ -16,7 +16,7 @@ class WarehouseLocationController extends Controller implements HasMiddleware
         return [
             new Middleware(
                 PermissionMiddleware::using('warehouselocations.view'),
-                only: ['index', 'show']
+                only: ['index', 'show', 'stats', 'occupancy', 'available']
             ),
 
             new Middleware(
@@ -39,8 +39,17 @@ class WarehouseLocationController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $perPage = $request->integer('per_page', 15);
-        $items = WarehouseLocation::orderBy('name')->paginate($perPage);
-        return response()->json($items);
+        $query = WarehouseLocation::orderBy('name');
+
+        if ($request->has('zone') && $request->zone) {
+            $query->where('zone', $request->zone);
+        }
+
+        if ($request->has('type') && $request->type) {
+            $query->where('type', $request->type);
+        }
+
+        return response()->json($query->paginate($perPage));
     }
 
     public function store(Request $request)
@@ -92,5 +101,56 @@ class WarehouseLocationController extends Controller implements HasMiddleware
     {
         $warehouseLocation->delete();
         return response()->json(null, 204);
+    }
+
+    /**
+     * Get warehouse statistics.
+     */
+    public function stats()
+    {
+        $locations = WarehouseLocation::all();
+
+        $byZone = $locations->groupBy('zone')->map(function ($items) {
+            return [
+                'capacity' => $items->sum('capacity'),
+                'occupancy' => $items->sum('occupancy'),
+            ];
+        });
+
+        return response()->json([
+            'total' => $locations->count(),
+            'totalCapacity' => $locations->sum('capacity'),
+            'totalOccupancy' => $locations->sum('occupancy'),
+            'averageOccupancy' => $locations->avg(fn($l) => $l->capacity > 0 ? ($l->occupancy / $l->capacity) * 100 : 0),
+            'byZone' => $byZone,
+        ]);
+    }
+
+    /**
+     * Get occupancy details for a location.
+     */
+    public function occupancy(WarehouseLocation $warehouseLocation)
+    {
+        $occupancyPercent = $warehouseLocation->capacity > 0
+            ? ($warehouseLocation->occupancy / $warehouseLocation->capacity) * 100
+            : 0;
+
+        return response()->json([
+            'location' => $warehouseLocation,
+            'occupancyPercent' => round($occupancyPercent, 2),
+            'available' => max(0, $warehouseLocation->capacity - $warehouseLocation->occupancy),
+        ]);
+    }
+
+    /**
+     * Get available locations with capacity.
+     */
+    public function available()
+    {
+        $locations = WarehouseLocation::whereColumn('occupancy', '<', 'capacity')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json($locations);
     }
 }

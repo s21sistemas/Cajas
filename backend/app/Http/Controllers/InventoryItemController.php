@@ -16,7 +16,7 @@ class InventoryItemController extends Controller implements HasMiddleware
         return [
             new Middleware(
                 PermissionMiddleware::using('inventoryitems.view'),
-                only: ['index', 'show']
+                only: ['index', 'show', 'stats', 'lowStock', 'byCategory', 'byLocation']
             ),
 
             new Middleware(
@@ -26,7 +26,7 @@ class InventoryItemController extends Controller implements HasMiddleware
 
             new Middleware(
                 PermissionMiddleware::using('inventoryitems.edit'),
-                only: ['update']
+                only: ['update', 'updateQuantity']
             ),
 
             new Middleware(
@@ -39,8 +39,21 @@ class InventoryItemController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $perPage = $request->integer('per_page', 15);
-        $items = InventoryItem::orderBy('code')->paginate($perPage);
-        return response()->json($items);
+        $query = InventoryItem::orderBy('code');
+
+        if ($request->has('category') && $request->category && $request->category !== 'all') {
+            $query->where('category', $request->category);
+        }
+
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%");
+            });
+        }
+
+        return response()->json($query->paginate($perPage));
     }
 
     public function store(Request $request)
@@ -99,5 +112,76 @@ class InventoryItemController extends Controller implements HasMiddleware
     {
         $inventoryItem->delete();
         return response()->json(null, 204);
+    }
+
+    /**
+     * Get inventory statistics.
+     */
+    public function stats()
+    {
+        $items = InventoryItem::all();
+
+        $byCategory = $items->groupBy('category')->map->count();
+
+        return response()->json([
+            'total' => $items->count(),
+            'totalValue' => $items->sum(fn($i) => $i->quantity * $i->unit_cost),
+            'lowStock' => $items->where('quantity', '>', 0)->where('quantity', '<=', fn($q) => $q->min_stock)->count(),
+            'outOfStock' => $items->where('quantity', 0)->count(),
+            'byCategory' => $byCategory,
+        ]);
+    }
+
+    /**
+     * Get items with low stock.
+     */
+    public function lowStock()
+    {
+        $items = InventoryItem::where('quantity', '>', 0)
+            ->whereColumn('quantity', '<=', 'min_stock')
+            ->orderBy('quantity')
+            ->get();
+
+        return response()->json($items);
+    }
+
+    /**
+     * Get items by category.
+     */
+    public function byCategory(Request $request)
+    {
+        $category = $request->get('category');
+        $items = InventoryItem::where('category', $category)->orderBy('name')->get();
+
+        return response()->json($items);
+    }
+
+    /**
+     * Get items by location.
+     */
+    public function byLocation(Request $request)
+    {
+        $locationId = $request->get('location_id');
+        $items = InventoryItem::where('location', 'like', "%{$locationId}%")->orderBy('name')->get();
+
+        return response()->json($items);
+    }
+
+    /**
+     * Update item quantity.
+     */
+    public function updateQuantity(Request $request, InventoryItem $inventoryItem)
+    {
+        $data = $request->validate([
+            'quantity' => 'required|numeric',
+            'reason' => 'nullable|string|max:255',
+        ]);
+
+        $inventoryItem->update([
+            'quantity' => $data['quantity'],
+            'last_movement' => now(),
+        ]);
+
+        return response()->json($inventoryItem);
     }
 }
