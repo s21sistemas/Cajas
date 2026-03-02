@@ -30,6 +30,7 @@ function ProcesosPageInner() {
   const [editingProcess, setEditingProcess] = useState<Process | null>(null);
   const [deletingProcess, setDeletingProcess] = useState<Process | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string[]>>({});
   const [stats, setStats] = useState<ProcessStats>({
     total: 0,
     active: 0,
@@ -128,6 +129,7 @@ function ProcesosPageInner() {
 
   const handleSubmit = async (data: CreateProcessDto) => {
     setSubmitting(true);
+    setFormErrors({});
     try {
       if (editingProcess) {
         await processesService.update(Number(editingProcess.id), data);
@@ -141,8 +143,15 @@ function ProcesosPageInner() {
       fetchProcesses(search, currentPage);
       fetchStats();
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
-      showToast("error", "Error", errorMessage);
+      const errors = error?.errors;
+      if (errors) {
+        setFormErrors(errors);
+        const errorMessages = Object.entries(errors).map(([field, msgs]: [string, any]) => `${field}: ${msgs.join(', ')}`);
+        showToast("error", "Error de validación", errorMessages.join('\n'));
+      } else {
+        const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+        showToast("error", "Error", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -237,10 +246,11 @@ function ProcesosPageInner() {
 
       <ProcessFormDialog
         open={modalOpen}
-        onOpenChange={(open) => { setModalOpen(open); if (!open) setEditingProcess(null); }}
+        onOpenChange={(open) => { setModalOpen(open); if (!open) { setEditingProcess(null); setFormErrors({}); } }}
         editingProcess={editingProcess}
         onSubmit={handleSubmit}
         loading={submitting}
+        errors={formErrors}
       />
 
       <ConfirmDialog

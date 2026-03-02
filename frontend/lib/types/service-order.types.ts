@@ -118,37 +118,38 @@ export interface QuoteFilters extends BaseFilters, DateRangeFilter {
 }
 
 // Sale types
-export type SaleStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled';
+export type SaleStatus = 'pending' | 'paid' | 'overdue' | 'cancelled';
+export type PaymentType = 'cash' | 'credit';
 
 export interface Sale extends BaseEntity {
-  invoice: string;
+  code: string;
   clientId: number;
   clientName: string;
   quoteRef: string | null;
   quoteId: number | null;
-  items: string | null;
-  subtotal: number | null;
-  tax: number | null;
-  total: number | null;
-  paid: number | null;
+  items: number;
+  subtotal: number;
+  taxRate: number;
+  tax: number;
+  total: number;
   status: SaleStatus;
-  paymentMethod: string | null;
-  dueDate: string | null;
+  paymentType: PaymentType;
+  creditDays: string | null;
 }
 
 export interface CreateSaleDto {
-  invoice: string;
+  code: string;
   clientId: number;
   quoteRef?: string;
   quoteId?: number;
-  items?: string;
+  items?: number;
   subtotal: number;
+  taxRate?: number;
   tax: number;
   total: number;
-  paid?: number;
   status?: SaleStatus;
-  paymentMethod: string;
-  dueDate?: string;
+  paymentType?: PaymentType;
+  creditDays?: string;
 }
 
 export interface UpdateSaleDto extends Partial<CreateSaleDto> {}

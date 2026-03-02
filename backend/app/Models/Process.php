@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Process extends Model
 {
@@ -12,7 +13,7 @@ class Process extends Model
     protected $fillable = [
         'code',
         'name',
-        'process_type',
+        'process_type_id',
         'description',
         'requires_machine',
         'estimated_time_min',
@@ -24,13 +25,13 @@ class Process extends Model
         'estimated_time_min' => 'decimal:2',
     ];
 
+    public function processType(): BelongsTo
+    {
+        return $this->belongsTo(ProcessType::class);
+    }
+
     public function productions()
     {
         return $this->hasMany(Production::class);
-    }
-
-    public function workOrderProcesses()
-    {
-        return $this->hasMany(WorkOrderProcess::class);
     }
 }

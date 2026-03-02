@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Laravel\Sanctum\HasApiTokens;
 
 class Operator extends Model
 {
-    use HasFactory;
+    use HasFactory, HasApiTokens;
     protected $fillable = [
         'employee_code',
         'name',

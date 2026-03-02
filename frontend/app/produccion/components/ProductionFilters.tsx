@@ -15,6 +15,13 @@ interface ProductionFiltersProps {
   filterStatus: string;
   onFilterStatusChange: (status: string) => void;
   onCreateClick: () => void;
+  // Nuevos filtros
+  clients?: { id: number; name: string }[];
+  selectedClient?: string;
+  onClientChange?: (clientId: string) => void;
+  sales?: { id: number; invoice: string }[];
+  selectedSale?: string;
+  onSaleChange?: (saleId: string) => void;
 }
 
 export function ProductionFilters({
@@ -23,6 +30,12 @@ export function ProductionFilters({
   filterStatus,
   onFilterStatusChange,
   onCreateClick,
+  clients = [],
+  selectedClient,
+  onClientChange,
+  sales = [],
+  selectedSale,
+  onSaleChange,
 }: ProductionFiltersProps) {
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -35,23 +48,58 @@ export function ProductionFilters({
           className="pl-9 bg-secondary border-border text-foreground"
         />
       </div>
-      <Select value={filterStatus} onValueChange={onFilterStatusChange}>
-        <SelectTrigger className="w-40 bg-secondary border-border">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todos los estados</SelectItem>
-          <SelectItem value="pending">Pendiente</SelectItem>
-          <SelectItem value="in_progress">En Proceso</SelectItem>
-          <SelectItem value="paused">Pausado</SelectItem>
-          <SelectItem value="completed">Completado</SelectItem>
-          <SelectItem value="cancelled">Cancelado</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button onClick={onCreateClick} className="bg-primary text-primary-foreground">
-        <Plus className="h-4 w-4 mr-2" />
-        Nueva Orden
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Filtro por Cliente */}
+        {clients.length > 0 && onClientChange && (
+          <Select value={selectedClient} onValueChange={onClientChange}>
+            <SelectTrigger className="w-40 bg-secondary border-border">
+              <SelectValue placeholder="Todos los clientes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los clientes</SelectItem>
+              {clients.map((client) => (
+                <SelectItem key={client.id} value={client.id.toString()}>
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {/* Filtro por Venta */}
+        {sales.length > 0 && onSaleChange && (
+          <Select value={selectedSale} onValueChange={onSaleChange}>
+            <SelectTrigger className="w-40 bg-secondary border-border">
+              <SelectValue placeholder="Todas las ventas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las ventas</SelectItem>
+              {sales.map((sale) => (
+                <SelectItem key={sale.id} value={sale.id.toString()}>
+                  {sale.code}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {/* Filtro por Status */}
+        <Select value={filterStatus} onValueChange={onFilterStatusChange}>
+          <SelectTrigger className="w-40 bg-secondary border-border">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="pending">Pendiente</SelectItem>
+            <SelectItem value="in_progress">En Proceso</SelectItem>
+            <SelectItem value="paused">Pausado</SelectItem>
+            <SelectItem value="completed">Completado</SelectItem>
+            <SelectItem value="cancelled">Cancelado</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button onClick={onCreateClick} className="bg-primary text-primary-foreground">
+          <Plus className="h-4 w-4 mr-2" />
+          Nueva Orden
+        </Button>
+      </div>
     </div>
   );
 }

@@ -1,238 +1,209 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ERPLayout } from "@/components/erp/erp-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Search,
-  Download,
-  FileText,
-  DollarSign,
-  AlertTriangle,
-  CheckCircle,
-} from "lucide-react";
-import { useApiQuery } from "@/hooks/use-api-query";
-import { serviceOrdersService } from "@/lib/services";
-import type { AccountStatement } from "@/lib/types/client.types";
-import type { PaginatedResponse } from "@/lib/types/api.types";
+import { Download } from "lucide-react";
+import { accountStatementsService, type AccountStatement } from "@/lib/services/account-statements.service";
+import { clientsService } from "@/lib/services";
+import { ClientAccountStatsCards } from "./components/ClientAccountStatsCards";
+import { ClientAccountTable } from "./components/ClientAccountTable";
+
+interface ClientStats {
+  totalInvoices: number;
+  totalReceivable: number;
+  totalOverdue: number;
+  totalPaid: number;
+}
 
 export default function ClientAccountPage() {
+  const [statements, setStatements] = useState<AccountStatement[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
 
-  const { data: statementsResponse, loading, refetch } = useApiQuery<PaginatedResponse<AccountStatement>>(
-    () => serviceOrdersService.getAccountStatements(),
-    {}
-  );
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
-  const statements = statementsResponse?.data || [];
-
-  // Get unique clients for filter
-  const clients = [...new Set(
-    statements
-      .filter((s: AccountStatement) => s.clientName)
-      .map((s: AccountStatement) => s.clientName)
-  )];
-
-  const filtered = statements.filter((s: AccountStatement) => {
-    const matchesSearch =
-      (s.invoiceNumber?.toLowerCase() || '').includes(search.toLowerCase()) ||
-      (s.clientName?.toLowerCase() || '').includes(search.toLowerCase()) ||
-      (s.concept?.toLowerCase() || '').includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || s.status === statusFilter;
-    const matchesClient = clientFilter === "all" || s.clientName === clientFilter;
-    return matchesSearch && matchesStatus && matchesClient;
+  // Stats
+  const [stats, setStats] = useState<ClientStats>({
+    totalInvoices: 0,
+    totalReceivable: 0,
+    totalOverdue: 0,
+    totalPaid: 0,
   });
 
-  const totalReceivable = statements.reduce((sum: number, s: AccountStatement) => sum + (s.balance || 0), 0);
-  const totalOverdue = statements.filter((s: AccountStatement) => s.status === "overdue").reduce((sum: number, s: AccountStatement) => sum + (s.balance || 0), 0);
-  const totalPaid = statements.reduce((sum: number, s: AccountStatement) => sum + (s.paid || 0), 0);
+  // Lista de clientes
+  const [clientsList, setClientsList] = useState<{ id: number; name: string }[]>([]);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "paid":
-        return <Badge className="bg-green-500/20 text-green-400">Pagada</Badge>;
-      case "pending":
-        return <Badge className="bg-blue-500/20 text-blue-400">Pendiente</Badge>;
-      case "overdue":
-        return <Badge className="bg-red-500/20 text-red-400">Vencida</Badge>;
-      case "partial":
-        return <Badge className="bg-yellow-500/20 text-yellow-400">Parcial</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
+  // Refs
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialMount = useRef(true);
+
+  // Función para obtener statements paginados (sin stats)
+  const fetchStatements = async (searchValue: string, page: number = 1) => {
+    setLoading(true);
+    try {
+      const params: any = { page };
+      
+      if (searchValue && searchValue.trim()) {
+        params.search = searchValue.trim();
+      }
+      
+      if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
+      
+      if (clientFilter !== 'all') {
+        params.client_id = clientFilter;
+      }
+      
+      // Obtener datos paginados
+      const response = await accountStatementsService.getAll(params);
+      
+      setStatements(response.data);
+      setCurrentPage(response.currentPage);
+      setLastPage(response.lastPage);
+      setTotalItems(response.total);
+    } catch (error) {
+      console.error("Error fetching statements:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Función para obtener estadísticas (solo se llama una vez al inicio)
+  const fetchStats = async () => {
+    try {
+      const statsResponse = await accountStatementsService.getStats();
+      console.log('Stats response:', statsResponse);
+      setStats({
+        totalInvoices: statsResponse.totalInvoices,
+        totalReceivable: statsResponse.totalReceivable,
+        totalOverdue: statsResponse.totalOverdue,
+        totalPaid: statsResponse.totalPaid,
+      });
+      console.log('After setStats, current stats state:', stats); // Agregado para debug
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  };
+
+  // Función para obtener lista de clientes
+  const fetchClients = async () => {
+    try {
+      const response = await clientsService.selectList();
+      setClientsList(response || []);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+    }
+  };
+
+  // Carga inicial - solo una vez al montar el componente
+  useEffect(() => {
+    fetchStatements("");
+    fetchStats();
+    fetchClients();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Búsqueda con debounce
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      fetchStatements(search, 1);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  // Cambio de filtros
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
+    setCurrentPage(1);
+    fetchStatements(search, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, clientFilter]);
+
+  // Cambio de página
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= lastPage) {
+      fetchStatements(search, newPage);
+    }
+  };
+
+  // Lista de clientes para filtro
+  const clientOptions = clientsList.map(c => c.name);
+
+  const formatCurrency = (value: number | null | undefined) => {
+    if (value === undefined || value === null) return '$0.00';
+    return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value);
+  };
+
   return (
-    <ERPLayout title="Estado de Cuenta" subtitle="Gestiona el estado de cuenta de clientes">
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Estado de Cuenta - Clientes</h1>
-            <p className="text-muted-foreground">
-              Consulta el estado de cuenta de tus clientes
-            </p>
-          </div>
-          <Button variant="outline" className="gap-2 bg-transparent">
-            <Download className="h-4 w-4" />
-            Exportar
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Facturas</p>
-                  <p className="text-2xl font-bold text-foreground">{statements.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/10">
-                  <DollarSign className="h-5 w-5 text-blue-400" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Por Cobrar</p>
-                  <p className="text-2xl font-bold text-foreground">${totalReceivable.toLocaleString()}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-red-500/10">
-                  <AlertTriangle className="h-5 w-5 text-red-400" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Vencido</p>
-                  <p className="text-2xl font-bold text-red-400">${totalOverdue.toLocaleString()}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-500/10">
-                  <CheckCircle className="h-5 w-5 text-green-400" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Cobrado</p>
-                  <p className="text-2xl font-bold text-green-400">${totalPaid.toLocaleString()}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-3">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <CardTitle className="text-foreground">Detalle de Movimientos</CardTitle>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative w-48">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9 bg-secondary border-border"
-                  />
-                </div>
-                <Select value={clientFilter} onValueChange={setClientFilter}>
-                  <SelectTrigger className="w-48 bg-secondary border-border">
-                    <SelectValue placeholder="Cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los clientes</SelectItem>
-                    {clients.map((c: string) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-36 bg-secondary border-border">
-                    <SelectValue placeholder="Estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="paid">Pagadas</SelectItem>
-                    <SelectItem value="pending">Pendientes</SelectItem>
-                    <SelectItem value="overdue">Vencidas</SelectItem>
-                    <SelectItem value="partial">Parciales</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+    <ProtectedRoute>
+      <ERPLayout title="Estado de Cuenta" subtitle="Clientes">
+        <div className="p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Estado de Cuenta - Clientes</h1>
+              <p className="text-muted-foreground">
+                Consulta el estado de cuenta de tus clientes
+              </p>
             </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center h-48">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border">
-                    <TableHead className="text-muted-foreground">Factura</TableHead>
-                    <TableHead className="text-muted-foreground">Cliente</TableHead>
-                    <TableHead className="text-muted-foreground">Concepto</TableHead>
-                    <TableHead className="text-muted-foreground">Fecha</TableHead>
-                    <TableHead className="text-muted-foreground">Vencimiento</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Monto</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Pagado</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Saldo</TableHead>
-                    <TableHead className="text-muted-foreground">Estado</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((statement: AccountStatement) => (
-                    <TableRow key={statement.id} className="border-border">
-                      <TableCell className="font-mono text-sm text-primary">{statement.invoiceNumber}</TableCell>
-                      <TableCell className="font-medium text-foreground">{statement.clientName}</TableCell>
-                      <TableCell className="text-muted-foreground max-w-[200px] truncate">{statement.concept}</TableCell>
-                      <TableCell className="text-muted-foreground">{statement.date}</TableCell>
-                      <TableCell className="text-muted-foreground">{statement.dueDate}</TableCell>
-                      <TableCell className="text-right text-foreground">${(statement.amount || 0).toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-green-400">${(statement.paid || 0).toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-medium text-foreground">${(statement.balance || 0).toLocaleString()}</TableCell>
-                      <TableCell>{getStatusBadge(statement.status)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </ERPLayout>
+            <Button variant="outline" className="gap-2 bg-transparent">
+              <Download className="h-4 w-4" />
+              Exportar
+            </Button>
+          </div>
+
+          <ClientAccountStatsCards
+            totalInvoices={stats.totalInvoices}
+            totalReceivable={stats.totalReceivable}
+            totalOverdue={stats.totalOverdue}
+            totalPaid={stats.totalPaid}
+            formatCurrency={formatCurrency}
+          />
+
+          <ClientAccountTable
+            items={statements as any}
+            search={search}
+            onSearchChange={setSearch}
+            loading={loading}
+            currentPage={currentPage}
+            lastPage={lastPage}
+            totalItems={totalItems}
+            onPageChange={handlePageChange}
+            clients={clientOptions}
+            clientFilter={clientFilter}
+            onClientFilterChange={setClientFilter}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+          />
+        </div>
+      </ERPLayout>
+    </ProtectedRoute>
   );
 }

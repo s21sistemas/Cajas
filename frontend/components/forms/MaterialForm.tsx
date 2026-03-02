@@ -209,6 +209,8 @@ export function MaterialForm({ material, onSuccess, onCancel }: MaterialFormProp
                     <SelectItem value="metro">Metro</SelectItem>
                     <SelectItem value="roll">Rollo</SelectItem>
                     <SelectItem value="hoja">Hoja</SelectItem>
+                    <SelectItem value="par">Par</SelectItem>
+                    <SelectItem value="litro">Litro</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

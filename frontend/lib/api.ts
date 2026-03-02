@@ -70,8 +70,12 @@ const apiClient: AxiosInstance = axios.create({
 // Request Interceptor - Add auth token and transform request data
 apiClient.interceptors.request.use(
   (config) => {
-    // Add auth token if available
-    const token = localStorage.getItem('auth_token');
+    // Add operator token if available (for operator routes)
+    const operatorToken = localStorage.getItem('operator_token');
+    const authToken = localStorage.getItem('auth_token');
+    
+    // Prefer operator token for operator routes
+    const token = operatorToken || authToken;
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -96,6 +100,12 @@ apiClient.interceptors.request.use(
 // Response Interceptor - Transform response data and handle errors
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
+    // Skip transformation for binary responses (PDF, images, etc.)
+    const contentType = response.headers['content-type'] || '';
+    if (contentType.includes('application/pdf') || contentType.includes('application/octet-stream') || contentType.includes('blob')) {
+      return response;
+    }
+    
     // Transform response data to camelCase
     if (response.data && typeof response.data === 'object') {
       response.data = transformKeys(response.data, toCamelCase);
@@ -109,13 +119,22 @@ apiClient.interceptors.response.use(
       
       // Handle 401 Unauthorized - redirect to login
       if (status === 401) {
+        // Check if it's an operator session
+        const isOperator = window.location.pathname.startsWith('/operador');
+        
         // Clear auth data
         localStorage.removeItem('auth_token');
         localStorage.removeItem('user');
+        localStorage.removeItem('operator_token');
+        localStorage.removeItem('operator_user');
         
-        // Redirect to login if not already there
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
+        // Redirect to appropriate login
+        if (typeof window !== 'undefined') {
+          if (isOperator) {
+            window.location.href = '/operador/login';
+          } else if (!window.location.pathname.includes('/login')) {
+            window.location.href = '/login';
+          }
         }
       }
       
@@ -190,6 +209,37 @@ export const authApi = {
   // Register
   register: (data: { name: string; email: string; password: string }): Promise<AuthResponse> => {
     return api.post<AuthResponse>('/register', data);
+  },
+};
+
+// Operator-specific auth methods
+export interface OperatorUser {
+  id: number;
+  employeeCode: string;
+  name: string;
+  shift: string;
+  specialty: string;
+}
+
+export interface OperatorAuthResponse {
+  operator: OperatorUser;
+  token: string;
+}
+
+export const operatorAuthApi = {
+  // Login with employee_code
+  login: (employeeCode: string): Promise<OperatorAuthResponse> => {
+    return api.post<OperatorAuthResponse>('/operator/login', { employee_code: employeeCode });
+  },
+
+  // Logout
+  logout: (): Promise<void> => {
+    return api.post('/operator/logout');
+  },
+
+  // Get current operator
+  getCurrentOperator: (): Promise<OperatorUser> => {
+    return api.get<OperatorUser>('/operator/user');
   },
 };
 

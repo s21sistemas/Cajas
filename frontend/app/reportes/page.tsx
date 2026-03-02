@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { ERPLayout } from "@/components/erp/erp-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -12,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   BarChart,
   Bar,
@@ -37,8 +40,10 @@ import {
   Package,
   DollarSign,
   Calendar,
+  Loader2,
 } from "lucide-react";
 import { api } from "@/lib/mock-data";
+import { reportsService } from "@/lib/services";
 
 const COLORS = ["#4ade80", "#60a5fa", "#fbbf24", "#f87171", "#a78bfa"];
 
@@ -52,6 +57,25 @@ export default function ReportesPage() {
   } | null>(null);
 
   const [selectedPeriod, setSelectedPeriod] = useState("month");
+
+  // Modal states
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+
+  // Filter states
+  const [filters, setFilters] = useState({
+    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
+    machine_id: '',
+    status: '',
+    product_id: '',
+    operator_id: '',
+    client_id: '',
+    type: '',
+    category: '',
+    role_id: '',
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -73,9 +97,135 @@ export default function ReportesPage() {
     fetchData();
   }, []);
 
+  // Handler functions for report generation
+  const openReportModal = (reportType: string) => {
+    setSelectedReport(reportType);
+    setModalOpen(true);
+  };
+
+  const handleGeneratePDF = async () => {
+    if (!selectedReport) return;
+    setGenerating(true);
+    try {
+      let blob: Blob | null = null;
+      const filterParams = {
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+      };
+
+      switch (selectedReport) {
+        case 'machines':
+          blob = await reportsService.downloadMachinesPDF({
+            ...filterParams,
+            machine_id: filters.machine_id || undefined,
+            status: filters.status || undefined,
+          });
+          break;
+        case 'production':
+          blob = await reportsService.downloadProductionPDF({
+            ...filterParams,
+            product_id: filters.product_id || undefined,
+            operator_id: filters.operator_id || undefined,
+            status: filters.status || undefined,
+          });
+          break;
+        case 'sales':
+          blob = await reportsService.downloadSalesPDF({
+            ...filterParams,
+            client_id: filters.client_id || undefined,
+            status: filters.status || undefined,
+          });
+          break;
+        case 'inventory':
+          blob = await reportsService.downloadInventoryPDF({
+            category: filters.category || undefined,
+          });
+          break;
+        case 'finance':
+          blob = await reportsService.downloadFinancePDF({
+            ...filterParams,
+            type: filters.type || undefined,
+            category: filters.category || undefined,
+          });
+          break;
+        case 'executive':
+          // Get executive report as JSON and show in new window
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/executive?start_date=${filters.startDate}&end_date=${filters.endDate}&format=pdf`,
+            {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              },
+            }
+          );
+          blob = await response.blob();
+          break;
+      }
+
+      if (blob) {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `reporte-${selectedReport}-${new Date().toISOString().split('T')[0]}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+      setModalOpen(false);
+    } catch (error) {
+      console.error('Error generating report:', error);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleGenerateExcel = async () => {
+    if (!selectedReport) return;
+    setGenerating(true);
+    try {
+      let blob: Blob | null = null;
+
+      switch (selectedReport) {
+        case 'machines':
+          blob = await reportsService.downloadMachinesCSV({
+            startDate: filters.startDate,
+            endDate: filters.endDate,
+            machine_id: filters.machine_id || undefined,
+            status: filters.status || undefined,
+          });
+          break;
+        // Add other report types as needed
+        default:
+          // For other reports, download as PDF and rename to .xlsx (not ideal but works)
+          blob = await reportsService.downloadMachinesPDF({
+            startDate: filters.startDate,
+            endDate: filters.endDate,
+          });
+          break;
+      }
+
+      if (blob) {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `reporte-${selectedReport}-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+      setModalOpen(false);
+    } catch (error) {
+      console.error('Error generating Excel:', error);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   if (loading || !dashboardData) {
     return (
-      <ERPLayout>
+      <ERPLayout title="Reportes">
         <div className="flex items-center justify-center h-96">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
@@ -133,7 +283,7 @@ export default function ReportesPage() {
   ];
 
   return (
-    <ERPLayout>
+    <ERPLayout title="Reportes">
       <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -553,16 +703,17 @@ export default function ReportesPage() {
           <CardContent>
             <div className="grid gap-4 md:grid-cols-3">
               {[
-                { name: "Reporte de Produccion", icon: Factory, desc: "Resumen de produccion mensual" },
-                { name: "Reporte de Inventario", icon: Package, desc: "Estado actual del almacen" },
-                { name: "Reporte de Personal", icon: Users, desc: "Metricas de recursos humanos" },
-                { name: "Reporte de Costos", icon: DollarSign, desc: "Analisis de gastos y costos" },
-                { name: "Reporte de Maquinas", icon: TrendingUp, desc: "Utilizacion y mantenimiento" },
-                { name: "Reporte Ejecutivo", icon: FileText, desc: "Resumen general para gerencia" },
+                { name: "Reporte de Produccion", icon: Factory, desc: "Resumen de produccion mensual", type: "production" },
+                { name: "Reporte de Inventario", icon: Package, desc: "Estado actual del almacen", type: "inventory" },
+                { name: "Reporte de Personal", icon: Users, desc: "Metricas de recursos humanos", type: "hr" },
+                { name: "Reporte de Costos", icon: DollarSign, desc: "Analisis de gastos y costos", type: "finance" },
+                { name: "Reporte de Maquinas", icon: TrendingUp, desc: "Utilizacion y mantenimiento", type: "machines" },
+                { name: "Reporte Ejecutivo", icon: FileText, desc: "Resumen general para gerencia", type: "executive" },
               ].map((report) => (
                 <div
                   key={report.name}
-                  className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-secondary/50 transition-colors"
+                  className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-secondary/50 transition-colors cursor-pointer"
+                  onClick={() => openReportModal(report.type)}
                 >
                   <div className="flex items-center gap-3">
                     <report.icon className="h-8 w-8 text-primary" />
@@ -571,7 +722,7 @@ export default function ReportesPage() {
                       <p className="text-xs text-muted-foreground">{report.desc}</p>
                     </div>
                   </div>
-                  <Button size="sm" variant="outline">
+                  <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openReportModal(report.type); }}>
                     <Download className="h-4 w-4" />
                   </Button>
                 </div>
@@ -580,6 +731,125 @@ export default function ReportesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Report Generation Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Generar Reporte</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* Date Range - show for most reports */}
+            {selectedReport && !['inventory'].includes(selectedReport) && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="startDate">Fecha Inicio</Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={filters.startDate}
+                    onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="endDate">Fecha Fin</Label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={filters.endDate}
+                    onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Machine filter */}
+            {selectedReport === 'machines' && (
+              <div className="grid gap-2">
+                <Label htmlFor="machine">Máquina</Label>
+                <Select
+                  value={filters.machine_id || 'all'}
+                  onValueChange={(value) => setFilters({ ...filters, machine_id: value === 'all' ? '' : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas las máquinas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las máquinas</SelectItem>
+                    <SelectItem value="1">Máquina 1</SelectItem>
+                    <SelectItem value="2">Máquina 2</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Status filter */}
+            {selectedReport && ['machines', 'production', 'sales'].includes(selectedReport) && (
+              <div className="grid gap-2">
+                <Label htmlFor="status">Estado</Label>
+                <Select
+                  value={filters.status || 'all'}
+                  onValueChange={(value) => setFilters({ ...filters, status: value === 'all' ? '' : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los estados" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los estados</SelectItem>
+                    <SelectItem value="active">Activo</SelectItem>
+                    <SelectItem value="inactive">Inactivo</SelectItem>
+                    <SelectItem value="pending">Pendiente</SelectItem>
+                    <SelectItem value="completed">Completado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Finance type filter */}
+            {selectedReport === 'finance' && (
+              <div className="grid gap-2">
+                <Label htmlFor="type">Tipo de Movimiento</Label>
+                <Select
+                  value={filters.type || 'all'}
+                  onValueChange={(value) => setFilters({ ...filters, type: value === 'all' ? '' : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los tipos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los tipos</SelectItem>
+                    <SelectItem value="income">Ingreso</SelectItem>
+                    <SelectItem value="expense">Gasto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="text-sm text-muted-foreground mt-2">
+              Seleccione los filtros deseados y elija el formato de exportación
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={handleGenerateExcel}
+              disabled={generating}
+              className="flex-1"
+            >
+              {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Excel (.csv)
+            </Button>
+            <Button
+              onClick={handleGeneratePDF}
+              disabled={generating}
+              className="flex-1"
+            >
+              {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ERPLayout>
   );
 }

@@ -54,9 +54,18 @@ class SupplierController extends Controller implements HasMiddleware
         }
 
         $perPage = $request->integer('per_page', 15);
-        $suppliers = $query->latest()->paginate($perPage);
 
-        return $this->paginated($suppliers, 'Proveedores listados correctamente');
+        // Directly return the paginated result in a response()->json
+        return response()->json($query->latest()->paginate($perPage));
+    }
+    
+    public function selectListSuppliers(){
+        $suppliers = Supplier::select('id', 'name', 'code')
+            ->where('status', 'active')
+            ->orderBy('name', 'asc')
+            ->get();
+
+        return response()->json($suppliers);
     }
 
     public function store(Request $request)
@@ -78,7 +87,7 @@ class SupplierController extends Controller implements HasMiddleware
         ]);
 
         if ($validator->fails()) {
-            return $this->validationError($validator->errors());
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $data = $validator->validated();
@@ -86,12 +95,12 @@ class SupplierController extends Controller implements HasMiddleware
         $data['status'] = $data['status'] ?? 'pending';
 
         $supplier = Supplier::create($data);
-        return $this->created($supplier, 'Proveedor creado correctamente');
+        return response()->json($supplier, 201);
     }
 
     public function show(Supplier $supplier)
     {
-        return $this->success($supplier, 'Proveedor obtenido correctamente');
+        return response()->json($supplier);
     }
 
     public function update(Request $request, Supplier $supplier)
@@ -113,17 +122,17 @@ class SupplierController extends Controller implements HasMiddleware
         ]);
 
         if ($validator->fails()) {
-            return $this->validationError($validator->errors());
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $supplier->update($validator->validated());
-        return $this->success($supplier, 'Proveedor actualizado correctamente');
+        return response()->json($supplier);
     }
 
     public function destroy(Supplier $supplier)
     {
         $supplier->delete();
-        return $this->deleted('Proveedor eliminado correctamente');
+        return response()->json(['message' => 'Proveedor eliminado correctamente']);
     }
 
     public function stats()
@@ -146,6 +155,6 @@ class SupplierController extends Controller implements HasMiddleware
             'avgLeadTime' => $avgLeadTime,
         ];
 
-        return $this->success($data, 'Estadísticas de proveedores obtenidas correctamente');
+        return response()->json($data);
     }
 }

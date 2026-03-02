@@ -18,12 +18,27 @@ import { Button } from "@/components/ui/button";
 import { DialogFooter, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { employeesService } from "@/lib/services";
 import type { Disability } from "@/lib/types/hr.types";
-import type { Employee } from "@/lib/types";
 import { useState } from "react";
+
+interface SelectListItem {
+  value: number;
+  label: string;
+}
+
+// Función para convertir fecha ISO a formato YYYY-MM-DD para inputs date
+const formatDateForInput = (dateString: string | undefined): string => {
+  if (!dateString) return '';
+  // Si ya viene en formato YYYY-MM-DD, retornarlo
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) return dateString;
+  // Si viene con timestamp, convertir a YYYY-MM-DD
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return date.toISOString().split('T')[0];
+};
 
 const schema = z.object({
   folio: z.string().min(1, "Folio requerido"),
-  type: z.enum(["imss", "accident", "maternity", "illness"]),
+  type: z.string().min(1, "Tipo requerido"),
   employeeId: z.number().min(1, "Empleado requerido"),
   startDate: z.string().min(1, "Fecha de inicio requerida"),
   endDate: z.string().min(1, "Fecha fin requerida"),
@@ -51,8 +66,8 @@ interface DisabilityFormDialogProps {
 }
 
 export function DisabilityFormDialog({ open, onOpenChange, editingDisability, onSubmit, loading = false }: DisabilityFormDialogProps) {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-
+  const [employees, setEmployees] = useState<SelectListItem[]>([]);
+  
   const {
     register,
     handleSubmit,
@@ -66,8 +81,8 @@ export function DisabilityFormDialog({ open, onOpenChange, editingDisability, on
       folio: editingDisability?.folio || "",
       type: (editingDisability?.type as any) || "illness",
       employeeId: editingDisability?.employeeId || 0,
-      startDate: editingDisability?.startDate || "",
-      endDate: editingDisability?.endDate || "",
+      startDate: formatDateForInput(editingDisability?.startDate),
+      endDate: formatDateForInput(editingDisability?.endDate),
       days: editingDisability?.days || 0,
       status: (editingDisability?.status as any) || "pending",
       description: editingDisability?.description || "",
@@ -78,8 +93,8 @@ export function DisabilityFormDialog({ open, onOpenChange, editingDisability, on
   useEffect(() => {
     const loadEmployees = async () => {
       try {
-        const response = await employeesService.getAll({ per_page: 100 });
-        setEmployees(response?.data || []);
+        const response = await employeesService.getSelectList();
+        setEmployees(response || []);
       } catch (error) {
         console.error("Error loading employees:", error);
       }
@@ -94,8 +109,8 @@ export function DisabilityFormDialog({ open, onOpenChange, editingDisability, on
         folio: editingDisability?.folio || "",
         type: (editingDisability?.type as any) || "illness",
         employeeId: editingDisability?.employeeId || 0,
-        startDate: editingDisability?.startDate || "",
-        endDate: editingDisability?.endDate || "",
+        startDate: formatDateForInput(editingDisability?.startDate),
+        endDate: formatDateForInput(editingDisability?.endDate),
         days: editingDisability?.days || 0,
         status: (editingDisability?.status as any) || "pending",
         description: editingDisability?.description || "",
@@ -144,20 +159,11 @@ export function DisabilityFormDialog({ open, onOpenChange, editingDisability, on
         </div>
         <div className="space-y-2">
           <Label htmlFor="type">Tipo *</Label>
-          <Select
-            value={watch("type")}
-            onValueChange={(v: any) => setValue("type", v)}
-          >
-            <SelectTrigger id="type">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="illness">Enfermedad</SelectItem>
-              <SelectItem value="accident">Accidente</SelectItem>
-              <SelectItem value="imss">IMSS</SelectItem>
-              <SelectItem value="maternity">Maternidad</SelectItem>
-            </SelectContent>
-          </Select>
+          <Input
+            id="type"
+            {...register("type")}
+            placeholder="Tipo de incapacidad (ej: enfermedad, accidente, imss, maternidad)"
+          />
           {errors.type && <p className="text-xs text-destructive">{errors.type.message}</p>}
         </div>
       </div>
@@ -165,16 +171,18 @@ export function DisabilityFormDialog({ open, onOpenChange, editingDisability, on
       <div className="space-y-2">
         <Label htmlFor="employee">Empleado *</Label>
         <Select
-          value={employeeIdValue > 0 ? employeeIdValue.toString() : ""}
+          value={employeeIdValue > 0 ? String(employeeIdValue) : ''}
           onValueChange={(v) => setValue("employeeId", parseInt(v), { shouldValidate: true })}
         >
           <SelectTrigger id="employee">
-            <SelectValue placeholder="Seleccionar empleado" />
+            <SelectValue placeholder="Seleccionar empleado">
+              {employees.find(e => e.value === employeeIdValue)?.label || 'Seleccionar empleado'}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {employees.map((emp) => (
-              <SelectItem key={emp.id} value={emp.id?.toString() || ""}>
-                {emp.name}
+              <SelectItem key={emp.value} value={String(emp.value)}>
+                {emp.label}
               </SelectItem>
             ))}
           </SelectContent>

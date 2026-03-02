@@ -7,6 +7,33 @@ import type {
   PaginatedResponse
 } from '../types';
 
+// Tipos para estados de cuenta de proveedores
+export interface SupplierStatement {
+  id: number;
+  invoiceNumber: string;
+  supplierId: number;
+  supplierName: string;
+  date: string;
+  dueDate: string;
+  amount: number;
+  paid: number;
+  balance: number;
+  status: 'paid' | 'pending' | 'overdue' | 'partial';
+  concept: string;
+}
+
+export interface CreateSupplierStatementDto {
+  supplier_id: number;
+  invoice_number: string;
+  date: string;
+  due_date: string;
+  amount: number;
+  paid?: number;
+  balance: number;
+  status?: 'paid' | 'pending' | 'overdue' | 'partial';
+  concept: string;
+}
+
 export const suppliersService = {
   // Get all suppliers with pagination and filters
   getAll: (filters?: SupplierFilters): Promise<PaginatedResponse<Supplier>> => {
@@ -47,14 +74,39 @@ export const suppliersService = {
     totalBalance: number;
     avgLeadTime: number;
   }> => {
-    const response = await api.get<{ data: {
+    const response = await api.get<{
       total: number;
       active: number;
       inactive: number;
       pending: number;
       totalBalance: number;
       avgLeadTime: number;
-    } }>('/suppliers/stats');
-    return response.data;
-  }
+    }>('/suppliers/stats');
+    return response;
+  },
+
+  // Get supplier statements (estado de cuenta)
+  getStatements: (filters?: { supplier_id?: number; status?: string }): Promise<PaginatedResponse<SupplierStatement>> => {
+    return api.get<PaginatedResponse<SupplierStatement>>('/supplier-statements', filters);
+  },
+
+  // Get supplier statement by ID
+  getStatementById: (id: number): Promise<SupplierStatement> => {
+    return api.get<SupplierStatement>(`/supplier-statements/${id}`);
+  },
+
+  // Create supplier statement
+  createStatement: (data: CreateSupplierStatementDto): Promise<SupplierStatement> => {
+    return api.post<SupplierStatement>('/supplier-statements', data);
+  },
+
+  // Update supplier statement
+  updateStatement: (id: number, data: Partial<CreateSupplierStatementDto>): Promise<SupplierStatement> => {
+    return api.put<SupplierStatement>(`/supplier-statements/${id}`, data);
+  },
+
+  // Delete supplier statement
+  deleteStatement: (id: number): Promise<void> => {
+    return api.delete(`/supplier-statements/${id}`);
+  },
 };

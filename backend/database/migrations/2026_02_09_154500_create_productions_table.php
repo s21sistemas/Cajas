@@ -21,10 +21,16 @@ return new class extends Migration
             $table->string('code')->nullable();
             
             // Relaciones base
-            $table->foreignId('product_process_id')->constrained()->restrictOnDelete();
-            $table->foreignId('machine_id')->nullable()->constrained()->restrictOnDelete();
-            $table->foreignId('operator_id')->nullable()->constrained()->restrictOnDelete();
+            $table->foreignId('product_id')
+                ->constrained('products')
+                ->restrictOnDelete();
+            $table->foreignId('process_id')
+                ->constrained('processes')
+                ->restrictOnDelete();
+            $table->foreignId('machine_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('operator_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('work_order_id')->nullable()->constrained('work_orders')->nullOnDelete();
+            $table->foreignId('parent_production_id')->nullable()->constrained('productions');
             
             // Campos de producción
             $table->unsignedInteger('target_parts')->default(0);
@@ -36,14 +42,9 @@ return new class extends Migration
             $table->string('status')->default('pending');
             $table->string('pause_reason')->nullable();
             
-            // Campos MES
-            $table->unsignedInteger('quantity_produced')->default(0);
-            $table->unsignedInteger('quantity_scrap')->default(0);
-            $table->unsignedInteger('rework_quantity')->default(0);
+            //Calidad
             $table->enum('quality_status', ['PENDING', 'APPROVED', 'SCRAP', 'REWORK'])->default('PENDING');
-            $table->dateTime('fecha_inicio')->nullable();
-            $table->dateTime('fecha_fin')->nullable();
-            
+    
             // Timestamps
             $table->timestamps();
             

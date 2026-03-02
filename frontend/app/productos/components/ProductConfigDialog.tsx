@@ -29,10 +29,9 @@ import {
 } from "@/components/ui/table";
 import { productsService } from "@/lib/services";
 import { materialsService } from "@/lib/services";
-import { machinesService } from "@/lib/services";
 import { processesService } from "@/lib/services/processes.service";
 import { useToast } from "@/components/erp/action-toast";
-import type { Product, Material, Machine, Process } from "@/lib/types";
+import type { Product, Material, Process } from "@/lib/types";
 import { Search, GripVertical } from "lucide-react";
 
 interface ProductConfigDialogProps {
@@ -53,10 +52,7 @@ export function ProductConfigDialog({ product, open, onOpenChange }: ProductConf
   const [processes, setProcesses] = useState<any[]>([]);
   const [availableProcesses, setAvailableProcesses] = useState<Process[]>([]);
   const [processSearch, setProcessSearch] = useState("");
-  
-  // Máquinas
-  const [machines, setMachines] = useState<Machine[]>([]);
-  
+
   // Estados de carga
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [addingMaterial, setAddingMaterial] = useState(false);
@@ -89,14 +85,12 @@ export function ProductConfigDialog({ product, open, onOpenChange }: ProductConf
         productsService.getParts(product.id),
         productsService.getProcesses(product.id),
         materialsService.selectList(),
-        machinesService.getAll({ perPage: 100 } as any),
         processesService.selectList(),
       ]).then((results) => {
         const materialsRes = results[0] as any;
         const processesRes = results[1] as any;
         const materialsListRes = results[2] as any;
-        const machinesRes = results[3] as any;
-        const processesListRes = results[4] as any;
+        const processesListRes = results[3] as any;
         
         // Ordenar procesos por secuencia
         const processesData = Array.isArray(processesRes) 
@@ -118,16 +112,6 @@ export function ProductConfigDialog({ product, open, onOpenChange }: ProductConf
           materialsList = materialsListRes.data.data;
         }
         setAvailableMaterials(materialsList);
-        
-        let machinesList: Machine[] = [];
-        if (Array.isArray(machinesRes)) {
-          machinesList = machinesRes;
-        } else if (machinesRes?.data && Array.isArray(machinesRes.data)) {
-          machinesList = machinesRes.data;
-        } else if (machinesRes?.data?.data && Array.isArray(machinesRes.data.data)) {
-          machinesList = machinesRes.data.data;
-        }
-        setMachines(machinesList);
 
         let processesList: Process[] = [];
         if (Array.isArray(processesListRes)) {
@@ -203,9 +187,9 @@ export function ProductConfigDialog({ product, open, onOpenChange }: ProductConf
     try {
       const newProcess = await productsService.addProcess(product.id, {
         name: selectedProcess.name,
-        process_type: selectedProcess.processType || 'custom',
+        process_id: Number(newProcessId),
         sequence: Number(newProcessSequence),
-        estimated_time_min: selectedProcess.estimatedTimeMin || undefined
+        estimated_time_min: selectedProcess.estimatedTimeMin || undefined,
       });
       
       // Refresh processes list

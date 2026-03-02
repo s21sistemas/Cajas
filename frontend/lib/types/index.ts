@@ -2,7 +2,6 @@
 export * from './api.types';
 export * from './product.types';
 export * from './material.types';
-export * from './part.types';
 export * from './process.types';
 export * from './machine.types';
 export * from './operator.types';

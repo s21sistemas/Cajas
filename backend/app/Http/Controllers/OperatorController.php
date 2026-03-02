@@ -76,6 +76,80 @@ class OperatorController extends Controller implements HasMiddleware
     }
 
     /**
+     * Login de operador por código de empleado
+     * Usado en el panel del operador
+     */
+    public function login(Request $request)
+    {
+        $employeeCode = $request->input('employee_code');
+        
+        if (!$employeeCode) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Se requiere el código de empleado'
+            ], 400);
+        }
+
+        $operator = Operator::where('employee_code', $employeeCode)
+            ->where('active', true)
+            ->first();
+
+        if (!$operator) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Código de empleado inválido o inactivo'
+            ], 401);
+        }
+
+        // Generar token simple (en producción usar tokens de Sanctum)
+        $token = base64_encode($operator->id . ':' . now()->timestamp);
+
+        return response()->json([
+            'success' => true,
+            'token' => $token,
+            'operator' => [
+                'id' => $operator->id,
+                'name' => $operator->name,
+                'employeeCode' => $operator->employee_code,
+                'shift' => $operator->shift,
+                'specialty' => $operator->specialty,
+            ]
+        ]);
+    }
+
+    /**
+     * Obtener productions asignadas al operador
+     */
+    public function myProductions(Request $request)
+    {
+        $operatorId = $request->input('operator_id');
+        
+        if (!$operatorId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Se requiere el ID del operador'
+            ], 400);
+        }
+
+        $productions = \App\Models\Production::with([
+            'process',
+            'product',
+            'workOrder',
+            'workOrder.client',
+            'machine'
+        ])
+        ->where('operator_id', $operatorId)
+        ->whereIn('status', ['pending', 'in_progress', 'paused'])
+        ->orderBy('start_time', 'desc')
+        ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $productions
+        ]);
+    }
+
+    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
@@ -132,5 +206,14 @@ class OperatorController extends Controller implements HasMiddleware
     {
         $operator->delete();
         return response()->json(null, 204);
+    }
+
+    /**
+     * Select list for forms (only requires auth, no permissions).
+     */
+    public function selectList()
+    {
+        $operators = Operator::select('id', 'name', 'employee_code')->orderBy('name')->get();
+        return response()->json($operators);
     }
 }

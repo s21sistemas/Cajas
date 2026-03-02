@@ -4,12 +4,72 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\Operator;
 use App\Models\Role;
 use App\Models\Permission;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
+    /**
+     * Login de operador usando employee_code
+     */
+    public function operatorLogin(Request $request)
+    {
+        $data = $request->validate([
+            'employee_code' => 'required|string',
+        ]);
+
+        $operator = Operator::where('employee_code', $data['employee_code'])->first();
+
+        if (!$operator) {
+            return response()->json(['error' => 'Código de empleado inválido'], 401);
+        }
+
+        if (!$operator->active) {
+            return response()->json(['error' => 'El operador está inactivo'], 401);
+        }
+
+        // Crear token para el operador
+        $token = $operator->createToken('operator-api')->plainTextToken;
+
+        return response()->json([
+            'operator' => [
+                'id' => $operator->id,
+                'employee_code' => $operator->employee_code,
+                'name' => $operator->name,
+                'shift' => $operator->shift,
+                'specialty' => $operator->specialty,
+            ],
+            'token' => $token,
+        ]);
+    }
+
+    /**
+     * Cerrar sesión de operador
+     */
+    public function operatorLogout(Request $request)
+    {
+        $request->user()->tokens()->delete();
+        return response()->json(['message' => 'Sesión de operador cerrada']);
+    }
+
+    /**
+     * Obtener datos del operador actual
+     */
+    public function getOperatorUser(Request $request)
+    {
+        $operator = $request->user();
+        
+        return response()->json([
+            'id' => $operator->id,
+            'employee_code' => $operator->employee_code,
+            'name' => $operator->name,
+            'shift' => $operator->shift,
+            'specialty' => $operator->specialty,
+        ]);
+    }
+
     public function register(Request $request)
     {
         $data = $request->validate([

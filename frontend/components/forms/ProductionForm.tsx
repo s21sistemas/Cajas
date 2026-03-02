@@ -160,7 +160,7 @@ export function ProductionForm({ defaultValues, onSubmit, isLoading, machineId }
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">Ninguna</SelectItem>
+                    <SelectItem value="0">Ninguna</SelectItem>
                     {machines.map((m) => (
                       <SelectItem key={m.id} value={String(m.id)}>
                         {m.name}

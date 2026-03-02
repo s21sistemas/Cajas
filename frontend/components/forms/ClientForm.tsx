@@ -15,6 +15,8 @@ const schema = z.object({
   rfc: z.string().optional(),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   phone: z.string().optional(),
+  contacto: z.string().optional(),
+  whatsapp: z.string().optional(),
   address: z.string().min(1, "Dirección requerida"),
   city: z.string().min(1, "Ciudad requerida"),
   state: z.string().min(1, "Estado requerido"),
@@ -44,6 +46,8 @@ export function ClientForm({ client, onSubmit, loading }: ClientFormProps) {
       rfc: client?.rfc || "",
       email: client?.email || "",
       phone: client?.phone || "",
+      contacto: client?.contacto || "",
+      whatsapp: client?.whatsapp || "",
       address: client?.address || "",
       city: client?.city || "",
       state: client?.state || "",
@@ -60,6 +64,8 @@ export function ClientForm({ client, onSubmit, loading }: ClientFormProps) {
       rfc: client?.rfc || "",
       email: client?.email || "",
       phone: client?.phone || "",
+      contacto: client?.contacto || "",
+      whatsapp: client?.whatsapp || "",
       address: client?.address || "",
       city: client?.city || "",
       state: client?.state || "",
@@ -95,6 +101,14 @@ export function ClientForm({ client, onSubmit, loading }: ClientFormProps) {
       <div className="space-y-2">
         <label className="text-sm font-medium">Teléfono</label>
         <Input {...register("phone")} placeholder="+52 XX XXXX XXXX" />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Contacto</label>
+        <Input {...register("contacto")} placeholder="Nombre del contacto" />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">WhatsApp</label>
+        <Input {...register("whatsapp")} placeholder="+52 XX XXXX XXXX" />
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">Dirección *</label>

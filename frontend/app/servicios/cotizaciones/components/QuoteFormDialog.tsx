@@ -37,6 +37,7 @@ interface QuoteItemForm {
 }
 
 // Componente para el selector de productos con búsqueda
+// Si el producto no existe, se usa lo que escribió el usuario y se crea al guardar
 function ProductSelect({
   value,
   onChange,
@@ -68,6 +69,18 @@ function ProductSelect({
     setIsOpen(false);
   };
 
+  // Cuando el input pierde el foco, si hay texto y no se seleccionó ningún producto,
+  // usamos el texto como nombre del producto (se creará al guardar la cotización)
+  const handleBlur = () => {
+    setTimeout(() => {
+      if (search && !selectedProduct) {
+        // No hacemos nada aquí, el usuario puede seguir editando
+        // El producto se creará al guardar la cotización
+      }
+      setIsOpen(false);
+    }, 200);
+  };
+
   return (
     <div className="relative">
       <Input
@@ -75,7 +88,7 @@ function ProductSelect({
         value={isOpen ? search : selectedProduct?.name || ""}
         onChange={handleSearch}
         onFocus={() => setIsOpen(true)}
-        onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+        onBlur={handleBlur}
         placeholder="Buscar producto..."
         className="h-9 w-full"
       />
@@ -91,19 +104,21 @@ function ProductSelect({
               No se encontraron productos
             </div>
           ) : (
-            products.map((product) => (
-              <div
-                key={product.id}
-                className="p-3 cursor-pointer hover:bg-accent border-b last:border-b-0"
-                onClick={() => handleSelect(product)}
-              >
-                <div className="font-medium text-sm">{product.name}</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Código: {product.code}
-                  {product.category && <span className="ml-2">• {product.category}</span>}
+            products
+              .filter((product) => product.status === "active")
+              .map((product) => (
+                <div
+                  key={product.id}
+                  className="p-3 cursor-pointer hover:bg-accent border-b last:border-b-0"
+                  onClick={() => handleSelect(product)}
+                >
+                  <div className="font-medium text-sm">{product.name}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Código: {product.code}
+                    {product.category && <span className="ml-2">• {product.category}</span>}
+                  </div>
                 </div>
-              </div>
-            ))
+              ))
           )}
         </div>
       )}
@@ -132,13 +147,10 @@ export function QuoteFormDialog({
 
   // Fetch products para el select
   const { data: productsData, loading: productsLoading } = useApiQuery(
-    () => productsService.getAll({ 
-      search: productSearch || undefined,
-      perPage: 50 
-    }),
+    () => productsService.selectList(),
     { enabled: open }
   );
-  const products = productsData?.data || [];
+  const products = (productsData || []) as Product[];
 
   const getInitialData = () => {
     if (editingQuote) {
@@ -168,24 +180,18 @@ export function QuoteFormDialog({
       if (itemsList && itemsList.length > 0) {
         setItems(itemsList.map((item: any) => ({
           id: item.id,
-          productId: item.product_id || null,
+          productId: item.productId || null,
           unit: item.unit || "",
           partNumber: item.partNumber || item.part_number || "",
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice || item.unit_price || 0,
         })));
+        // Cargar taxPercentage correctamente
+        const taxPercent = (editingQuote as any).taxPercentage ?? (editingQuote as any).tax_percentage ?? 16;
+        setTaxPercentage(typeof taxPercent === 'number' ? taxPercent : parseFloat(taxPercent) || 16);
       } else {
-        setItems([]);
-      }
-      
-      // Calcular el porcentaje de impuesto guardado
-      const subtotal = editingQuote.subtotal || 0;
-      const tax = editingQuote.tax || 0;
-      if (subtotal > 0 && tax > 0) {
-        setTaxPercentage((tax / subtotal) * 100);
-      } else {
-        setTaxPercentage(0);
+        setItems([]);        
       }
     } else {
       setItems([]);
@@ -222,6 +228,35 @@ export function QuoteFormDialog({
       unitPrice: product?.price || product?.cost || 0,
     };
     setItems(newItems);
+  };
+
+  // Crear un nuevo producto desde la cotización
+  const handleCreateProduct = async (name: string, code: string, unit: string, price: number) => {
+    try {
+      const newProduct = await productsService.createFromQuote({
+        name,
+        code: code || undefined,
+        unit,
+        price,
+      });
+      
+      // Agregar el nuevo producto como item en la cotización
+      const newItems = [...items];
+      newItems.push({
+        productId: newProduct.id,
+        unit: newProduct.unit || "PZA",
+        partNumber: newProduct.code || "",
+        description: newProduct.name || name,
+        quantity: 1,
+        unitPrice: newProduct.price || price || 0,
+      });
+      setItems(newItems);
+      
+      // Recargar la lista de productos
+      setProductSearch("");
+    } catch (error) {
+      console.error("Error al crear producto:", error);
+    }
   };
 
   const calculateTotals = () => {

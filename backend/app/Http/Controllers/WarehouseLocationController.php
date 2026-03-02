@@ -41,6 +41,10 @@ class WarehouseLocationController extends Controller implements HasMiddleware
         $perPage = $request->integer('per_page', 15);
         $query = WarehouseLocation::orderBy('name');
 
+        if ($request->has('search') && $request->search) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+
         if ($request->has('zone') && $request->zone) {
             $query->where('zone', $request->zone);
         }

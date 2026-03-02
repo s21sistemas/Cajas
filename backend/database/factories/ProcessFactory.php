@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\ProcessType;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -16,27 +17,26 @@ class ProcessFactory extends Factory
      */
     public function definition(): array
     {
-        $processTypes = ['corte', 'troquelado', 'impresion', 'plegado', 'ensamble', 'empaque', 'control-calidad', 'almacenamiento'];
-        $statuses = ['active', 'inactive'];
+        $names = ['Corte', 'Impresión', 'Troquelado', 'Ensamblaje', 'Empaque', 'Plegado', 'Acabado', 'Control de Calidad'];
 
         return [
-            'code' => 'PROC-' . fake()->unique()->numberBetween(100, 999),
-            'name' => fake()->randomElement([
-                'Corte de ',
-                'Troquelado de ',
-                'Impresión de ',
-                'Plegado de ',
-                'Ensamblado de ',
-                'Empaque de ',
-                'Control de calidad de ',
-            ]) . fake()->randomElement(['láminas', 'cajas', 'productos', 'material']),
-            'process_type' => fake()->randomElement($processTypes),
-            'description' => fake()->sentence(),
+            'code' => 'PROC-' . fake()->unique()->numberBetween(1, 1000),
+            'name' => fake()->randomElement($names),
+            'process_type_id' => null, // Will be nullable
+            'description' => fake()->optional()->sentence(),
             'requires_machine' => fake()->boolean(70),
-            'sequence' => fake()->numberBetween(1, 10),
-            'estimated_time_min' => fake()->randomFloat(2, 1, 30),
-            'status' => fake()->randomElement($statuses),
-            'order_index' => fake()->numberBetween(1, 10),
+            'estimated_time_min' => fake()->optional()->numberBetween(10, 480),
+            'status' => 'active',
         ];
+    }
+
+    /**
+     * Indicate that the process is active.
+     */
+    public function active(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => 'active',
+        ]);
     }
 }

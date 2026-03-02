@@ -10,7 +10,7 @@ class Sale extends Model
     use HasFactory;
 
     protected $fillable = [
-        'invoice',
+        'code',
         'client_id',
         'client_name',
         'quote_id',
@@ -18,10 +18,9 @@ class Sale extends Model
         'items',
         'subtotal',
         'tax',
+        'tax_rate',
         'total',
-        'paid',
-        'status',
-        'payment_method',
+        'status',       
         'due_date',
     ];
 
@@ -29,8 +28,8 @@ class Sale extends Model
         'items' => 'integer',
         'subtotal' => 'decimal:2',
         'tax' => 'decimal:2',
+        'tax_rate' => 'decimal:2',
         'total' => 'decimal:2',
-        'paid' => 'decimal:2',
         'due_date' => 'date',
     ];
 
@@ -39,8 +38,41 @@ class Sale extends Model
         return $this->belongsTo(Client::class);
     }
 
+    public function accountStatement()
+    {
+        return $this->hasOne(AccountStatement::class);
+    }
+
     public function quote()
     {
         return $this->belongsTo(Quote::class);
+    }
+
+    public function saleItems()
+    {
+        return $this->hasMany(SaleItem::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function recalculateTotals(float $taxRate = 16): void
+    {
+        $items = $this->saleItems()->get();
+        
+        $subtotal = $items->sum('subtotal');
+        $totalQuantity = $items->sum('quantity');
+        $tax = $subtotal * ($taxRate / 100);
+        $total = $subtotal + $tax;
+        
+        $this->update([
+            'items' => $totalQuantity,
+            'subtotal' => $subtotal,
+            'tax' => $tax,
+            'tax_rate' => $taxRate,
+            'total' => $total,
+        ]);
     }
 }

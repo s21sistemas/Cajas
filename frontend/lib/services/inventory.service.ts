@@ -112,6 +112,31 @@ export const inventoryService = {
     return api.get<WarehouseLocation[]>('/warehouse-locations', { zone });
   },
 
+  // Get locations with pagination
+  getLocationsPaginated: (params?: {
+    page?: number;
+    perPage?: number;
+    search?: string;
+    zone?: string;
+    type?: string;
+  }): Promise<{
+    data: WarehouseLocation[];
+    meta: {
+      current_page: number;
+      last_page: number;
+      per_page: number;
+      total: number;
+    };
+  }> => {
+    const { page, perPage, search, ...filters } = params || {};
+    return api.get('/warehouse-locations', {
+      page,
+      per_page: perPage,
+      search,
+      ...filters
+    });
+  },
+
   // Update location occupancy
   updateOccupancy: (id: number, occupancy: number): Promise<WarehouseLocation> => {
     return api.patch<WarehouseLocation>(`/warehouse-locations/${id}/occupancy`, { occupancy });
@@ -126,5 +151,46 @@ export const inventoryService = {
     byZone: Record<string, { capacity: number; occupancy: number }>;
   }> => {
     return api.get('/warehouse-locations/stats');
+  },
+
+  // Select Lists
+
+  // Get inventory items as select list (id + name)
+  selectList: async (category?: string): Promise<{ value: string; label: string }[]> => {
+    const response = await api.get<PaginatedResponse<InventoryItem>>('/inventory-items', { 
+      per_page: 1000,
+      ...(category && { category })
+    });
+    return (response.data || []).map(item => ({
+      value: item.id.toString(),
+      label: `${item.code} - ${item.name}`
+    }));
+  },
+
+  // Get materials as select list (returns full objects for autocomplete)
+  selectListMaterials: async (): Promise<InventoryItem[]> => {
+    const response = await api.get<PaginatedResponse<InventoryItem>>('/inventory-items', { 
+      per_page: 1000,
+      category: 'raw_material'
+    });
+    return response.data || [];
+  },
+
+  // Get finished products as select list (returns full objects for autocomplete)
+  selectListFinishedProducts: async (): Promise<InventoryItem[]> => {
+    const response = await api.get<PaginatedResponse<InventoryItem>>('/inventory-items', { 
+      per_page: 1000,
+      category: 'finished_product'
+    });
+    return response.data || [];
+  },
+
+  // Get warehouse locations as select list
+  selectListLocations: async (): Promise<{ value: string; label: string }[]> => {
+    const response = await api.get<WarehouseLocation[]>('/warehouse-locations');
+    return (response || []).map(location => ({
+      value: location.id.toString(),
+      label: `${location.name} (${location.zone})`
+    }));
   }
 };

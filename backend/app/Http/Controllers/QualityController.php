@@ -3,21 +3,49 @@
 namespace App\Http\Controllers;
 
 use App\Models\Production;
-use App\Models\WorkOrderProcess;
+use App\Models\Process;
 use App\Models\QualityEvaluation;
 use App\Models\ProductionMovement;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use \Spatie\Permission\Middleware\PermissionMiddleware;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
 class QualityController extends Controller
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware(
+                PermissionMiddleware::using('quality.view'),
+                only: ['index', 'show']
+            ),
+
+            new Middleware(
+                PermissionMiddleware::using('quality.create'),
+                only: ['store']
+            ),
+
+            new Middleware(
+                PermissionMiddleware::using('quality.edit'),
+                only: ['update']
+            ),
+
+            new Middleware(
+                PermissionMiddleware::using('quality.delete'),
+                only: ['destroy']
+            ),
+        ];
+    }
+
     /**
      * Obtener lista de producciones pendientes de evaluación
      */
     public function pendingEvaluations(Request $request): JsonResponse
     {
-        $query = Production::with(['workOrder', 'workOrderProcess.process', 'operator'])
+        $query = Production::with(['workOrder', 'process', 'operator'])
             ->where('quality_status', Production::QUALITY_STATUS_PENDING)
             ->orWhereNull('quality_status');
 
@@ -25,8 +53,8 @@ class QualityController extends Controller
             $query->where('work_order_id', $request->work_order_id);
         }
 
-        if ($request->work_order_process_id) {
-            $query->where('work_order_process_id', $request->work_order_process_id);
+        if ($request->process_id) {
+            $query->where('process_id', $request->process_id);
         }
 
         $productions = $query->orderBy('created_at', 'desc')->paginate(20);
@@ -42,7 +70,7 @@ class QualityController extends Controller
      */
     public function getByProduction(int $productionId): JsonResponse
     {
-        $evaluations = QualityEvaluation::with(['evaluator', 'workOrderProcess.process'])
+        $evaluations = QualityEvaluation::with(['evaluator', 'production.process'])
             ->where('production_id', $productionId)
             ->orderBy('evaluated_at', 'desc')
             ->get();
@@ -58,18 +86,19 @@ class QualityController extends Controller
      */
     public function getByProcess(int $processId): JsonResponse
     {
-        $process = WorkOrderProcess::with(['workOrder', 'process'])
-            ->find($processId);
+        $productions = Production::with(['workOrder', 'process'])
+            ->where('process_id', $processId)
+            ->get();
 
-        if (!$process) {
+        if ($productions->isEmpty()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Proceso no encontrado',
+                'message' => 'No se encontraron producciones para este proceso',
             ], 404);
         }
 
         $evaluations = QualityEvaluation::with(['evaluator', 'production'])
-            ->where('work_order_process_id', $processId)
+            ->whereIn('production_id', $productions->pluck('id'))
             ->orderBy('evaluated_at', 'desc')
             ->get();
 
@@ -87,7 +116,7 @@ class QualityController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'process' => $process,
+                'process_id' => $processId,
                 'evaluations' => $evaluations,
                 'summary' => $summary,
             ],
@@ -101,7 +130,6 @@ class QualityController extends Controller
     {
         $validated = $request->validate([
             'production_id' => 'required|exists:productions,id',
-            'work_order_process_id' => 'required|exists:work_order_processes,id',
             'quantity_evaluated' => 'required|integer|min:1',
             'decision' => 'required|in:APPROVED,SCRAP,REWORK',
             'quantity_approved' => 'nullable|integer|min:0',
@@ -135,7 +163,6 @@ class QualityController extends Controller
         // Crear evaluación
         $evaluation = QualityEvaluation::create([
             'production_id' => $validated['production_id'],
-            'work_order_process_id' => $validated['work_order_process_id'],
             'quantity_evaluated' => $validated['quantity_evaluated'],
             'decision' => $validated['decision'],
             'quantity_approved' => $validated['quantity_approved'] ?? 0,
@@ -162,18 +189,21 @@ class QualityController extends Controller
         }
 
         // Recalcular métricas de la orden
-        $process = $evaluation->workOrderProcess;
-        if ($process && $process->workOrder) {
-            $process->workOrder->calculateMetrics();
-            $process->workOrder->checkAndComplete();
+        $production = $evaluation->production;
+        if ($production) {
+            $workOrder = $production->workOrder;
+            if ($workOrder) {
+                $workOrder->calculateMetrics();
+                $workOrder->checkAndComplete();
+            }
         }
 
         return response()->json([
             'success' => true,
             'message' => $result['message'],
             'data' => [
-                'evaluation' => $evaluation->load(['evaluator', 'workOrderProcess.process']),
-                'process_metrics' => $process ? $process->getMetrics() : null,
+                'evaluation' => $evaluation->load(['evaluator', 'production.process']),
+                'process_metrics' => null,
             ],
         ]);
     }
@@ -183,14 +213,14 @@ class QualityController extends Controller
      */
     public function getMovements(Request $request): JsonResponse
     {
-        $query = ProductionMovement::with(['workOrder', 'workOrderProcess.process', 'user']);
+        $query = ProductionMovement::with(['workOrder', 'process', 'user']);
 
         if ($request->work_order_id) {
             $query->where('work_order_id', $request->work_order_id);
         }
 
-        if ($request->work_order_process_id) {
-            $query->where('work_order_process_id', $request->work_order_process_id);
+        if ($request->process_id) {
+            $query->where('process_id', $request->process_id);
         }
 
         if ($request->movement_type) {
@@ -211,7 +241,7 @@ class QualityController extends Controller
      */
     public function getProcessMetrics(int $processId): JsonResponse
     {
-        $process = WorkOrderProcess::with(['workOrder', 'process'])->find($processId);
+        $process = Process::find($processId);
 
         if (!$process) {
             return response()->json([
@@ -219,11 +249,12 @@ class QualityController extends Controller
                 'message' => 'Proceso no encontrado',
             ], 404);
         }
-
-        $metrics = $process->getMetrics();
         
-        // Obtener resumen de evaluaciones de calidad
-        $qualitySummary = QualityEvaluation::where('work_order_process_id', $processId)
+        // Obtener resumen de evaluaciones de calidad a través de las producciones
+        $productions = Production::where('process_id', $processId)->get();
+        $productionIds = $productions->pluck('id');
+        
+        $qualitySummary = QualityEvaluation::whereIn('production_id', $productionIds)
             ->selectRaw('
                 COUNT(*) as total_evaluations,
                 SUM(CASE WHEN decision = "APPROVED" THEN 1 ELSE 0 END) as approved_count,
@@ -239,7 +270,7 @@ class QualityController extends Controller
             'success' => true,
             'data' => [
                 'process' => $process,
-                'metrics' => $metrics,
+                'metrics' => null,
                 'quality_summary' => $qualitySummary,
             ],
         ]);

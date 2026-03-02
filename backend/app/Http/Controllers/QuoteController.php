@@ -7,8 +7,12 @@ use App\Models\Quote;
 use App\Models\QuoteItem;
 use App\Models\Sale;
 use App\Models\Client;
+use App\Models\Product;
+use App\Models\AccountStatement;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\QuoteMail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use \Spatie\Permission\Middleware\PermissionMiddleware;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -21,7 +25,7 @@ class QuoteController extends Controller implements HasMiddleware
         return [
             new Middleware(
                 PermissionMiddleware::using('quotes.view'),
-                only: ['index', 'show', 'exportPdf', 'stats']
+                only: ['index', 'show', 'exportPdf', 'stats', 'getItems']
             ),
 
             new Middleware(
@@ -74,6 +78,89 @@ class QuoteController extends Controller implements HasMiddleware
         return response()->json($quotes);
     }
 
+    /**
+     * Obtener cotizaciones por cliente
+     * Usado para cargar cotizaciones en SaleForm cuando se selecciona un cliente
+     */
+    public function getByClient(Request $request, $clientId = null)
+    {
+        // Support route parameter: /quotes/client/{client_id}
+        $clientId = $clientId ?? $request->route('client_id');
+        
+        if (!$clientId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Se requiere el ID del cliente'
+            ], 400);
+        }
+
+        try {
+            $quotes = Quote::where('client_id', $clientId)
+                ->whereIn('status', ['approved'])
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(function ($quote) {
+                    return [
+                        'id' => $quote->id,
+                        'code' => $quote->code,
+                        'title' => $quote->title ?? 'Sin título',
+                        'client_name' => $quote->client_name,
+                        'subtotal' => $quote->subtotal,
+                        'tax_percentage' => $quote->tax_percentage,
+                        'tax' => $quote->tax,
+                        'total' => $quote->total,
+                        'status' => $quote->status,
+                        'valid_until' => $quote->valid_until,
+                        'items_count' => $quote->items_count ?? 0,
+                        'created_at' => $quote->created_at,
+                    ];
+                });
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $quotes
+        ]);
+    }
+
+    /**
+     * Obtener los items de una cotización
+     * Usado para auto-rellenar los items en SaleForm
+     */
+    public function getItems(Quote $quote)
+    {
+        $items = $quote->items()->with('product')->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'unit' => $item->unit,
+                    'part_number' => $item->part_number,
+                    'description' => $item->description,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'total' => $item->total,
+                    'product' => $item->product ? [
+                        'id' => $item->product->id,
+                        'name' => $item->product->name,
+                        'code' => $item->product->code,
+                        'unit' => $item->product->unit,
+                        'price' => $item->product->price,
+                    ] : null,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $items
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -109,11 +196,11 @@ class QuoteController extends Controller implements HasMiddleware
         // Guardar items antes de sobrescribir
         $itemsData = $data['items'] ?? [];
         unset($data['items']);
-        unset($data['tax_percentage']);
         
         $data['client_name'] = $client->name;
         $data['items_count'] = 0;
         $data['subtotal'] = 0;
+        $data['tax_percentage'] = $taxPercentage;
         $data['tax'] = 0;
         $data['total'] = 0;
         $data['status'] = $data['status'] ?? 'draft';
@@ -127,12 +214,30 @@ class QuoteController extends Controller implements HasMiddleware
             foreach ($itemsData as $itemData) {
                 $unitPrice = $itemData['unitPrice'] ?? $itemData['unit_price'] ?? 0;
                 $quantity = $itemData['quantity'] ?? 0;
+                $description = $itemData['description'] ?? '';
+                $unit = $itemData['unit'] ?? 'PZA';
+                $partNumber = $itemData['partNumber'] ?? $itemData['part_number'] ?? 'PRD-' . date('Ymd') . '-' . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT);
+                
+                // Si no tiene product_id pero tiene description, crear el producto automáticamente
+                $productId = $itemData['product_id'] ?? null;
+                if (!$productId && $description) {
+                    $product = Product::create([
+                        'code' => $partNumber,
+                        'name' => 'temp-name-' . date('Ymd') . '-' . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT),
+                        'unit' => $unit,
+                        'price' => $unitPrice,
+                        'stock' => 0,
+                        'min_stock' => 0,
+                        'status' => 'active',
+                    ]);
+                    $productId = $product->id;
+                }
                 
                 $quote->items()->create([
-                    'product_id' => $itemData['product_id'] ?? null,
-                    'unit' => $itemData['unit'] ?? null,
-                    'part_number' => $itemData['partNumber'] ?? $itemData['part_number'] ?? null,
-                    'description' => $itemData['description'],
+                    'product_id' => $productId,
+                    'unit' => $unit,
+                    'part_number' => $partNumber,
+                    'description' => $description,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'total' => $quantity * $unitPrice,
@@ -181,7 +286,7 @@ class QuoteController extends Controller implements HasMiddleware
         
         // Obtener el porcentaje de impuesto enviado (por defecto 16%)
         $taxPercentage = isset($data['tax_percentage']) ? floatval($data['tax_percentage']) : null;
-        unset($data['tax_percentage']);
+        // unset($data['tax_percentage']);
 
         // Guardar el status anterior para comparar
         $previousStatus = $quote->status;
@@ -204,12 +309,52 @@ class QuoteController extends Controller implements HasMiddleware
                 foreach ($itemsData as $itemData) {
                     $unitPrice = $itemData['unitPrice'] ?? $itemData['unit_price'] ?? 0;
                     $quantity = $itemData['quantity'] ?? 0;
+                    $description = $itemData['description'] ?? '';
+                    $unit = $itemData['unit'] ?? 'PZA';
+                    $partNumber = $itemData['partNumber'] ?? $itemData['part_number'] ?? null;
+                    
+                    // Si no tiene product_id pero tiene description, crear el producto automáticamente
+                    $productId = $itemData['product_id'] ?? null;
+                    if (!$productId && $description) {
+                        // Verificar si el producto ya existe por su código (partNumber)
+                        if ($partNumber) {
+                            $existingProduct = Product::where('code', $partNumber)->first();
+                            if ($existingProduct) {
+                                $productId = $existingProduct->id;
+                            } else {
+                                $product = Product::create([
+                                    'code' => $partNumber,
+                                    'name' => 'temp-name-' . date('Ymd') . '-' . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT),
+                                    'description' => $description,
+                                    'unit' => $unit,
+                                    'price' => $unitPrice,
+                                    'stock' => 0,
+                                    'min_stock' => 0,
+                                    'status' => 'active',
+                                ]);
+                                $productId = $product->id;
+                            }
+                        } else {
+                            // Generar código único si no hay partNumber
+                            $product = Product::create([
+                                'code' => 'P-' . date('Ymd') . '-' . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT),
+                                'name' => 'temp-name-' . date('Ymd') . '-' . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT),
+                                'description' => $description,
+                                'unit' => $unit,
+                                'price' => $unitPrice,
+                                'stock' => 0,
+                                'min_stock' => 0,
+                                'status' => 'active',
+                            ]);
+                            $productId = $product->id;
+                        }
+                    }
                     
                     $itemFields = [
-                        'product_id' => $itemData['product_id'] ?? null,
-                        'unit' => $itemData['unit'] ?? null,
-                        'part_number' => $itemData['partNumber'] ?? $itemData['part_number'] ?? null,
-                        'description' => $itemData['description'],
+                        'product_id' => $productId,
+                        'unit' => $unit,
+                        'part_number' => $partNumber,
+                        'description' => $description,
                         'quantity' => $quantity,
                         'unit_price' => $unitPrice,
                         'total' => $quantity * $unitPrice,
@@ -227,7 +372,7 @@ class QuoteController extends Controller implements HasMiddleware
 
             // Crear venta automáticamente cuando la cotización se aprueba
             if ($previousStatus !== 'approved' && $newStatus === 'approved') {
-                $this->createSaleFromQuote($quote);
+                // $this->createSaleFromQuote($quote);
             }
         });
 
@@ -247,14 +392,14 @@ class QuoteController extends Controller implements HasMiddleware
             return $existingSale;
         }
 
-        // Generar número de invoice único
-        $invoice = 'V-' . date('Ymd') . '-' . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT);
+        // Generar número de código único
+        $code = 'V-' . date('Ymd') . '-' . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT);
 
-        // Calcular fecha de vencimiento (30 días por defecto)
-        $dueDate = now()->addDays(30);
+        // Calcular fecha de vencimiento (por defecto 7 días)
+        $dueDate = now()->addDays(7);
 
         $sale = Sale::create([
-            'invoice' => $invoice,
+            'code' => $code,
             'client_id' => $quote->client_id,
             'client_name' => $quote->client_name,
             'quote_id' => $quote->id,
@@ -263,10 +408,41 @@ class QuoteController extends Controller implements HasMiddleware
             'subtotal' => $quote->subtotal,
             'tax' => $quote->tax,
             'total' => $quote->total,
-            'paid' => 0,
             'status' => 'pending',
-            'payment_method' => 'pendiente',
+            'payment_type' => 'credit', // Por defecto crédito para generar cuenta por cobrar
+            'credit_days' => 30, // 30 días por defecto
             'due_date' => $dueDate,
+        ]);
+
+        // Copiar los items de la cotización a la venta
+        $quote->load('items');
+        foreach ($quote->items as $quoteItem) {
+            \App\Models\SaleItem::create([
+                'sale_id' => $sale->id,
+                'product_id' => $quoteItem->product_id,
+                'unit' => $quoteItem->unit,
+                'part_number' => $quoteItem->part_number,
+                'description' => $quoteItem->description,
+                'quantity' => $quoteItem->quantity,
+                'unit_price' => $quoteItem->unit_price,
+                'discount_percentage' => $quoteItem->discount_percentage || 0,
+                'discount_amount' => $quoteItem->discount_amount,
+                'subtotal' => $quoteItem->subtotal,
+            ]);
+        }
+
+        // Crear AccountStatement automáticamente (cuenta por cobrar)
+        AccountStatement::create([
+            'invoice_number' => $sale->code,
+            'client_id' => $sale->client_id,
+            'client_name' => $sale->client_name,
+            'date' => now()->toDateString(),
+            'due_date' => $sale->due_date,
+            'amount' => $sale->total,
+            'paid' => 0, // No se ha pagado aún
+            'balance' => $sale->total, // Saldo pendiente
+            'status' => 'pending',
+            'concept' => 'Venta #' . $sale->code . ' (desde Cotización ' . $quote->code . ')',
         ]);
 
         return $sale;
@@ -337,8 +513,65 @@ class QuoteController extends Controller implements HasMiddleware
     {
         $quote->load(['client', 'items']);
         
-        $pdf = Pdf::loadView('pdf.quote', compact('quote'));
+        // Obtener datos de la empresa desde settings
+        $companySettings = \App\Models\Setting::where('module', 'company')->get();
+        $company = [];
+        foreach ($companySettings as $setting) {
+            $company[$setting->key] = $setting->value;
+        }
+        
+        $pdf = Pdf::loadView('pdf.quote', compact('quote', 'company'));
+        
+        // Configurar PDF horizontal (landscape) con márgenes adecuados
+        $pdf->setPaper('a4', 'landscape')->setOption('margin-top', 15)->setOption('margin-bottom', 15)->setOption('margin-left', 15)->setOption('margin-right', 15);
         
         return $pdf->download('cotizacion-' . $quote->code . '.pdf');
     }
+
+    /**
+     * Send quote by email to client.
+     */
+    public function sendEmail(Request $request, Quote $quote)
+    {
+        // Cargar relaciones necesarias
+        $quote->load(['client', 'items']);
+
+        // Verificar que el cliente tenga email
+        if (!$quote->client || !$quote->client->email) {
+            return response()->json([
+                'message' => 'El cliente no tiene un correo electrónico registrado'
+            ], 422);
+        }
+
+        // Validar que el estado actual permita enviar
+        if (in_array($quote->status, ['approved', 'rejected'])) {
+            return response()->json([
+                'message' => 'No se puede enviar una cotización que ya ha sido aprobada o rechazada'
+            ], 422);
+        }
+
+        try {
+            // Enviar el correo con el PDF adjunto
+            Mail::to($quote->client->email)->send(new QuoteMail($quote));
+
+            // Actualizar el estado a 'sent' si estaba en 'draft'
+            $previousStatus = $quote->status;
+            if ($previousStatus === 'draft') {
+                $quote->update(['status' => 'sent']);
+            }
+
+            return response()->json([
+                'message' => 'Cotización enviada correctamente',
+                'quote' => $quote->fresh(['client', 'items']),
+                'previous_status' => $previousStatus,
+                'new_status' => $quote->status
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al enviar la cotización por correo',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
+

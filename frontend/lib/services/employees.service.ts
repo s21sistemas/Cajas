@@ -37,4 +37,8 @@ export const employeesService = {
   getDepartments: async () => {
     return api.get<string[]>('/employees/departments');
   },
+
+  getSelectList: async () => {
+    return api.get<any[]>('/employees/select-list');
+  }
 };

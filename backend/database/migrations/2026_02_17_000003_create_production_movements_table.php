@@ -24,14 +24,7 @@ return new class extends Migration
             $table->foreign('work_order_id')
                 ->references('id')
                 ->on('work_orders')
-                ->onDelete('set null');
-            
-            // Referencia al proceso en la orden
-            $table->unsignedBigInteger('work_order_process_id')->nullable();
-            $table->foreign('work_order_process_id')
-                ->references('id')
-                ->on('work_order_processes')
-                ->onDelete('set null');
+                ->onDelete('set null');       
             
             // Referencia a la producción (si aplica)
             $table->unsignedBigInteger('production_id')->nullable();
@@ -88,7 +81,6 @@ return new class extends Migration
             
             // Índices para búsquedas
             $table->index(['work_order_id', 'movement_type']);
-            $table->index(['work_order_process_id', 'movement_date']);
             $table->index(['production_id', 'movement_type']);
         });
     }

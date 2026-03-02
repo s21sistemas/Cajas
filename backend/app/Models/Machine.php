@@ -8,6 +8,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Machine extends Model
 {
     use HasFactory;
+
+    // Status constants
+    const STATUS_AVAILABLE = 'available';
+    const STATUS_IN_USE = 'in_use';
+    const STATUS_MAINTENANCE = 'maintenance';
+    const STATUS_BREAKDOWN = 'breakdown';
+
     protected $fillable = [
         'code',
         'name',
@@ -24,6 +31,11 @@ class Machine extends Model
         'axes' => 'integer',
     ];
 
+    protected $hidden = [
+        'created_at',
+        'updated_at',
+    ];
+
     public function processes()
     {
         return $this->hasMany(Process::class);
@@ -37,5 +49,10 @@ class Machine extends Model
     public function maintenanceOrders()
     {
         return $this->hasMany(MaintenanceOrder::class);
+    }
+
+    public function machineMovements()
+    {
+        return $this->hasMany(MachineMovement::class);
     }
 }

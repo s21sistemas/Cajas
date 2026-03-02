@@ -28,6 +28,9 @@ import {
   Handshake,
   ShoppingCart,
   CheckCircle,
+  CreditCard,
+  DollarSign,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,11 +69,12 @@ const navSections: NavSection[] = [
   {
     title: "Produccion",
     items: [
-      { title: "Produccion", href: "/produccion", icon: <Factory className="h-5 w-5" />, badge: 3, permission: "productions.view" },
+      { title: "Produccion", href: "/produccion", icon: <Factory className="h-5 w-5" />, permission: "productions.view" },
       { title: "Control de Calidad", href: "/produccion/calidad", icon: <CheckCircle className="h-5 w-5" />, permission: "quality.view" },
       { title: "Panel Operador", href: "/produccion/operador", icon: <UserCog className="h-5 w-5" />, permission: "productions.view" },
       { title: "Procesos", href: "/procesos", icon: <Cog className="h-5 w-5" />, permission: "processes.view" },
-      { title: "Ordenes de Trabajo", href: "/ordenes-trabajo", icon: <ClipboardList className="h-5 w-5" />, badge: 5, permission: "workorders.view" },
+      { title: "Tipo de proceso", href: "/procesos/tipo-proceso", icon: <Settings className="h-5 w-5" /> },
+      { title: "Ordenes de Trabajo", href: "/ordenes-trabajo", icon: <ClipboardList className="h-5 w-5" />, permission: "workorders.view" },
     ],
   },
   {
@@ -81,15 +85,16 @@ const navSections: NavSection[] = [
       {
         title: "Almacen",
         icon: <Warehouse className="h-5 w-5" />,
-        badge: 2,
+        badge: 4,
         permission: "warehouse.view",
         subItems: [
-          { title: "Materia Prima", href: "/almacen/materia-prima" },
+          { title: "Ubicaciones", href: "/almacen/ubicaciones"},
+          { title: "Materiales", href: "/almacen/materiales" },
           { title: "Producto Terminado", href: "/almacen/producto-terminado" },
           { title: "Movimientos", href: "/almacen/movimientos" },
         ],
       },
-      { title: "Ordenes de Compra", href: "/ordenes-compra", icon: <ShoppingCart className="h-5 w-5" />, badge: 4, permission: "purchaseorders.view" },
+      { title: "Ordenes de Compra", href: "/ordenes-compra", icon: <ShoppingCart className="h-5 w-5" />, permission: "purchaseorders.view" },
     ],
   },
   {
@@ -103,20 +108,21 @@ const navSections: NavSection[] = [
     title: "Comercial",
     items: [
       {
-        title: "Servicios",
+        title: "Ventas",
         icon: <Handshake className="h-5 w-5" />,
-        badge: 3,
+        badge: 2,
         permission: "quotes.view",
         subItems: [
           { title: "Cotizaciones", href: "/servicios/cotizaciones" },
           { title: "Ventas", href: "/servicios/ventas" },
-          { title: "Orden de servicio", href: "/servicios/ordenes" },
+          { title: "Pagos", href: "/servicios/pagos" },
         ],
       },
       {
         title: "Clientes",
         icon: <UserCheck className="h-5 w-5" />,
         permission: "clients.view",
+        badge: 3,
         subItems: [
           { title: "Clientes", href: "/clientes" },
           { title: "Sucursales", href: "/clientes/sucursales" },
@@ -127,6 +133,7 @@ const navSections: NavSection[] = [
         title: "Proveedores",
         icon: <Truck className="h-5 w-5" />,
         permission: "suppliers.view",
+        badge: 2,
         subItems: [
           { title: "Proveedores", href: "/proveedores" },
           { title: "Estado de cuenta", href: "/proveedores/estado-cuenta" },
@@ -141,6 +148,7 @@ const navSections: NavSection[] = [
         title: "Finanzas",
         icon: <Landmark className="h-5 w-5" />,
         permission: "bankaccounts.view",
+        badge: 3,
         subItems: [
           { title: "Bancos", href: "/finanzas/bancos" },
           { title: "Movimientos", href: "/finanzas/movimientos" },
@@ -156,6 +164,7 @@ const navSections: NavSection[] = [
         title: "Recursos Humanos",
         icon: <Users className="h-5 w-5" />,
         permission: "employees.view",
+        badge: 12,
         subItems: [
           { title: "Empleados", href: "/recursos-humanos" },
           { title: "Incapacidades", href: "/recursos-humanos/incapacidades" },
@@ -176,7 +185,7 @@ const navSections: NavSection[] = [
   {
     title: "Mantenimiento",
     items: [
-      { title: "Mantenimiento", href: "/mantenimiento", icon: <Wrench className="h-5 w-5" />, badge: 2, permission: "maintenanceorders.view" },
+      { title: "Mantenimiento", href: "/mantenimiento", icon: <Wrench className="h-5 w-5" />, permission: "maintenanceorders.view" },
     ],
   },
   {
@@ -186,6 +195,7 @@ const navSections: NavSection[] = [
         title: "Logistica",
         icon: <Truck className="h-5 w-5" />,
         permission: "vehicles.view",
+        badge: 2,
         subItems: [
           { title: "Vehiculos", href: "/vehiculos" },
           { title: "Entregas", href: "/entregas" },
@@ -197,6 +207,12 @@ const navSections: NavSection[] = [
     title: "Analisis",
     items: [
       { title: "Reportes", href: "/reportes", icon: <FileBarChart className="h-5 w-5" />, permission: "reports.view" },
+    ],
+  },
+  {
+    title: "Sistema",
+    items: [
+      { title: "Configuracion", href: "/configuracion", icon: <Shield className="h-5 w-5" />, permission: "settings.view" },
     ],
   },
 ];

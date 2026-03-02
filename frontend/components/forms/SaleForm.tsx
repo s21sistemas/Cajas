@@ -11,7 +11,7 @@ import { useApiQuery } from '@/hooks/use-api-query';
 import { clientsService } from '@/lib/services/clients.service';
 
 const saleSchema = z.object({
-  invoice: z.string().min(1, 'La factura es requerida').max(255),
+  code: z.string().min(1, 'El código es requerido').max(255),
   client_id: z.number().min(1, 'El cliente es requerido'),
   quote_ref: z.string().optional().default(''),
   subtotal: z.number().min(0).default(0),
@@ -42,7 +42,7 @@ export function SaleForm({ defaultValues, onSubmit, isLoading }: SaleFormProps) 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleSchema),
     defaultValues: {
-      invoice: defaultValues?.invoice || '',
+      code: defaultValues?.code || '',
       client_id: defaultValues?.client_id || 0,
       quote_ref: defaultValues?.quote_ref || '',
       subtotal: defaultValues?.subtotal || 0,
@@ -65,7 +65,7 @@ export function SaleForm({ defaultValues, onSubmit, isLoading }: SaleFormProps) 
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="invoice"
+            name="code"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Factura *</FormLabel>

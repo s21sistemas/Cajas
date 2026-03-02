@@ -19,14 +19,22 @@ export interface Machine {
   name: string;
 }
 
+export interface Product {
+  id: number;
+  name: string;
+  code?: string;
+}
+
 // Tipo para el formulario de creación
 export interface CreateProductionForm {
   processId: string;
-  machineId: string | undefined;
-  operatorId: string | undefined;
+  machineId: string;
+  operatorId: string;
+  productId: string;
   targetParts: number;
   notes: string;
-  workOrderId: string | undefined;
+  workOrderId: string;
+  parentProductionId: string;
 }
 
 // Tipo para la lista de producciones
@@ -36,7 +44,9 @@ export interface ProductionOrder {
   processName: string;
   processType: string;
   requiresMachine: boolean;
+  machineId: number | null;
   machineName: string | null;
+  operatorId: number | null;
   operatorName: string;
   status: ProductionStatus;
   pauseReason?: string;
@@ -45,6 +55,12 @@ export interface ProductionOrder {
   scrapParts: number;
   startTime: string;
   endTime: string | null;
+  parentProductionId?: number | null;
+  qualityStatus?: 'PENDING' | 'APPROVED' | 'SCRAP' | 'REWORK';
+  // Nuevos campos para mostrar en cards
+  productName?: string;
+  clientName?: string | null;
+  saleCode?: string | null;
 }
 
 // Configuración de estados
@@ -72,11 +88,13 @@ export const PAUSE_REASONS = [
 // Valores por defecto
 export const DEFAULT_FORM: CreateProductionForm = {
   processId: '',
-  machineId: undefined,
-  operatorId: undefined,
+  machineId: '',
+  operatorId: '',
+  productId: '',
   targetParts: 100,
   notes: '',
-  workOrderId: undefined,
+  workOrderId: '',
+  parentProductionId: '',
 };
 
 // Tipo para WorkOrder (del módulo de Órdenes de Trabajo)
@@ -86,9 +104,9 @@ export interface WorkOrder {
   product_name: string;
   client_name: string;
   quantity: number;
-  completed: number;
-  progress: number;
+  completed?: number;
+  progress?: number;
   status: 'draft' | 'in_progress' | 'completed' | 'cancelled' | 'on_hold';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
   due_date?: string;
 }

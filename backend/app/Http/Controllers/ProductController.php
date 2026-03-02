@@ -10,6 +10,34 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
+    /**
+     * Crear producto desde cotización.
+     * Solo guarda: nombre, código, unidad, precio
+     * NO tiene lista de materiales ni stock
+     */
+    public function createFromQuote(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'code' => 'nullable|string|max:255|unique:products,code',
+            'unit' => 'nullable|string|max:50',
+            'price' => 'nullable|numeric|min:0',
+        ]);
+
+        // Generar código si no se proporciona
+        if (empty($data['code'])) {
+            $data['code'] = 'P-' . date('Ymd') . '-' . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT);
+        }
+
+        // Valores por defecto para productos creados desde cotización
+        $data['stock'] = 0;
+        $data['min_stock'] = 0;
+        $data['status'] = 'active';
+
+        $product = Product::create($data);
+
+        return response()->json($product, 201);
+    }
 
     /**
      * Display a listing of the resource.
@@ -52,7 +80,11 @@ class ProductController extends Controller
 
         $products = $query->latest()->paginate($perPage);
 
-        return $this->paginated($products, 'Productos listados correctamente');
+        return response()->json($products);
+    }
+
+    public function selectListProducts(){
+        return response()->json(Product::select('id', 'code', 'name', 'description', 'category', 'price', 'cost', 'unit', 'status', 'created_at', 'updated_at')->where('status', 'active')->orderBy('name')->get());
     }
 
     /**
@@ -80,7 +112,7 @@ class ProductController extends Controller
 
         $product = Product::create($data);
 
-        return $this->created($product, 'Producto creado correctamente');
+        return response()->json($product, 201);
     }
 
     /**
@@ -88,7 +120,7 @@ class ProductController extends Controller
      */
     public function show(Product $product)
     {
-        return $this->success($product, 'Producto obtenido correctamente');
+        return response()->json($product);
     }
 
     /**
@@ -117,7 +149,7 @@ class ProductController extends Controller
 
         $product->update($data);
 
-        return $this->success($product, 'Producto actualizado correctamente');
+        return response()->json($product);
     }
 
     /**
@@ -127,7 +159,7 @@ class ProductController extends Controller
     {
         $product->delete();
 
-        return $this->deleted('Producto eliminado correctamente');
+        return response()->json(['message' => 'Producto eliminado correctamente']);
     }
 
     /**
@@ -149,7 +181,7 @@ class ProductController extends Controller
 
         $products = $query->latest()->paginate($perPage);
 
-        return $this->paginated($products, 'Productos con stock bajo');
+        return response()->json($products);
     }
 
     /**
@@ -169,7 +201,7 @@ class ProductController extends Controller
             'lowStock' => $lowStock,
         ];
 
-        return $this->success($data, 'Estadísticas de productos obtenidas correctamente');
+        return response()->json($data);
     }
 
     /**
@@ -178,7 +210,7 @@ class ProductController extends Controller
     public function showWithDetails(Product $product)
     {
         $product->load(['materials', 'processes.machine']);
-        return $this->success($product, 'Producto con detalles obtenido correctamente');
+        return response()->json($product);
     }
 
     /**
@@ -194,12 +226,12 @@ class ProductController extends Controller
         // Verificar si ya existe
         $exists = $product->materials()->where('material_id', $data['material_id'])->exists();
         if ($exists) {
-            return $this->error('El material ya está asociado al producto');
+            return response()->json(['message' => 'El material ya está asociado al producto'], 422);
         }
 
         $product->materials()->attach($data['material_id'], ['quantity' => $data['quantity']]);
 
-        return $this->success($product->fresh()->load('materials'), 'Material agregado correctamente');
+        return response()->json($product->fresh()->load('materials'));
     }
 
     /**
@@ -213,12 +245,12 @@ class ProductController extends Controller
 
         $attached = $product->materials()->where('material_id', $partId)->exists();
         if (!$attached) {
-            return $this->error('El material no está asociado al producto');
+            return response()->json(['message' => 'El material no está asociado al producto'], 422);
         }
 
         $product->materials()->updateExistingPivot($partId, ['quantity' => $data['quantity']]);
 
-        return $this->success($product->fresh()->load('materials'), 'Cantidad de material actualizada correctamente');
+        return response()->json($product->fresh()->load('materials'));
     }
 
     /**
@@ -228,12 +260,12 @@ class ProductController extends Controller
     {
         $attached = $product->materials()->where('material_id', $partId)->exists();
         if (!$attached) {
-            return $this->error('El material no está asociado al producto');
+            return response()->json(['message' => 'El material no está asociado al producto'], 422);
         }
 
         $product->materials()->detach($partId);
 
-        return $this->success($product->fresh()->load('materials'), 'Material eliminado correctamente');
+        return response()->json(['message' => 'Material eliminado correctamente']);
     }
 
     /**
@@ -241,7 +273,7 @@ class ProductController extends Controller
      */
     public function getParts(Product $product)
     {
-        $parts = $product->materials()->withPivot('quantity')->get();
+        $parts = $product->materials()->withPivot('quantity', 'id')->get();
         // Transform to match frontend expectations
         $transformed = $parts->map(function ($material) {
             return [
@@ -253,11 +285,10 @@ class ProductController extends Controller
                     'code' => $material->code,
                     'name' => $material->name,
                     'description' => $material->description,
-                    'material' => $material->material,
                 ]
             ];
         });
-        return $this->success($transformed, 'Materiales del producto obtenidos correctamente');
+        return response()->json($transformed);
     }
 
     /**
@@ -267,68 +298,26 @@ class ProductController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'process_type' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'machine_id' => 'nullable|exists:machines,id',
+            'process_id' => 'required|exists:processes,id',
             'sequence' => 'required|integer|min:1',
-            'estimated_time_min' => 'nullable|numeric|min:0',
         ]);
 
-        // Create in product_processes pivot table
+        $process = Process::find($data['process_id']);
+        if (!$process) {
+            return response()->json(['message' => 'El proceso no existe'], 422);
+        }
+
+        // Create in product_processes table
         $productProcess = ProductProcess::create([
             'product_id' => $product->id,
-            'process_id' => null, // Not linked to master process
-            'name' => $data['name'],
+            'process_id' => $process->id,
+            'name' =>   $process->name,
+            'process_type_id' => $process->process_type_id,
             'sequence' => $data['sequence'],
-            'estimated_minutes' => $data['estimated_time_min'] ?? null,
+            'estimated_minutes' => $process->estimated_time_min ?? null,
         ]);
 
-        // Load machine if provided
-        if (!empty($data['machine_id'])) {
-            $productProcess->machine_id = $data['machine_id'];
-            $productProcess->save();
-        }
-
-        return $this->success($productProcess->fresh('machine'), 'Proceso agregado correctamente');
-    }
-
-    /**
-     * Update process of product.
-     */
-    public function updateProcess(Request $request, Product $product, ProductProcess $productProcess)
-    {
-        if ($productProcess->product_id != $product->id) {
-            return $this->error('El proceso no pertenece a este producto');
-        }
-
-        $data = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'process_type' => 'sometimes|required|string|max:255',
-            'description' => 'nullable|string',
-            'machine_id' => 'nullable|exists:machines,id',
-            'sequence' => 'sometimes|required|integer|min:1',
-            'estimated_time_min' => 'nullable|numeric|min:0',
-        ]);
-
-        if (isset($data['name'])) {
-            $productProcess->name = $data['name'];
-        }
-        if (isset($data['process_type'])) {
-            $productProcess->process_type = $data['process_type'];
-        }
-        if (isset($data['sequence'])) {
-            $productProcess->sequence = $data['sequence'];
-        }
-        if (isset($data['estimated_time_min'])) {
-            $productProcess->estimated_minutes = $data['estimated_time_min'];
-        }
-        if (array_key_exists('machine_id', $data)) {
-            $productProcess->machine_id = $data['machine_id'];
-        }
-
-        $productProcess->save();
-
-        return $this->success($productProcess->fresh('machine'), 'Proceso actualizado correctamente');
+        return response()->json($productProcess->load('process'));
     }
 
     /**
@@ -337,12 +326,12 @@ class ProductController extends Controller
     public function removeProcess(Product $product, ProductProcess $productProcess)
     {
         if ($productProcess->product_id != $product->id) {
-            return $this->error('El proceso no pertenece a este producto');
+            return response()->json(['message' => 'El proceso no pertenece a este producto'], 422);
         }
 
         $productProcess->delete();
 
-        return $this->success(null, 'Proceso eliminado correctamente');
+        return response()->json(['message' => 'Proceso eliminado correctamente']);
     }
 
     /**
@@ -350,21 +339,17 @@ class ProductController extends Controller
      */
     public function getProcesses(Product $product)
     {
-        $processes = $product->productProcesses()->with('machine')->get();
+        $processes = $product->productProcesses()->with('process')->orderBy('sequence')->get();
         // Transform to match frontend expectations
         $transformed = $processes->map(function ($proc) {
             return [
                 'id' => $proc->id,
                 'name' => $proc->name,
-                'processType' => $proc->process_type,
+                'processType' => $proc->process && $proc->process->processType ? $proc->process->processType->name : null,
                 'sequence' => $proc->sequence,
                 'estimatedTimeMin' => $proc->estimated_minutes,
-                'machine' => $proc->machine ? [
-                    'id' => $proc->machine->id,
-                    'name' => $proc->machine->name,
-                ] : null,
             ];
         });
-        return $this->success($transformed, 'Procesos del producto obtenidos correctamente');
+        return response()->json($transformed);
     }
 }

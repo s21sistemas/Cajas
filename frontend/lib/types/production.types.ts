@@ -15,11 +15,24 @@ export interface Production {
   pause_reason?: string | null;
   created_at?: string;
   updated_at?: string;
+  parent_production_id?: number | null;
+  quality_status?: 'PENDING' | 'APPROVED' | 'SCRAP' | 'REWORK';
+  work_order_id?: number | null;
+  product_id?: number | null;
 
   // Relaciones
   process?: Process;
   machine?: Machine;
   operator?: Operator;
+  work_order?: {
+    id: number;
+    code?: string;
+    product_name?: string;
+    product?: { id: number; name: string };
+    client?: { id: number; name: string };
+    client_name?: string;
+    sale?: { id: number; code: string };
+  };
 }
 
 export type ProductionStatus = 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
@@ -56,21 +69,24 @@ export interface CreateProductionDTO {
   processId: number;
   machineId?: number | null;
   operatorId?: number | null;
+  productId?: number | null;
   targetParts?: number;
   startTime: string;
   notes?: string;
   workOrderId?: number | null;
+  parentProductionId?: number | null;
 }
 
 export interface UpdateProductionDTO {
   processId?: number;
   machineId?: number | null;
-  operatorId?: number;
+  operatorId?: number | null;
+  productId?: number | null;
   targetParts?: number;
   endTime?: string;
   goodParts?: number;
   scrapParts?: number;
-  notes?: string;
+  notes?: string | null;
   status?: ProductionStatus;
   pauseReason?: string;
 }
@@ -82,7 +98,9 @@ export interface ProductionOrder {
   processName: string;
   processType: string;
   requiresMachine: boolean;
+  machineId: number | null;
   machineName: string | null;
+  operatorId: number | null;
   operatorName: string;
   status: ProductionStatus;
   pauseReason?: string;
@@ -91,6 +109,8 @@ export interface ProductionOrder {
   scrapParts: number;
   startTime: string;
   endTime: string | null;
+  parentProductionId?: number | null;
+  qualityStatus?: 'PENDING' | 'APPROVED' | 'SCRAP' | 'REWORK';
 }
 
 // Transformación de API → UI (Backend usa snake_case)
@@ -101,7 +121,9 @@ export function transformProductionToOrder(production: Production): ProductionOr
     processName: production.process?.name || 'Proceso',
     processType: production.process?.processType || production.process?.name || 'Proceso',
     requiresMachine: production.process?.requiresMachine ?? true,
+    machineId: production.machine_id ?? null,
     machineName: production.machine?.name || null,
+    operatorId: production.operator_id ?? null,
     operatorName: production.operator?.name || 'Operador',
     status: production.status || 'pending',
     pauseReason: production.pause_reason || undefined,
@@ -110,5 +132,7 @@ export function transformProductionToOrder(production: Production): ProductionOr
     scrapParts: production.scrap_parts || 0,
     startTime: production.start_time || '',
     endTime: production.end_time || null,
+    parentProductionId: production.parent_production_id || null,
+    qualityStatus: production.quality_status || 'PENDING',
   };
 }

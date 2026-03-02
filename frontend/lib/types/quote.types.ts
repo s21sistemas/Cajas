@@ -1,5 +1,6 @@
 // Quote types
 export type QuoteStatus = 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
+export type PaymentType = 'cash' | 'credit';
 
 export interface QuoteItem {
   id: number;
@@ -23,8 +24,11 @@ export interface Quote {
   items: number;
   subtotal: number;
   tax: number;
+  taxPercentage: number;
   total: number;
   status: QuoteStatus;
+  paymentType: PaymentType;
+  creditDays: number;
   validUntil: string;
   createdBy: string;
   createdAt?: string;
@@ -51,11 +55,15 @@ export interface CreateQuoteDto {
   validUntil: string;
   createdBy: string;
   status?: QuoteStatus;
+  paymentType?: PaymentType;
+  creditDays?: number;
 }
 
 export interface UpdateQuoteDto {
   title?: string;
   status?: QuoteStatus;
+  paymentType?: PaymentType;
+  creditDays?: number;
   validUntil?: string;
   createdBy?: string;
 }

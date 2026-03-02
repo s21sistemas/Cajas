@@ -33,6 +33,12 @@ import { financeService } from "@/lib/services/finance.service";
 import type { BankAccount, Movement } from "@/lib/types/finance.types";
 import type { PaginatedResponse } from "@/lib/types/api.types";
 
+// Helper function to format currency with 2 decimal places
+const formatCurrency = (amount: number): string => {
+  const num = Number(amount) || 0;
+  return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
+
 export default function FinanceAccountPage() {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<Movement[]>([]);
@@ -78,9 +84,14 @@ export default function FinanceAccountPage() {
     (t) => selectedBank === "all" || t.bankAccountId?.toString() === selectedBank
   );
 
-  const totalBalance = accounts.reduce((sum: number, acc) => sum + (acc.balance || 0), 0);
-  const totalIncome = filtered.filter((t) => t.type === "income").reduce((sum: number, t) => sum + (t.amount || 0), 0);
-  const totalExpense = filtered.filter((t) => t.type === "expense").reduce((sum: number, t) => sum + (Math.abs(t.amount) || 0), 0);
+  const totalBalanceMXN = accounts.filter(acc => acc.currency === 'MXN').reduce((sum: number, acc) => sum + (Number(acc.balance) || 0), 0);
+  const totalBalanceUSD = accounts.filter(acc => acc.currency === 'USD').reduce((sum: number, acc) => sum + (Number(acc.balance) || 0), 0);
+  
+  // Ingresos y Egresos separados por moneda
+  const incomeMXN = filtered.filter((t) => t.type === "income" && (t.bankAccount?.currency === 'MXN' || !t.bankAccount)).reduce((sum: number, t) => sum + (Number(t.amount) || 0), 0);
+  const incomeUSD = filtered.filter((t) => t.type === "income" && t.bankAccount?.currency === 'USD').reduce((sum: number, t) => sum + (Number(t.amount) || 0), 0);
+  const expenseMXN = filtered.filter((t) => t.type === "expense" && (t.bankAccount?.currency === 'MXN' || !t.bankAccount)).reduce((sum: number, t) => sum + (Math.abs(Number(t.amount)) || 0), 0);
+  const expenseUSD = filtered.filter((t) => t.type === "expense" && t.bankAccount?.currency === 'USD').reduce((sum: number, t) => sum + (Math.abs(Number(t.amount)) || 0), 0);
 
   const getBankName = (transaction: any) => {
     if (transaction.bank) return transaction.bank;
@@ -126,7 +137,23 @@ export default function FinanceAccountPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Saldo Total</p>
-                  <p className="text-2xl font-bold text-foreground">${totalBalance.toLocaleString()}</p>
+                  <div className="flex flex-col">
+                    {totalBalanceMXN > 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-foreground break-all">${formatCurrency(totalBalanceMXN)} MXN</p>
+                    </div>
+                    )}
+                    {totalBalanceUSD > 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-foreground break-all">${formatCurrency(totalBalanceUSD)} USD</p>
+                    </div>
+                    )}
+                    {totalBalanceMXN === 0 && totalBalanceUSD === 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-foreground break-all">$0.00</p>
+                    </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -139,7 +166,23 @@ export default function FinanceAccountPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Ingresos</p>
-                  <p className="text-2xl font-bold text-green-400">${totalIncome.toLocaleString()}</p>
+                  <div className="flex flex-col">
+                    {incomeMXN > 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-green-400 break-all">${formatCurrency(incomeMXN)} MXN</p>
+                    </div>
+                    )}
+                    {incomeUSD > 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-green-400 break-all">${formatCurrency(incomeUSD)} USD</p>
+                    </div>
+                    )}
+                    {incomeMXN === 0 && incomeUSD === 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-green-400 break-all">$0.00</p>
+                    </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -152,7 +195,23 @@ export default function FinanceAccountPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Egresos</p>
-                  <p className="text-2xl font-bold text-red-400">${totalExpense.toLocaleString()}</p>
+                  <div className="flex flex-col">
+                    {expenseMXN > 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-red-400 break-all">${formatCurrency(expenseMXN)} MXN</p>
+                    </div>
+                    )}
+                    {expenseUSD > 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-red-400 break-all">${formatCurrency(expenseUSD)} USD</p>
+                    </div>
+                    )}
+                    {expenseMXN === 0 && expenseUSD === 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-red-400 break-all">$0.00</p>
+                    </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -160,8 +219,8 @@ export default function FinanceAccountPage() {
           <Card className="bg-card border-border">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${totalIncome - totalExpense >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                  {totalIncome - totalExpense >= 0 ? (
+                <div className={`p-2 rounded-lg ${(incomeMXN + incomeUSD) - (expenseMXN + expenseUSD) >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                  {(incomeMXN + incomeUSD) - (expenseMXN + expenseUSD) >= 0 ? (
                     <ArrowUpRight className="h-5 w-5 text-green-400" />
                   ) : (
                     <ArrowDownRight className="h-5 w-5 text-red-400" />
@@ -169,9 +228,33 @@ export default function FinanceAccountPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Flujo Neto</p>
-                  <p className={`text-2xl font-bold ${totalIncome - totalExpense >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    ${(totalIncome - totalExpense).toLocaleString()}
-                  </p>
+                  <div className="flex flex-col">
+                    {incomeMXN - expenseMXN > 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-green-400 break-all">${formatCurrency(incomeMXN - expenseMXN)} MXN</p>
+                    </div>
+                    )}
+                    {incomeMXN - expenseMXN < 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-red-400 break-all">${formatCurrency(Math.abs(incomeMXN - expenseMXN))} MXN</p>
+                    </div>
+                    )}
+                    {incomeUSD - expenseUSD > 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-green-400 break-all">${formatCurrency(incomeUSD - expenseUSD)} USD</p>
+                    </div>
+                    )}
+                    {incomeUSD - expenseUSD < 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-red-400 break-all">${formatCurrency(Math.abs(incomeUSD - expenseUSD))} USD</p>
+                    </div>
+                    )}
+                    {(incomeMXN + incomeUSD) - (expenseMXN + expenseUSD) === 0 && (
+                      <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold text-muted-foreground break-all">$0.00</p>
+                    </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -195,7 +278,7 @@ export default function FinanceAccountPage() {
                       <p className="text-sm text-muted-foreground">****{account.accountNumber?.slice(-4)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-foreground">${(account.balance || 0).toLocaleString()}</p>
+                      <p className="text-lg font-bold text-foreground break-all">${formatCurrency(account.balance || 0)}</p>
                       <p className="text-xs text-muted-foreground">{account.currency}</p>
                     </div>
                   </div>
@@ -268,9 +351,9 @@ export default function FinanceAccountPage() {
                       <TableCell className="text-muted-foreground">{transaction.category}</TableCell>
                       <TableCell>{getTypeBadge(transaction.type)}</TableCell>
                       <TableCell className={`text-right font-medium ${transaction.type === 'income' ? 'text-green-400' : transaction.type === 'expense' ? 'text-red-400' : 'text-blue-400'}`}>
-                        {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toLocaleString()}
+                        {transaction.type === 'income' ? '+' : '-'}${formatCurrency(transaction.amount)}
                       </TableCell>
-                      <TableCell className="text-right text-foreground">${transaction.balance.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-foreground">${formatCurrency(transaction.balance)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -39,69 +39,89 @@ class AccountStatementController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $perPage = $request->integer('per_page', 15);
-        $items = AccountStatement::with('client')->orderByDesc('date')->paginate($perPage);
+        $perPage = $request->integer('per_page', 1);
+        
+        $query = AccountStatement::with('client', 'sale');
+        
+        // Filtros
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('client_name', 'like', "%{$search}%")
+                  ->orWhere('concept', 'like', "%{$search}%");
+            });
+        }
+        
+        if ($request->filled('client_id')) {
+            $query->where('client_id', $request->integer('client_id'));
+        }
+        
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+        
+        if ($request->filled('date_from')) {
+            $query->whereDate('date', '>=', $request->input('date_from'));
+        }
+        
+        if ($request->filled('date_to')) {
+            $query->whereDate('date', '<=', $request->input('date_to'));
+        }
+        
+        $items = $query->orderByDesc('date')->paginate($perPage);
+        
+        // Agregar invoice_number desde la relación sale
+        $items->getCollection()->transform(function ($item) {
+            $item->code = $item->sale ? $item->sale->code : null;
+            return $item;
+        });
+        
         return response()->json($items);
     }
 
-    public function store(Request $request)
+    /**
+     * Obtener estadísticas de cuentas por cobrar
+     */
+    public function stats(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'client_id' => 'required|exists:clients,id',
-            'invoice_number' => 'required|string|max:255',
-            'date' => 'required|date',
-            'due_date' => 'nullable|date|after_or_equal:date',
-            'amount' => 'required|numeric',
-            'paid' => 'sometimes|numeric|min:0',
-            'balance' => 'required|numeric',
-            'status' => 'sometimes|in:paid,pending,overdue,partial',
-            'concept' => 'required|string|max:255',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+        $clientId = $request->integer('client_id');
+        
+        $query = AccountStatement::query();
+        
+        // Filtrar por cliente si se especifica
+        if ($clientId) {
+            $query->where('client_id', $clientId);
         }
-
-        $data = $validator->validated();
-
-        $client = Client::findOrFail($data['client_id']);
-        $data['client_name'] = $client->name;
-        $data['paid'] = $data['paid'] ?? 0;
-        $data['status'] = $data['status'] ?? 'pending';
-
-        $item = AccountStatement::create($data)->load('client');
-        return response()->json($item, 201);
-    }
-
-    public function show(AccountStatement $accountStatement)
-    {
-        return response()->json($accountStatement->load('client'));
-    }
-
-    public function update(Request $request, AccountStatement $accountStatement)
-    {
-        $validator = Validator::make($request->all(), [
-            'invoice_number' => 'sometimes|required|string|max:255',
-            'date' => 'sometimes|date',
-            'due_date' => 'nullable|date|after_or_equal:date',
-            'amount' => 'sometimes|numeric',
-            'paid' => 'sometimes|numeric|min:0',
-            'balance' => 'sometimes|numeric',
-            'status' => 'sometimes|in:paid,pending,overdue,partial',
-            'concept' => 'sometimes|required|string|max:255',
+        
+        $statements = $query->get();
+        
+        $totalInvoices = $statements->count();
+        $totalReceivable = $statements->sum('balance');
+        $totalPaid = $statements->sum('paid');
+        $totalOverdue = $statements->where('status', 'overdue')->sum('balance');
+        $totalPending = $statements->where('status', 'pending')->sum('balance');
+        $totalPartial = $statements->where('status', 'partial')->sum('balance');
+        
+        // Estadísticas por cliente
+        $byClient = $statements->groupBy('client_id')->map(function ($clientStatements) {
+            return [
+                'client_id' => $clientStatements->first()->client_id,
+                'client_name' => $clientStatements->first()->client_name,
+                'total_invoices' => $clientStatements->count(),
+                'total_receivable' => $clientStatements->sum('balance'),
+                'total_paid' => $clientStatements->sum('paid'),
+                'overdue' => $clientStatements->where('status', 'overdue')->sum('balance'),
+            ];
+        })->values();
+        
+        return response()->json([
+            'total_invoices' => $totalInvoices,
+            'total_receivable' => $totalReceivable,
+            'total_paid' => $totalPaid,
+            'total_overdue' => $totalOverdue,
+            'total_pending' => $totalPending,
+            'total_partial' => $totalPartial,
+            'by_client' => $byClient,
         ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $accountStatement->update($validator->validated());
-        return response()->json($accountStatement->load('client'));
-    }
-
-    public function destroy(AccountStatement $accountStatement)
-    {
-        $accountStatement->delete();
-        return response()->json(null, 204);
     }
 }

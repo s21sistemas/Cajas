@@ -56,7 +56,7 @@ class ClientController extends Controller implements HasMiddleware
         $sortOrder = $request->get('sort_order', 'asc');
         $query->orderBy($sortBy, $sortOrder);
 
-        return response()->json($query->paginate(5));
+        return response()->json($query->paginate(100));
     }
 
     public function selectListClient(): JsonResponse
@@ -83,6 +83,8 @@ class ClientController extends Controller implements HasMiddleware
     {
         $validated = $request->validate([
             'code' => 'required|string|max:255|unique:clients,code',
+            'contacto' => 'nullable|string|max:255',
+            'whatsapp' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
             'rfc' => 'nullable|string|max:13',
             'email' => 'nullable|email|max:255',
@@ -113,6 +115,8 @@ class ClientController extends Controller implements HasMiddleware
     {
         $validated = $request->validate([
             'code' => 'sometimes|required|string|max:255|unique:clients,code,' . $client->id,
+            'contacto' => 'nullable|string|max:255',
+            'whatsapp' => 'nullable|string|max:255',
             'name' => 'sometimes|required|string|max:255',
             'rfc' => 'nullable|string|max:13',
             'email' => 'nullable|email|max:255',

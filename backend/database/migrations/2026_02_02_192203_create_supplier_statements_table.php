@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('supplier_statements', function (Blueprint $table) {
             $table->id();
-            $table->string('invoice_number');
+            $table->string('code');
 
             $table->foreignId('supplier_id')->constrained('suppliers');
             $table->string('supplier_name');
@@ -38,7 +38,7 @@ return new class extends Migration
 
             // Índices útiles
             $table->index('supplier_id');
-            $table->index('invoice_number');
+            $table->index('code');
             $table->index('status');
             $table->index('due_date');
             $table->index('date');

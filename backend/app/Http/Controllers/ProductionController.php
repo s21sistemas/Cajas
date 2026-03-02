@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Production;
 use App\Models\WorkOrder;
-use App\Models\WorkOrderProcess;
 use App\Models\ProductionMovement;
+use App\Models\Machine;
+use App\Models\MachineMovement;
 use Illuminate\Http\Request;
 use \Spatie\Permission\Middleware\PermissionMiddleware;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -44,15 +45,26 @@ class ProductionController extends Controller implements HasMiddleware
      */
     public function index(Request $request)
     {
-        $query = Production::with(['process', 'machine', 'operator', 'workOrder', 'workOrderProcess']);
+        $query = Production::with([
+            'process', 
+            'parentProcess', 
+            'machine', 
+            'operator', 
+            'workOrder',
+            'workOrder.client',
+            'workOrder.sale',
+            'product',
+            'client',
+            'sale'
+        ]);
 
         // Filtros adicionales MES
         if ($request->work_order_id) {
             $query->where('work_order_id', $request->work_order_id);
         }
 
-        if ($request->work_order_process_id) {
-            $query->where('work_order_process_id', $request->work_order_process_id);
+        if ($request->process_id) {
+            $query->where('process_id', $request->process_id);
         }
 
         if ($request->quality_status) {
@@ -61,6 +73,55 @@ class ProductionController extends Controller implements HasMiddleware
 
         if ($request->status) {
             $query->where('status', $request->status);
+        }
+
+        // Filtro por cliente (directo en production o a través de work_order)
+        if ($request->client_id) {
+            $query->where(function($q) use ($request) {
+                $q->where('client_id', $request->client_id)
+                  ->orWhereHas('workOrder', function ($wq) use ($request) {
+                      $wq->where('client_id', $request->client_id);
+                  });
+            });
+        }
+
+        // Filtro por venta (directo en production o a través de work_order)
+        if ($request->sale_id) {
+            $query->where(function($q) use ($request) {
+                $q->where('sale_id', $request->sale_id)
+                  ->orWhereHas('workOrder', function ($wq) use ($request) {
+                      $wq->where('sale_id', $request->sale_id);
+                  });
+            });
+        }
+
+        // Filtro por producto
+        if ($request->product_id) {
+            $query->where('product_id', $request->product_id);
+        }
+
+        // Filtro por operador
+        if ($request->operator_id) {
+            $query->where('operator_id', $request->operator_id);
+        }
+
+        // Filtro por máquina
+        if ($request->machine_id) {
+            $query->where('machine_id', $request->machine_id);
+        }
+
+        // Filtro por rango de fechas
+        if ($request->start_date) {
+            $query->whereDate('start_time', '>=', $request->start_date);
+        }
+
+        if ($request->end_date) {
+            $query->whereDate('start_time', '<=', $request->end_date);
+        }
+
+        // Búsqueda por código
+        if ($request->search) {
+            $query->where('code', 'like', '%' . $request->search . '%');
         }
 
         $productions = $query->latest()->paginate(15);
@@ -81,8 +142,9 @@ class ProductionController extends Controller implements HasMiddleware
     {
         $data = $request->validate([
             'process_id' => 'required|exists:processes,id',
+            'parent_process_id' => 'nullable|exists:processes,id',
             'work_order_id' => 'nullable|exists:work_orders,id',
-            'work_order_process_id' => 'nullable|exists:work_order_processes,id',
+            'product_id' => 'required|exists:products,id',
             'machine_id' => 'nullable|exists:machines,id',
             'operator_id' => 'nullable|exists:operators,id',
             'start_time' => 'nullable|date',
@@ -93,33 +155,42 @@ class ProductionController extends Controller implements HasMiddleware
             'notes' => 'nullable|string',
             'status' => 'nullable|string',
             'pause_reason' => 'nullable|string',
-            // Campos MES
-            'quantity_produced' => 'nullable|integer|min:0',
-            'quantity_scrap' => 'nullable|integer|min:0',
-            'rework_quantity' => 'nullable|integer|min:0',
         ]);
 
         // Valores predeterminados
-        $data['good_parts'] = $data['good_parts'] ?? $data['quantity_produced'] ?? 0;
-        $data['scrap_parts'] = $data['scrap_parts'] ?? $data['quantity_scrap'] ?? 0;
+        $data['good_parts'] = $data['good_parts'] ?? 0;
+        $data['scrap_parts'] = $data['scrap_parts'] ?? 0;
         $data['target_parts'] = $data['target_parts'] ?? 100;
         $data['status'] = $data['status'] ?? 'pending';
-        
-        // Campos MES
-        $data['quantity_produced'] = $data['quantity_produced'] ?? $data['good_parts'];
-        $data['quantity_scrap'] = $data['quantity_scrap'] ?? $data['scrap_parts'];
         $data['quality_status'] = $data['quality_status'] ?? Production::QUALITY_STATUS_PENDING;
         
         // Fechas
         if (empty($data['start_time'])) {
             $data['start_time'] = now();
-            $data['fecha_inicio'] = now();
         }
 
         $production = Production::create($data);
 
+        // Si tiene máquina asignada y el status es in_progress, registrar movement de máquina
+        if ($production->machine_id && $data['status'] === 'in_progress') {
+            $machine = Machine::find($production->machine_id);
+            if ($machine) {
+                // Crear registro de movimiento de máquina
+                MachineMovement::create([
+                    'machine_id' => $machine->id,
+                    'production_id' => $production->id,
+                    'operator_id' => $production->operator_id,
+                    'start_time' => $production->start_time,
+                    'status' => 'active',
+                ]);
+                
+                // Cambiar status de la máquina a "en uso"
+                $machine->update(['status' => Machine::STATUS_IN_USE]);
+            }
+        }
+
         // Si está marcado como completado, registrar en el proceso
-        if ($data['status'] === 'completed' && $production->work_order_process_id) {
+        if ($data['status'] === 'completed' && $production->process_id) {
             $production->registerInProcess();
         }
 
@@ -134,7 +205,7 @@ class ProductionController extends Controller implements HasMiddleware
         return response()->json([
             'success' => true,
             'message' => 'Orden de producción creada exitosamente',
-            'data' => $production->load(['process', 'machine', 'operator', 'workOrder', 'workOrderProcess'])
+            'data' => $production->load(['process', 'machine', 'operator', 'workOrder', 'parentProcess'])
         ], 201);
     }
 
@@ -145,10 +216,11 @@ class ProductionController extends Controller implements HasMiddleware
     {
         $production->load([
             'process', 
+            'parentProcess',
             'machine', 
             'operator', 
             'workOrder',
-            'workOrderProcess.process',
+            'process.process',
             'qualityEvaluations',
             'movements'
         ]);
@@ -163,12 +235,24 @@ class ProductionController extends Controller implements HasMiddleware
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Production $production)
+    public function update(Request $request, $productionId)
     {
+        // Buscar la producción manualmente para evitar problemas con route model binding
+        $production = Production::find($productionId);
+        
+        if (!$production) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Producción no encontrada',
+                'data' => null
+            ], 404);
+        }
+        
         $data = $request->validate([
             'process_id' => 'sometimes|required|exists:processes,id',
+            'parent_process_id' => 'sometimes|nullable|exists:processes,id',
             'work_order_id' => 'sometimes|nullable|exists:work_orders,id',
-            'work_order_process_id' => 'sometimes|nullable|exists:work_order_processes,id',
+            'product_id' => 'sometimes|required|exists:products,id',
             'machine_id' => 'sometimes|required|exists:machines,id',
             'operator_id' => 'sometimes|required|exists:operators,id',
             'start_time' => 'sometimes|required|date',
@@ -179,19 +263,97 @@ class ProductionController extends Controller implements HasMiddleware
             'notes' => 'nullable|string',
             'status' => 'nullable|string',
             'pause_reason' => 'nullable|string',
-            // Campos MES
-            'quantity_produced' => 'nullable|integer|min:0',
-            'quantity_scrap' => 'nullable|integer|min:0',
-            'rework_quantity' => 'nullable|integer|min:0',
             'quality_status' => 'nullable|in:PENDING,APPROVED,SCRAP,REWORK',
         ]);
+
+        // Validación de calidad: no permitir iniciar producción si la producción padre no está completada y aprobada por calidad
+        if (isset($data['status']) && $data['status'] === 'in_progress' && in_array($production->status, ['pending', null, ''])) {
+            // Recargar la producción para obtener el valor actual de parent_production_id
+            $production = $production->fresh();
+            
+            if (!$production) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Producción no encontrada al recargar',
+                    'data' => null
+                ], 404);
+            }
+            
+            if ($production->parent_production_id) {
+                // Obtener la producción padre
+                $parentProduction = Production::find($production->parent_production_id);
+                
+                // Si hay producción padre, verificar que esté completada Y aprobada por calidad
+                if ($parentProduction) {
+                    if ($parentProduction->status !== 'completed') {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'No se puede iniciar la producción. La producción padre debe estar completada primero.',
+                            'data' => null
+                        ], 422);
+                    }
+                    
+                    // Verificar que la producción padre esté aprobada por calidad
+                    if ($parentProduction->quality_status !== Production::QUALITY_STATUS_APPROVED) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'No se puede iniciar la producción. La producción padre debe estar aprobada por calidad primero.',
+                            'data' => null
+                        ], 422);
+                    }
+                }
+            }
+        }
 
         $wasCompleted = $production->status === 'completed';
         $production->update($data);
 
         // Si se marca como completado, registrar en el proceso
-        if ($data['status'] === 'completed' && !$wasCompleted && $production->work_order_process_id) {
+        if (isset($data['status']) && $data['status'] === 'completed' && !$wasCompleted) {
             $production->registerInProcess();
+        }
+
+        // Actualizar estado de máquina al iniciar o detener producción
+        if (isset($data['status']) && $production->machine_id) {
+            $machine = $production->machine;
+            if ($machine) {
+                if ($data['status'] === 'in_progress') {
+                    // Máquina en uso - crear movement si no existe
+                    $machine->update(['status' => Machine::STATUS_IN_USE]);
+                    
+                    // Crear movement de máquina si no existe
+                    $activeMovement = MachineMovement::where('machine_id', $machine->id)
+                        ->where('production_id', $production->id)
+                        ->where('status', 'active')
+                        ->first();
+                    
+                    if (!$activeMovement) {
+                        MachineMovement::create([
+                            'machine_id' => $machine->id,
+                            'production_id' => $production->id,
+                            'operator_id' => $production->operator_id,
+                            'start_time' => now(),
+                            'status' => 'active',
+                        ]);
+                    }
+                } elseif (in_array($data['status'], ['completed', 'cancelled'])) {
+                    // Máquina disponible - cerrar movement
+                    $machine->update(['status' => Machine::STATUS_AVAILABLE]);
+                    
+                    // Cerrar movement de máquina activo
+                    $activeMovement = MachineMovement::where('machine_id', $machine->id)
+                        ->where('production_id', $production->id)
+                        ->where('status', 'active')
+                        ->first();
+                    
+                    if ($activeMovement) {
+                        $activeMovement->update([
+                            'end_time' => now(),
+                            'status' => 'completed',
+                        ]);
+                    }
+                }
+            }
         }
 
         // Sincronizar con WorkOrder si existe (compatibilidad legacy)
@@ -205,7 +367,7 @@ class ProductionController extends Controller implements HasMiddleware
         return response()->json([
             'success' => true,
             'message' => 'Orden de producción actualizada exitosamente',
-            'data' => $production->load(['process', 'machine', 'operator', 'workOrder', 'workOrderProcess'])
+            'data' => $production->load(['process', 'machine', 'operator', 'workOrder', 'parentProcess'])
         ]);
     }
 
@@ -286,10 +448,10 @@ class ProductionController extends Controller implements HasMiddleware
         $production->complete($data['good_parts'], $scrapParts);
 
         // Si tiene proceso asociado, actualizarlo
-        if ($production->work_order_process_id) {
+        if ($production->process_id) {
             $production->registerInProcess();
             
-            $process = $production->workOrderProcess;
+            $process = $production->process;
             $process->refresh();
             
             return response()->json([
@@ -297,7 +459,7 @@ class ProductionController extends Controller implements HasMiddleware
                 'message' => 'Producción completada exitosamente',
                 'data' => [
                     'production' => $production->fresh(['process', 'machine', 'operator', 'workOrder']),
-                    'process_metrics' => $process->getMetrics(),
+                    'process_metrics' => null,
                 ]
             ]);
         }
@@ -367,7 +529,7 @@ class ProductionController extends Controller implements HasMiddleware
      */
     public function pendingQuality(Request $request)
     {
-        $query = Production::with(['workOrder', 'workOrderProcess.process', 'operator'])
+        $query = Production::with(['workOrder', 'process', 'operator'])
             ->where('quality_status', Production::QUALITY_STATUS_PENDING)
             ->where('status', 'completed');
 

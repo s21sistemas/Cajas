@@ -22,6 +22,7 @@ export default function VehiculosPage() {
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [deletingVehicle, setDeletingVehicle] = useState<Vehicle | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string[]>>({});
 
   // Función para obtener vehículos
   const fetchVehicles = async () => {
@@ -52,6 +53,7 @@ export default function VehiculosPage() {
 
   const handleSubmit = async (data: CreateVehicleDto) => {
     setSubmitting(true);
+    setFormErrors({});
     try {
       if (editingVehicle) {
         await vehiclesService.update(Number(editingVehicle.id), data);
@@ -64,8 +66,16 @@ export default function VehiculosPage() {
       setEditingVehicle(null);
       fetchVehicles();
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
-      showToast("error", "Error", errorMessage);
+      console.error("Error submitting vehicle:", error);
+      const errors = error?.errors;
+      if (errors) {
+        setFormErrors(errors);
+        const errorMessages = Object.entries(errors).map(([field, msgs]: [string, any]) => `${field}: ${msgs.join(', ')}`);
+        showToast("error", "Error de validación", errorMessages.join('\n'));
+      } else {
+        const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+        showToast("error", "Error", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -132,10 +142,11 @@ export default function VehiculosPage() {
 
         <VehicleFormDialog
           open={modalOpen}
-          onOpenChange={(open) => { setModalOpen(open); if (!open) setEditingVehicle(null); }}
+          onOpenChange={(open) => { setModalOpen(open); if (!open) { setEditingVehicle(null); setFormErrors({}); } }}
           editingVehicle={editingVehicle}
           onSubmit={handleSubmit}
           loading={submitting}
+          errors={formErrors}
         />
 
         <ConfirmDialog

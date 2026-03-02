@@ -1,168 +1,257 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { ERPLayout } from "@/components/erp/erp-layout";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Plus } from "lucide-react";
 import { useToast } from "@/components/erp/action-toast";
-import { productsService } from "@/lib/services";
-import { Search, Package, ArrowDownToLine, ArrowUpFromLine, Loader2, AlertTriangle } from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { Product } from "@/lib/types";
+import { ConfirmDialog } from "@/components/erp/confirm-dialog";
+import { inventoryService } from "@/lib/services/inventory.service";
+import type { InventoryItem, CreateInventoryItemDto } from "@/lib/types";
+
+import { ProductoTerminadoStatsCards } from "./components/ProductoTerminadoStatsCards";
+import { ProductoTerminadoTable } from "./components/ProductoTerminadoTable";
+import { ProductoTerminadoFormDialog } from "./components/ProductoTerminadoFormDialog";
+import { ProductoTerminadoMovimientoDialog } from "./components/ProductoTerminadoMovimientoDialog";
 
 export default function ProductoTerminadoPage() {
   const { showToast } = useToast();
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
+  const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
-  const [entryOpen, setEntryOpen] = useState(false);
-  const [exitOpen, setExitOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [qty, setQty] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
+  
+  // Modal states
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [deletingItem, setDeletingItem] = useState<InventoryItem | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  
+  // Movement dialog
+  const [movementOpen, setMovementOpen] = useState(false);
+  const [movementItem, setMovementItem] = useState<InventoryItem | null>(null);
+  const [movementType, setMovementType] = useState<"production" | "sale">("production");
+  
+  // Stats
+  const [stats, setStats] = useState({
+    totalItems: 0,
+    totalValue: 0,
+    lowStockItems: 0,
+    byWarehouse: {} as Record<string, number>,
+  });
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const response = await productsService.getAll({ perPage: 100 });
-        setProducts((response.data as Product[]) || []);
-      } catch (error) {
-        console.error("Error cargando productos:", error);
-        showToast("error", "Error", "No se pudieron cargar los productos");
-      } finally {
-        setLoading(false);
+  // Refs
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialMount = useRef(true);
+
+  // Fetch items
+  const fetchItems = useCallback(async (searchValue: string = "") => {
+    setLoading(true);
+    try {
+      const params: any = { per_page: 100, category: "finished_product" };
+      if (searchValue && searchValue.trim()) {
+        params.search = searchValue.trim();
       }
+      const response = await inventoryService.getAll(params);
+      const data = response?.data || [];
+      setItems(data);
+    } catch (error: any) {
+      console.error("Error cargando productos:", error);
+      showToastRef.current("error", "Error", "No se pudieron cargar los productos");
+    } finally {
+      setLoading(false);
     }
-    loadData();
   }, []);
 
-  const filtered = products.filter(p => 
-    p.name?.toLowerCase().includes(search.toLowerCase()) || 
-    p.code?.toLowerCase().includes(search.toLowerCase())
-  );
-  const lowStock = products.filter(p => (p.stock || 0) <= (p.minStock || 0)).length;
-  const totalValue = products.reduce((s, p) => s + (p.stock || 0) * (p.cost || 0), 0);
-
-  const handleEntry = async () => {
-    if (!selectedProduct || !qty) return;
-    setActionLoading(true);
+  // Fetch stats
+  const fetchStats = useCallback(async () => {
     try {
-      await productsService.updateStock(selectedProduct.id, (selectedProduct.stock || 0) + Number(qty));
-      showToast("success", "Entrada registrada", `+${qty} ${selectedProduct.unit || 'pz'} de ${selectedProduct.name}`);
-      // Recargar datos
-      const response = await productsService.getAll({ perPage: 100 });
-      setProducts(response.data);
-    } catch (error) {
-      showToast("error", "Error", "No se pudo registrar la entrada");
+      const statsData = await inventoryService.getStats();
+      setStats({
+        totalItems: statsData.totalItems || 0,
+        totalValue: statsData.totalValue || 0,
+        lowStockItems: statsData.lowStockItems || 0,
+        byWarehouse: statsData.byWarehouse || {},
+      });
+    } catch (error: any) {
+      console.error("Error cargando estadísticas:", error);
+    }
+  }, []);
+
+  // Initial load - only once with isInitialMount ref
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      fetchItems();
+      fetchStats();
+    }
+  }, [fetchItems, fetchStats]);
+
+  // Search with debounce - solo se ejecuta cuando search cambia
+  useEffect(() => {
+    // Skip inicial
+    if (search === "") return;
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchItems(search);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [search, fetchItems]);
+
+  // Handlers
+  const handleSubmit = async (data: CreateInventoryItemDto) => {
+    setSubmitting(true);
+    try {
+      if (editingItem) {
+        await inventoryService.update(Number(editingItem.id), data);
+        showToast("success", "Producto actualizado", "");
+      } else {
+        await inventoryService.create(data);
+        showToast("success", "Producto creado", "");
+      }
+      setModalOpen(false);
+      setEditingItem(null);
+      fetchItems(search);
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
     } finally {
-      setEntryOpen(false);
-      setQty("");
-      setActionLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const handleExit = async () => {
-    if (!selectedProduct || !qty) return;
-    if (Number(qty) > (selectedProduct.stock || 0)) { 
-      showToast("error", "Stock insuficiente", "No hay suficiente producto en inventario"); 
-      return; 
-    }
-    setActionLoading(true);
+  const handleDelete = async () => {
+    if (!deletingItem) return;
+    setSubmitting(true);
     try {
-      await productsService.updateStock(selectedProduct.id, (selectedProduct.stock || 0) - Number(qty));
-      showToast("success", "Salida registrada", `-${qty} ${selectedProduct.unit || 'pz'} de ${selectedProduct.name}`);
-      // Recargar datos
-      const response = await productsService.getAll({ perPage: 100 });
-      setProducts(response.data);
-    } catch (error) {
-      showToast("error", "Error", "No se pudo registrar la salida");
+      await inventoryService.delete(Number(deletingItem.id));
+      showToast("success", "Producto eliminado", "");
+      setDeletingItem(null);
+      fetchItems(search);
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
     } finally {
-      setExitOpen(false);
-      setQty("");
-      setActionLoading(false);
+      setSubmitting(false);
     }
   };
 
-  if (loading) return <ERPLayout title="Almacen" subtitle="Producto Terminado"><div className="animate-pulse space-y-4"><div className="h-24 bg-muted rounded-lg" /><div className="h-96 bg-muted rounded-lg" /></div></ERPLayout>;
+  const handleMovement = async (data: { quantity: number; reference?: string; notes?: string }) => {
+    if (!movementItem) return;
+    setSubmitting(true);
+    try {
+      await inventoryService.recordMovement(Number(movementItem.id), {
+        type: movementType === "production" ? "in" : "out",
+        quantity: data.quantity,
+        reason: data.notes || data.reference || (movementType === "production" ? "Producción" : "Venta"),
+        reference: data.reference,
+      });
+      showToast("success", 
+        movementType === "production" ? "Producción registrada" : "Venta registrada", 
+        ""
+      );
+      setMovementOpen(false);
+      setMovementItem(null);
+      fetchItems(search);
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: "MXN",
-    }).format(value);
+  const openEditModal = (item: InventoryItem) => {
+    setEditingItem(item);
+    setModalOpen(true);
+  };
+
+  const openProductionModal = (item: InventoryItem) => {
+    setMovementItem(item);
+    setMovementType("production");
+    setMovementOpen(true);
+  };
+
+  const openSaleModal = (item: InventoryItem) => {
+    setMovementItem(item);
+    setMovementType("sale");
+    setMovementOpen(true);
   };
 
   return (
-    <ERPLayout title="Almacen" subtitle="Producto Terminado">
+    <ERPLayout title="Almacén de Productos Terminados" subtitle="Gestión de inventario de productos terminados">
       <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="border"><CardContent className="p-4"><p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Total Productos</p><p className="text-2xl font-bold mt-1">{products.length}</p></CardContent></Card>
-          <Card className="border"><CardContent className="p-4"><p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Valor Total</p><p className="text-2xl font-bold mt-1 text-primary">{formatCurrency(totalValue)}</p></CardContent></Card>
-          <Card className="border"><CardContent className="p-4"><p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Alertas Stock Bajo</p><p className="text-2xl font-bold mt-1 text-red-500">{lowStock}</p></CardContent></Card>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Productos Terminados</h1>
+            <p className="text-muted-foreground">
+              Administra el inventario de productos terminados listos para venta o entrega
+            </p>
+          </div>
+          <Button onClick={() => { setEditingItem(null); setModalOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Producto
+          </Button>
         </div>
 
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar producto..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-        </div>
+        <ProductoTerminadoStatsCards
+          totalItems={stats.totalItems}
+          totalValue={stats.totalValue}
+          lowStockItems={stats.lowStockItems}
+          byWarehouse={stats.byWarehouse}
+        />
 
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead><tr className="bg-muted/50 border-b">
-              <th className="text-left p-3 font-medium text-muted-foreground">Codigo</th>
-              <th className="text-left p-3 font-medium text-muted-foreground">Producto</th>
-              <th className="text-left p-3 font-medium text-muted-foreground">Categoria</th>
-              <th className="text-right p-3 font-medium text-muted-foreground">Stock</th>
-              <th className="text-right p-3 font-medium text-muted-foreground">Min</th>
-              <th className="text-right p-3 font-medium text-muted-foreground">Precio</th>
-              <th className="text-right p-3 font-medium text-muted-foreground">Costo</th>
-              <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
-              <th className="text-right p-3 font-medium text-muted-foreground">Acciones</th>
-            </tr></thead>
-            <tbody>
-              {filtered.map(p => {
-                const isLow = (p.stock || 0) <= (p.minStock || 0);
-                return (
-                  <tr key={p.id} className="border-b hover:bg-muted/30 transition-colors">
-                    <td className="p-3 font-mono text-xs">{p.code}</td>
-                    <td className="p-3"><div><p className="font-medium">{p.name}</p><p className="text-xs text-muted-foreground">{p.description}</p></div></td>
-                    <td className="p-3"><Badge variant="outline" className="text-xs">{p.category}</Badge></td>
-                    <td className={cn("p-3 text-right font-semibold", isLow && "text-red-500")}>{p.stock} {p.unit}</td>
-                    <td className="p-3 text-right text-muted-foreground">{p.minStock}</td>
-                    <td className="p-3 text-right font-medium">{formatCurrency(p.price || 0)}</td>
-                    <td className="p-3 text-right text-muted-foreground">{formatCurrency(p.cost || 0)}</td>
-                    <td className="p-3">{isLow ? <Badge className="bg-red-50 text-red-700 border-red-200 text-xs" variant="outline"><AlertTriangle className="h-3 w-3 mr-1" />Bajo</Badge> : <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs" variant="outline">OK</Badge>}</td>
-                    <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="outline" className="h-7 text-xs bg-transparent" onClick={() => { setSelectedProduct(p); setQty(""); setEntryOpen(true); }}><ArrowDownToLine className="h-3 w-3 mr-1" />Entrada</Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs bg-transparent" onClick={() => { setSelectedProduct(p); setQty(""); setExitOpen(true); }}><ArrowUpFromLine className="h-3 w-3 mr-1" />Salida</Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ProductoTerminadoTable
+          items={items}
+          search={search}
+          onSearchChange={setSearch}
+          onEdit={openEditModal}
+          onDelete={setDeletingItem}
+          onEntry={openProductionModal}
+          onExit={openSaleModal}
+          loading={loading}
+        />
+
+        <ProductoTerminadoFormDialog
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          defaultValues={editingItem || undefined}
+          onSubmit={handleSubmit}
+          isLoading={submitting}
+        />
+
+        <ProductoTerminadoMovimientoDialog
+          open={movementOpen}
+          onOpenChange={setMovementOpen}
+          item={movementItem}
+          type={movementType}
+          onSubmit={handleMovement}
+          isLoading={submitting}
+        />
+
+        <ConfirmDialog
+          open={!!deletingItem}
+          onOpenChange={(open) => !open && setDeletingItem(null)}
+          onConfirm={handleDelete}
+          title="Eliminar Producto"
+          description={`¿Estás seguro de que deseas eliminar "${deletingItem?.name}"? Esta acción no se puede deshacer.`}
+          confirmText="Eliminar"
+          variant="destructive"
+        />
       </div>
-
-      <Dialog open={entryOpen} onOpenChange={setEntryOpen}>
-        <DialogContent><DialogHeader><DialogTitle>Entrada de Producto Terminado</DialogTitle><DialogDescription>{selectedProduct?.code} - {selectedProduct?.name}</DialogDescription></DialogHeader>
-          <div className="space-y-4 py-4"><div className="space-y-2"><Label>Cantidad ({selectedProduct?.unit})</Label><Input type="number" value={qty} onChange={e => setQty(e.target.value)} /></div><p className="text-sm text-muted-foreground">Stock actual: {selectedProduct?.stock}</p></div>
-          <DialogFooter><Button variant="outline" onClick={() => setEntryOpen(false)}>Cancelar</Button><Button onClick={handleEntry} disabled={actionLoading}>{actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Registrar Entrada"}</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={exitOpen} onOpenChange={setExitOpen}>
-        <DialogContent><DialogHeader><DialogTitle>Salida de Producto Terminado</DialogTitle><DialogDescription>{selectedProduct?.code} - {selectedProduct?.name}</DialogDescription></DialogHeader>
-          <div className="space-y-4 py-4"><div className="space-y-2"><Label>Cantidad ({selectedProduct?.unit})</Label><Input type="number" value={qty} onChange={e => setQty(e.target.value)} /></div><p className="text-sm text-muted-foreground">Stock actual: {selectedProduct?.stock}</p></div>
-          <DialogFooter><Button variant="outline" onClick={() => setExitOpen(false)}>Cancelar</Button><Button onClick={handleExit} disabled={actionLoading} className="bg-amber-600 hover:bg-amber-700 text-white">{actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Registrar Salida"}</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
     </ERPLayout>
   );
 }

@@ -15,6 +15,7 @@ interface VehicleFormDialogProps {
   editingVehicle: Vehicle | null;
   onSubmit: (data: CreateVehicleDto) => Promise<void>;
   loading: boolean;
+  errors?: Record<string, string[]>;
 }
 
 export function VehicleFormDialog({
@@ -23,6 +24,7 @@ export function VehicleFormDialog({
   editingVehicle,
   onSubmit,
   loading,
+  errors,
 }: VehicleFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -35,6 +37,7 @@ export function VehicleFormDialog({
         <VehicleForm
           onSubmit={onSubmit}
           isLoading={loading}
+          errors={errors}
           defaultValues={editingVehicle ? {
             typeVehicle: editingVehicle.typeVehicle,
             brand: editingVehicle.brand,
@@ -42,13 +45,15 @@ export function VehicleFormDialog({
             color: editingVehicle.color,
             licensePlate: editingVehicle.licensePlate,
             status: editingVehicle.status,
+            vehiclePhotos: editingVehicle.vehiclePhotos,
             labeled: editingVehicle.labeled,
             gps: editingVehicle.gps,
             taxesPaid: editingVehicle.taxesPaid,
-            aseguradora: editingVehicle.aseguradora,
-            telefonoAseguradora: editingVehicle.telefonoAseguradora,
-            numeroPoliza: editingVehicle.numeroPoliza,
-            fechaVencimiento: editingVehicle.fechaVencimiento,
+            insuranceCompany: editingVehicle.insuranceCompany,
+            insuranceCompanyPhone: editingVehicle.insuranceCompanyPhone,
+            insuranceFile: editingVehicle.insuranceFile,
+            policyNumber: editingVehicle.policyNumber,
+            expirationDate: editingVehicle.expirationDate,
           } : undefined}
         />
       </DialogContent>

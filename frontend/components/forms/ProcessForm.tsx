@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,12 +10,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Switch } from '@/components/ui/switch';
-import type { CreateProcessDto, Process } from '@/lib/types';
+import type { Process, CreateProcessDto } from '@/lib/types';
+import { processTypesService, type ProcessType } from '@/lib/services';
 
 const processSchema = z.object({
   code: z.string().optional().default(''),
   name: z.string().min(1, 'El nombre es requerido').max(255),
-  processType: z.string().min(1, 'El tipo de proceso es requerido').max(255),
+  processTypeId: z.number().min(1, 'El tipo de proceso es requerido'),
   description: z.string().optional().default(''),
   requiresMachine: z.boolean().default(false),
   estimatedTimeMin: z.number().optional().nullable(),
@@ -27,15 +29,18 @@ interface ProcessFormProps {
   defaultValues?: Partial<Process>;
   onSubmit: (data: CreateProcessDto) => Promise<void>;
   isLoading?: boolean;
+  errors?: Record<string, string[]>;
 }
 
-export function ProcessForm({ defaultValues, onSubmit, isLoading }: ProcessFormProps) {
+export function ProcessForm({ defaultValues, onSubmit, isLoading, errors }: ProcessFormProps) {
+  const [processTypes, setProcessTypes] = useState<ProcessType[]>([]);
+  
   const form = useForm<ProcessFormValues>({
     resolver: zodResolver(processSchema),
     defaultValues: {
       code: defaultValues?.code || '',
       name: defaultValues?.name || '',
-      processType: (defaultValues?.processType as string) || '',
+      processTypeId: (defaultValues as any)?.processTypeId || 0,
       description: defaultValues?.description || '',
       requiresMachine: defaultValues?.requiresMachine ?? false,
       estimatedTimeMin: defaultValues?.estimatedTimeMin ?? null,
@@ -43,11 +48,37 @@ export function ProcessForm({ defaultValues, onSubmit, isLoading }: ProcessFormP
     },
   });
 
+  // Set backend errors on fields
+  useEffect(() => {
+    if (errors) {
+      Object.entries(errors).forEach(([field, messages]) => {
+        if (messages && messages.length > 0) {
+          form.setError(field as keyof ProcessFormValues, {
+            type: 'server',
+            message: messages[0],
+          });
+        }
+      });
+    }
+  }, [errors, form]);
+
+  useEffect(() => {
+    const fetchProcessTypes = async () => {
+      try {
+        const data = await processTypesService.getAll();
+        setProcessTypes(data);
+      } catch (error) {
+        console.error('Error fetching process types:', error);
+      }
+    };
+    fetchProcessTypes();
+  }, []);
+
   const handleSubmit = async (data: ProcessFormValues) => {
     const submitData: CreateProcessDto = {
       code: data.code || undefined,
       name: data.name,
-      processType: data.processType,
+      processTypeId: data.processTypeId,
       description: data.description || undefined,
       requiresMachine: data.requiresMachine,
       estimatedTimeMin: data.estimatedTimeMin || undefined,
@@ -67,7 +98,7 @@ export function ProcessForm({ defaultValues, onSubmit, isLoading }: ProcessFormP
               <FormItem>
                 <FormLabel>Código</FormLabel>
                 <FormControl>
-                  <Input placeholder="PROC-00001" {...field} />
+                  <Input placeholder="PROC-00001" {...field} value={field.value ?? ''} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -75,24 +106,25 @@ export function ProcessForm({ defaultValues, onSubmit, isLoading }: ProcessFormP
           />
           <FormField
             control={form.control}
-            name="processType"
+            name="processTypeId"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Tipo de Proceso *</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select 
+                  onValueChange={(value) => field.onChange(parseInt(value))} 
+                  defaultValue={field.value?.toString() || ''}
+                >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar tipo" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="Corrugado">Corrugado</SelectItem>
-                    <SelectItem value="Impresión">Impresión</SelectItem>
-                    <SelectItem value="Troquelado">Troquelado</SelectItem>
-                    <SelectItem value="Pegado">Pegado</SelectItem>
-                    <SelectItem value="Ensamble">Ensamble</SelectItem>
-                    <SelectItem value="Empaque">Empaque</SelectItem>
-                    <SelectItem value="Inspección">Inspección</SelectItem>
+                    {processTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id.toString()}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -108,7 +140,7 @@ export function ProcessForm({ defaultValues, onSubmit, isLoading }: ProcessFormP
             <FormItem>
               <FormLabel>Nombre *</FormLabel>
               <FormControl>
-                <Input placeholder="Corrugado" {...field} />
+                <Input placeholder="Corrugado" {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -122,7 +154,7 @@ export function ProcessForm({ defaultValues, onSubmit, isLoading }: ProcessFormP
             <FormItem>
               <FormLabel>Descripción</FormLabel>
               <FormControl>
-                <Textarea placeholder="Descripción del proceso..." {...field} value={field.value || ''} />
+                <Textarea placeholder="Descripción del proceso..." {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>

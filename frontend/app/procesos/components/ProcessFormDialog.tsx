@@ -16,6 +16,7 @@ interface ProcessFormDialogProps {
   editingProcess: Process | null;
   onSubmit: (data: CreateProcessDto) => Promise<void>;
   loading?: boolean;
+  errors?: Record<string, string[]>;
 }
 
 export function ProcessFormDialog({
@@ -24,6 +25,7 @@ export function ProcessFormDialog({
   editingProcess,
   onSubmit,
   loading = false,
+  errors,
 }: ProcessFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -42,6 +44,7 @@ export function ProcessFormDialog({
           defaultValues={editingProcess || undefined}
           onSubmit={onSubmit}
           isLoading={loading}
+          errors={errors}
         />
       </DialogContent>
     </Dialog>

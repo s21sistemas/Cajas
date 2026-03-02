@@ -13,17 +13,20 @@ return new class extends Migration
     {
         Schema::create('clients', function (Blueprint $table) {
             $table->id();
-            $table->string('code')->unique();
+            $table->string('code')->nullable()->unique();
             $table->string('name');
 
             $table->string('rfc', 13)->nullable()->index();
 
             $table->string('email')->nullable();
             $table->string('phone')->nullable();
+            $table->string('contacto')->nullable();
+            $table->string('whatsapp')->nullable();
 
-            $table->string('address');
-            $table->string('city');
-            $table->string('state');
+
+            $table->string('address')->nullable();
+            $table->string('city')->nullable();
+            $table->string('state')->nullable();
 
             $table->decimal('credit_limit', 14, 2)->default(0);
             $table->decimal('balance', 14, 2)->default(0);
@@ -33,7 +36,7 @@ return new class extends Migration
                 'inactive',
                 'blocked'
             ])->default('active');
-
+    
             $table->timestamps();
         });
     }

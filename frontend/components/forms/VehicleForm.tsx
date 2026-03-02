@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -16,13 +17,15 @@ const vehicleSchema = z.object({
   color: z.string().min(1, 'El color es requerido').max(15),
   licensePlate: z.string().min(1, 'La placa es requerida').max(20),
   status: z.enum(['Available', 'Assigned', 'Under repair', 'Out of service', 'Accident', 'Stolen', 'Sold']).optional(),
+  vehiclePhotos: z.string().optional(),
   labeled: z.enum(['YES', 'NO'], { required_error: 'Seleccione una opción' }),
   gps: z.enum(['YES', 'NO'], { required_error: 'Seleccione una opción' }),
   taxesPaid: z.enum(['YES', 'NO'], { required_error: 'Seleccione una opción' }),
-  aseguradora: z.string().min(1, 'La aseguradora es requerida').max(50),
-  telefonoAseguradora: z.string().min(1, 'El teléfono es requerido').max(15),
-  numeroPoliza: z.string().min(1, 'El número de póliza es requerido'),
-  fechaVencimiento: z.string().min(1, 'La fecha de vencimiento es requerida'),
+  insuranceCompany: z.string().min(1, 'La aseguradora es requerida').max(50),
+  insuranceCompanyPhone: z.string().min(1, 'El teléfono es requerido').max(15),
+  insuranceFile: z.string().optional(),
+  policyNumber: z.string().min(1, 'El número de póliza es requerido'),
+  expirationDate: z.string().min(1, 'La fecha de vencimiento es requerida'),
 });
 
 type VehicleFormValues = z.infer<typeof vehicleSchema>;
@@ -31,9 +34,10 @@ interface VehicleFormProps {
   defaultValues?: Partial<CreateVehicleDto>;
   onSubmit: (data: CreateVehicleDto) => Promise<void>;
   isLoading?: boolean;
+  errors?: Record<string, string[]>;
 }
 
-export function VehicleForm({ defaultValues, onSubmit, isLoading }: VehicleFormProps) {
+export function VehicleForm({ defaultValues, onSubmit, isLoading, errors }: VehicleFormProps) {
   const form = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema),
     defaultValues: {
@@ -43,15 +47,31 @@ export function VehicleForm({ defaultValues, onSubmit, isLoading }: VehicleFormP
       color: defaultValues?.color || '',
       licensePlate: defaultValues?.licensePlate || '',
       status: defaultValues?.status || 'Available',
+      vehiclePhotos: defaultValues?.vehiclePhotos || '',
       labeled: defaultValues?.labeled || 'NO',
       gps: defaultValues?.gps || 'NO',
       taxesPaid: defaultValues?.taxesPaid || 'NO',
-      aseguradora: defaultValues?.aseguradora || '',
-      telefonoAseguradora: defaultValues?.telefonoAseguradora || '',
-      numeroPoliza: defaultValues?.numeroPoliza || '',
-      fechaVencimiento: defaultValues?.fechaVencimiento || '',
+      insuranceCompany: defaultValues?.insuranceCompany || '',
+      insuranceCompanyPhone: defaultValues?.insuranceCompanyPhone || '',
+      insuranceFile: defaultValues?.insuranceFile || '',
+      policyNumber: defaultValues?.policyNumber || '',
+      expirationDate: defaultValues?.expirationDate || '',
     },
   });
+
+  // Set backend errors on fields
+  useEffect(() => {
+    if (errors) {
+      Object.entries(errors).forEach(([field, messages]) => {
+        if (messages && messages.length > 0) {
+          form.setError(field as keyof VehicleFormValues, {
+            type: 'server',
+            message: messages[0],
+          });
+        }
+      });
+    }
+  }, [errors, form]);
 
   return (
     <Form {...form}>
@@ -188,6 +208,19 @@ export function VehicleForm({ defaultValues, onSubmit, isLoading }: VehicleFormP
           />
           <FormField
             control={form.control}
+            name="vehiclePhotos"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Fotos del vehículo</FormLabel>
+                <FormControl>
+                  <Input placeholder="URL de fotos" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
             name="gps"
             render={({ field }) => (
               <FormItem>
@@ -233,7 +266,7 @@ export function VehicleForm({ defaultValues, onSubmit, isLoading }: VehicleFormP
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="aseguradora"
+            name="insuranceCompany"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Aseguradora *</FormLabel>
@@ -246,7 +279,7 @@ export function VehicleForm({ defaultValues, onSubmit, isLoading }: VehicleFormP
           />
           <FormField
             control={form.control}
-            name="telefonoAseguradora"
+            name="insuranceCompanyPhone"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Teléfono aseguradora *</FormLabel>
@@ -262,7 +295,20 @@ export function VehicleForm({ defaultValues, onSubmit, isLoading }: VehicleFormP
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="numeroPoliza"
+            name="insuranceFile"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Archivo de seguro</FormLabel>
+                <FormControl>
+                  <Input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => field.onChange(e.target.files?.[0]?.name || '')} value={field.value || ''} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="policyNumber"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Número de póliza *</FormLabel>
@@ -273,9 +319,12 @@ export function VehicleForm({ defaultValues, onSubmit, isLoading }: VehicleFormP
               </FormItem>
             )}
           />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="fechaVencimiento"
+            name="expirationDate"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Fecha de vencimiento *</FormLabel>

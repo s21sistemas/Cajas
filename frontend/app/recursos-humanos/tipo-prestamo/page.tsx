@@ -31,33 +31,19 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Search, Edit, Trash2, Wallet } from "lucide-react";
-
-interface LoanType {
-  id: string;
-  code: string;
-  name: string;
-  description: string;
-  maxAmount: number;
-  maxTermMonths: number;
-  interestRate: number;
-  requirements: string;
-  status: "active" | "inactive";
-}
-
-const mockTypes: LoanType[] = [
-  { id: "1", code: "PRE-001", name: "Prestamo Personal", description: "Prestamo para gastos personales generales", maxAmount: 20000, maxTermMonths: 12, interestRate: 0, requirements: "Antiguedad minima 6 meses, sin adeudos previos", status: "active" },
-  { id: "2", code: "PRE-002", name: "Prestamo de Emergencia", description: "Para situaciones de emergencia medica o familiar", maxAmount: 10000, maxTermMonths: 6, interestRate: 0, requirements: "Antiguedad minima 3 meses", status: "active" },
-  { id: "3", code: "PRE-003", name: "Anticipo de Sueldo", description: "Adelanto de hasta 50% del sueldo quincenal", maxAmount: 0, maxTermMonths: 1, interestRate: 0, requirements: "Maximo 50% del sueldo neto", status: "active" },
-  { id: "4", code: "PRE-004", name: "Prestamo Escolar", description: "Para gastos de educacion de hijos", maxAmount: 15000, maxTermMonths: 10, interestRate: 0, requirements: "Antiguedad minima 1 ano, comprobante de inscripcion", status: "active" },
-  { id: "5", code: "PRE-005", name: "Prestamo para Vivienda", description: "Mejoras o reparaciones del hogar", maxAmount: 50000, maxTermMonths: 24, interestRate: 5, requirements: "Antiguedad minima 2 anos, aval", status: "inactive" },
-];
+import { loanTypesService, type LoanType } from "@/lib/services";
+import { useToast } from "@/components/erp/action-toast";
+import { ConfirmDialog } from "@/components/erp/confirm-dialog";
 
 export default function LoanTypesPage() {
+  const { showToast } = useToast();
   const [types, setTypes] = useState<LoanType[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<LoanType | null>(null);
+  const [deletingItem, setDeletingItem] = useState<LoanType | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     code: "",
     name: "",
@@ -66,16 +52,24 @@ export default function LoanTypesPage() {
     maxTermMonths: 1,
     interestRate: 0,
     requirements: "",
-    status: "active" as const,
+    status: "active" as "active" | "inactive",
   });
 
-  useEffect(() => {
-    const loadData = async () => {
-      await new Promise((r) => setTimeout(r, 300));
-      setTypes(mockTypes);
+  const fetchTypes = async () => {
+    setLoading(true);
+    try {
+      const data = await loanTypesService.getAll();
+      setTypes(data);
+    } catch (error: any) {
+      console.error("Error fetching loan types:", error);
+      showToast("error", "Error", "No se pudieron cargar los tipos de préstamo");
+    } finally {
       setLoading(false);
-    };
-    loadData();
+    }
+  };
+
+  useEffect(() => {
+    fetchTypes();
   }, []);
 
   const filtered = types.filter(
@@ -104,35 +98,54 @@ export default function LoanTypesPage() {
     setFormData({
       code: item.code,
       name: item.name,
-      description: item.description,
+      description: item.description || "",
       maxAmount: item.maxAmount,
       maxTermMonths: item.maxTermMonths,
       interestRate: item.interestRate,
-      requirements: item.requirements,
+      requirements: item.requirements || "",
       status: item.status,
     });
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (editingItem) {
-      setTypes(types.map((t) => (t.id === editingItem.id ? { ...t, ...formData } : t)));
-    } else {
-      const newItem: LoanType = {
-        id: String(types.length + 1),
-        ...formData,
-      };
-      setTypes([...types, newItem]);
+  const handleSave = async () => {
+    setSubmitting(true);
+    try {
+      if (editingItem) {
+        await loanTypesService.update(editingItem.id, formData);
+        showToast("success", "Éxito", "Tipo de préstamo actualizado correctamente");
+      } else {
+        await loanTypesService.create(formData);
+        showToast("success", "Éxito", "Tipo de préstamo creado correctamente");
+      }
+      setIsModalOpen(false);
+      fetchTypes();
+    } catch (error: any) {
+      const errorMessage = error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
+    } finally {
+      setSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string) => {
-    setTypes(types.filter((t) => t.id !== id));
+  const handleDelete = async () => {
+    if (!deletingItem) return;
+    setSubmitting(true);
+    try {
+      await loanTypesService.delete(deletingItem.id);
+      showToast("success", "Éxito", "Tipo de préstamo eliminado correctamente");
+      setDeletingItem(null);
+      fetchTypes();
+    } catch (error: any) {
+      const errorMessage = error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <ERPLayout>
+    <ERPLayout title="Tipos de Préstamo" subtitle="Catálogo de tipos de préstamo disponibles">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -251,7 +264,7 @@ export default function LoanTypesPage() {
                           <Button variant="ghost" size="icon" onClick={() => openEditModal(item)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => setDeletingItem(item)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
@@ -319,10 +332,22 @@ export default function LoanTypesPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSave}>Guardar</Button>
+              <Button onClick={handleSave} disabled={submitting}>
+                {submitting ? "Guardando..." : "Guardar"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <ConfirmDialog
+          open={!!deletingItem}
+          onOpenChange={(open) => !open && setDeletingItem(null)}
+          title="Eliminar Tipo de Préstamo"
+          description={`¿Está seguro de eliminar el tipo de préstamo "${deletingItem?.name}"? Esta acción no se puede deshacer.`}
+          confirmText="Eliminar"
+          onConfirm={handleDelete}
+          variant="destructive"
+        />
       </div>
     </ERPLayout>
   );

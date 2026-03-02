@@ -123,6 +123,16 @@ export function ClientTable({ clients, search, onSearchChange, onView, onEdit, o
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <Phone className="h-3 w-3" /> {client.phone}
                         </span>
+                        {client.whatsapp && (
+                          <span className="text-xs text-green-500 flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> WA: {client.whatsapp}
+                          </span>
+                        )}
+                        {client.contacto && (
+                          <span className="text-xs text-muted-foreground">
+                            Contacto: {client.contacto}
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-foreground">{formatCurrency(client.creditLimit)}</TableCell>

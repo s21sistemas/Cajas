@@ -1,4 +1,4 @@
-import { api } from '@/lib/api';
+import { api, apiClient } from '@/lib/api';
 
 export const salesService = {
   getAll: async (params?: { search?: string; status?: string; per_page?: number }) => {
@@ -29,11 +29,63 @@ export const salesService = {
     return api.delete<void>(`/sales/${id}`);
   },
 
-  recordPayment: async (id: number, data: { amount: number; payment_method: string }) => {
-    return api.post<any>(`/sales/${id}/record-payment`, data);
+  recordPayment: async (id: number, data: { amount: number; payment_method: string; bank_account_id: number; reference?: string; payment_date: string }) => {
+    return api.post<any>(`/sales/${id}/payment`, data);
   },
 
-  getStats: async () => {
-    return api.get<any>('/sales/stats');
+  getPayments: async (saleId: number) => {
+    return api.get<any[]>(`/sales/${saleId}/payments`);
   },
+
+  complete: async (id: number, data: { payment_type?: string; credit_days?: number; bank_account_id?: number }) => {
+    return api.post<any>(`/sales/${id}/complete`, data);
+  },
+
+  getItems: async (saleId: number) => {
+    return api.get<any[]>(`/sales/${saleId}/items`);
+  },
+
+  addItem: async (saleId: number, data: any) => {
+    return api.post<any>(`/sales/${saleId}/items`, data);
+  },
+
+  updateItem: async (saleId: number, itemId: number, data: Partial<any>) => {
+    return api.put<any>(`/sales/${saleId}/items/${itemId}`, data);
+  },
+
+  deleteItem: async (saleId: number, itemId: number) => {
+    return api.delete<void>(`/sales/${saleId}/items/${itemId}`);
+  },
+
+  exportPdf: async (id: number): Promise<Blob> => {    
+      const response = await apiClient.get(`/sales/${id}/pdf`, {
+        responseType: 'blob',
+      });
+      
+      // Crear un blob URL para descargar el PDF
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `cotizacion-${id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      return response;
+    
+  },
+
+  getStats: (): Promise<{
+    total: number;
+    totalAmount: number;
+  }> => {
+    return api.get('/sales/stats');
+  },
+
+  // Get sales by client ID
+  getByClient: async (clientId: number): Promise<{ data: any[]; success: boolean }> => {
+    return api.get<{ data: any[]; success: boolean }>(`/sales/by-client/${clientId}`);
+  }
 };

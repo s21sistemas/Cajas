@@ -18,9 +18,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Sale } from "@/lib/types/service-order.types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { clientsService } from "@/lib/services";
-import type { Client } from "@/lib/types";
+import { productsService } from "@/lib/services/products.service";
+import { quotesService } from "@/lib/services/quotes.service";
+import type { Client, Product } from "@/lib/types";
+import { Plus, Trash2, Loader2 } from "lucide-react";
+import { useApiQuery } from "@/hooks/use-api-query";
 
 // Función helper para formatear fecha para input type="date"
 const formatDateForInput = (dateString: string | null | undefined): string => {
@@ -42,23 +46,123 @@ interface SaleFormDialogProps {
   editingSale: Sale | null;
   onSubmit: (data: any) => void;
   loading: boolean;
+  error?: any; // Errors from parent for field display
+}
+
+interface SaleItemForm {
+  id?: number;
+  productId: number | null;
+  // Datos del producto para autocompletar
+  productName?: string;
+  productCode?: string;
+  unit: string;
+  partNumber: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercentage: number;
+  discountAmount: number;
+  subtotal: number;
 }
 
 const paymentMethods = [
   { value: "Transferencia", label: "Transferencia" },
   { value: "Cheque", label: "Cheque" },
   { value: "Efectivo", label: "Efectivo" },
-  { value: "Credito 15 dias", label: "Credito 15 dias" },
-  { value: "Credito 30 dias", label: "Credito 30 dias" },
+];
+
+const creditDaysOptions = [
+  { value: "15", label: "15 días" },
+  { value: "30", label: "30 días" },
+  { value: "45", label: "45 días" },
+  { value: "60", label: "60 días" },
+  { value: "90", label: "90 días" },
 ];
 
 const statusOptions = [
   { value: "pending", label: "Pendiente" },
-  { value: "partial", label: "Parcial" },
   { value: "paid", label: "Pagada" },
   { value: "overdue", label: "Vencida" },
   { value: "cancelled", label: "Cancelada" },
 ];
+
+// Componente para el selector de productos con búsqueda
+function ProductSelect({
+  value,
+  onChange,
+  products,
+  loading,
+  item
+}: {
+  value: number | null;
+  onChange: (productId: number | null, product: Product | null) => void;
+  products: Product[];
+  loading: boolean;
+  item?: SaleItemForm;
+}) {
+  const [search, setSearch] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selectedProduct = products.find(p => p.id === value);
+
+  const filteredProducts = products.filter(p => 
+    p.status === "active" && 
+    (p.name.toLowerCase().includes(search.toLowerCase()) || 
+     (p.code && p.code.toLowerCase().includes(search.toLowerCase())))
+  );
+
+  const handleSelect = (product: Product) => {
+    onChange(product.id, product);
+    setSearch("");
+    setIsOpen(false);
+  };
+
+  // Si el producto no está en la lista pero tenemos datos del item (de cotización), mostrar esos datos
+  const displayValue = isOpen ? search : (selectedProduct?.name || (item?.productName ? `${item.productName} ${item.productCode ? `(${item.productCode})` : ''}` : (value ? `Producto #${value}` : "")));
+
+  return (
+    <div className="relative">
+      <Input
+        ref={inputRef}
+        value={displayValue}
+        onChange={(e) => setSearch(e.target.value)}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+        placeholder="Buscar producto..."
+        className="h-9 w-full"
+      />
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
+          {loading ? (
+            <div className="flex items-center justify-center p-4">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="ml-2 text-sm text-muted-foreground">Cargando...</span>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="p-4 text-sm text-muted-foreground text-center">
+              No se encontraron productos
+            </div>
+          ) : (
+            filteredProducts.map((product) => (
+              <div
+                key={product.id}
+                className="p-3 cursor-pointer hover:bg-accent border-b last:border-b-0"
+                onClick={() => handleSelect(product)}
+              >
+                <div className="font-medium text-sm">{product.name}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Código: {product.code}
+                  {product.category && <span className="ml-2">• {product.category}</span>}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function SaleFormDialog({
   open,
@@ -66,46 +170,372 @@ export function SaleFormDialog({
   editingSale,
   onSubmit,
   loading,
+  error,
 }: SaleFormDialogProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
+  const [quotes, setQuotes] = useState<any[]>([]);
+  const [loadingQuotes, setLoadingQuotes] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string>("");
+  const [paymentType, setPaymentType] = useState<string>("cash");
+  const [items, setItems] = useState<SaleItemForm[]>([]);
+  const [taxPercentage, setTaxPercentage] = useState(16);
+  const [saving, setSaving] = useState(false);
 
-  // Cargar clientes
+  // Fetch clients using selectList
+  const { data: clientsData, loading: clientsLoading } = useApiQuery(
+    () => clientsService.selectList(),
+    { enabled: open }
+  );
+  const clientsList = clientsData || [];
+
+  // Fetch products using selectList
+  const { data: productsData, loading: productsLoading } = useApiQuery(
+    () => productsService.selectList(),
+    { enabled: open }
+  );
+  const products = (productsData || []) as Product[];
+
+  // Initialize paymentType from editing sale
   useEffect(() => {
-    if (open) {
-      clientsService.getAll({ perPage: 100 })
-        .then((res) => setClients(res.data || []))
-        .catch(console.error)
-        .finally(() => setLoadingClients(false));
+    if (editingSale) {
+      setPaymentType(editingSale.paymentType || "cash");
+    } else {
+      setPaymentType("cash");
+    }
+  }, [editingSale, open]);
+
+  // Sync field errors from parent prop
+  useEffect(() => {
+    if (error && error.response?.data?.errors) {
+      const errors = error.response.data.errors;
+      const fieldErrorMap: Record<string, string> = {};
+      Object.keys(errors).forEach(key => {
+        fieldErrorMap[key] = errors[key][0];
+      });
+      setFieldErrors(fieldErrorMap);
+    } else {
+      setFieldErrors({});
+    }
+  }, [error, open]);
+
+  // Clear errors when opening/closing modal
+  useEffect(() => {
+    if (!open) {
+      setFieldErrors({});
     }
   }, [open]);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const data: Record<string, string | number> = {};
-    
-    formData.forEach((value, key) => {
-      if (key === "clientId" || key === "subtotal" || key === "tax" || key === "paid" || key === "taxRate" || key === "quoteId") {
-        data[key] = Number(value);
+  // Load items when editing sale
+  useEffect(() => {
+    if (editingSale) {
+      const itemsList = (editingSale as any).items || [];
+      if (itemsList && itemsList.length > 0) {
+        setItems(itemsList.map((item: any) => ({
+          id: item.id,
+          productId: item.product_id || null,
+          unit: item.unit || "",
+          partNumber: item.partNumber || item.part_number || "",
+          description: item.description || "",
+          quantity: item.quantity || 1,
+          unitPrice: item.unitPrice || item.unit_price || 0,
+          discountPercentage: item.discountPercentage || item.discount_percentage || 0,
+          discountAmount: item.discountAmount || item.discount_amount || 0,
+          subtotal: item.subtotal || 0,
+        })));
       } else {
-        data[key] = value as string;
+        setItems([]);
       }
-    });
+      // Cargar taxPercentage de la venta
+      const saleTaxRate = (editingSale as any).taxPercentage ?? (editingSale as any).taxercentage ?? 16;
+      setTaxPercentage(typeof saleTaxRate === 'number' ? saleTaxRate : parseFloat(saleTaxRate) || 16);
+      
+      // Set quote info if editing sale with quote
+      if (editingSale.clientId) {
+        setSelectedClientId(editingSale.clientId.toString());
+      }
+      if (editingSale.quoteId) {
+        setSelectedQuoteId(editingSale.quoteId.toString());
+      }
+    } else {
+      setItems([]);
+      setTaxPercentage(16);
+      setSelectedClientId("");
+      setSelectedQuoteId("");
+      setQuotes([]);
+    }
+  }, [editingSale, open]);
 
-    // Calcular tax basado en porcentaje y total = subtotal + tax
-    const subtotal = Number(data.subtotal) || 0;
-    const taxRate = Number(data.taxRate) || 0;
-    const tax = subtotal * (taxRate / 100);
-    data.tax = Math.round(tax * 100) / 100;
-    data.total = subtotal + data.tax;
+  // Fetch quotes when client is selected
+  useEffect(() => {
+    const fetchQuotes = async () => {
+      console.log('Fetching quotes for client:', selectedClientId);
+      if (selectedClientId) {
+        setLoadingQuotes(true);
+        try {
+          // api.get devuelve directamente res.data = { success: true, data: [...] }
+          const response = await quotesService.getByClient(Number(selectedClientId));
+          console.log('Quotes response:', response);
+          
+          // response es { success: true, data: [...] }
+          const quotesData = response.data || [];
+          console.log('Quotes data to set:', quotesData);
+          setQuotes(quotesData);
+        } catch (error) {
+          console.error('Error fetching quotes:', error);
+        } finally {
+          setLoadingQuotes(false);
+        }
+      } else {
+        setQuotes([]);
+        setSelectedQuoteId("");
+      }
+    };
+    fetchQuotes();
+  }, [selectedClientId]);
 
-    onSubmit(data);
+  // Fetch quote items when quote is selected
+  useEffect(() => {
+    const fetchQuoteItems = async () => {
+      console.log('selectedQuoteId:', selectedQuoteId);
+      console.log('Current quotes array:', quotes);
+      if (selectedQuoteId && selectedQuoteId !== '__none__' && selectedQuoteId !== '') {
+        try {
+          console.log('Fetching quote items for quote ID:', selectedQuoteId);
+          
+          // Siempre intentar obtener el tax_percentage de la cotización
+          // Primero buscar en el array de cotizaciones
+          const selectedQuote = quotes.find(q => q.id.toString() === selectedQuoteId);
+          console.log('Selected quote from array:', selectedQuote);
+          console.log('Quote tax_percentage value:', selectedQuote?.tax_percentage);
+          console.log('Quote tax value:', selectedQuote?.tax);
+          console.log('Quote subtotal value:', selectedQuote?.subtotal);
+          
+          // Intentar obtener el tax_percentage de cualquier forma
+          let taxPercent: number | null = null;
+          
+          // Buscar en el array de cotizaciones
+          if (selectedQuote?.tax_percentage) {
+            const parsed = parseFloat(selectedQuote.tax_percentage);
+            console.log('Parsed tax from array:', parsed);
+            if (!isNaN(parsed)) {
+              taxPercent = parsed;
+            }
+          }
+          
+          // Si tax_percentage es null pero tenemos tax y subtotal, calcular el porcentaje
+          if (taxPercent === null && selectedQuote?.tax && selectedQuote?.subtotal) {
+            const tax = parseFloat(selectedQuote.tax);
+            const subtotal = parseFloat(selectedQuote.subtotal);
+            if (subtotal > 0) {
+              taxPercent = (tax / subtotal) * 100;
+              console.log('Calculated tax percentage from tax/subtotal:', taxPercent);
+            }
+          }
+          
+          // Si no encontró en el array, hacer una llamada API
+          if (taxPercent === null) {
+            try {
+              // getById devuelve el Quote directamente, no envuelto en { success, data }
+              const quoteResponse = await quotesService.getById(Number(selectedQuoteId));
+              console.log('Quote response from API:', quoteResponse);
+              // quoteResponse ya es el objeto Quote directamente
+              const quoteData = quoteResponse.data || quoteResponse;
+              console.log('Quote data:', quoteData);
+              console.log('Quote tax_percentage from API:', quoteData?.tax_percentage);
+              console.log('Quote tax from API:', quoteData?.tax);
+              console.log('Quote subtotal from API:', quoteData?.subtotal);
+              
+              if (quoteData?.tax_percentage) {
+                const parsed = parseFloat(quoteData.tax_percentage);
+                console.log('Parsed tax from API:', parsed);
+                if (!isNaN(parsed)) {
+                  taxPercent = parsed;
+                }
+              }
+              
+              // Calcular desde tax y subtotal si tax_percentage es null
+              if (taxPercent === null && quoteData?.tax && quoteData?.subtotal) {
+                const tax = parseFloat(quoteData.tax);
+                const subtotal = parseFloat(quoteData.subtotal);
+                if (subtotal > 0) {
+                  taxPercent = (tax / subtotal) * 100;
+                  console.log('Calculated tax percentage from API tax/subtotal:', taxPercent);
+                }
+              }
+            } catch (e) {
+              console.error('Error fetching quote details:', e);
+            }
+          }
+          
+          // Actualizar el taxPercentage
+          console.log('Final taxPercent to set:', taxPercent);
+          if (taxPercent !== null && !isNaN(taxPercent)) {
+            setTaxPercentage(taxPercent);
+          } else {
+            // Default to 16%
+            console.log('Using default tax percentage: 16');
+            setTaxPercentage(16);
+          }
+          
+          // api.get devuelve directamente res.data = { success: true, data: [...] }
+          const response = await quotesService.getItems(Number(selectedQuoteId));
+          console.log('Quote items response:', response);
+          
+          // response es { success: true, data: [...] }
+          const itemsArray = response.data || [];
+          console.log('Items array:', itemsArray);
+          
+          if (itemsArray && itemsArray.length > 0) {
+            // Map quote items to sale items - iguales a QuoteItem
+            const mappedItems = itemsArray.map((item: any) => {
+              // Parsear los valores numéricos correctamente
+              const qty = parseFloat(item.quantity) || 1;
+              const price = parseFloat(item.unit_price) || parseFloat(item.product?.price) || 0;
+              const total = parseFloat(item.total) || (qty * price);
+              
+              return {
+                id: undefined, // New item, no ID
+                productId: item.productId || null,
+                // Datos del producto para autocompletar
+                productName: item.product?.name || item.description || "",
+                productCode: item.product?.code || item.partNumber || "",
+                unit: item.unit || "PZA",
+                partNumber: item.partNumber || item.product?.code || "",
+                description: item.description || item.product?.name || "",
+                quantity: qty,
+                unitPrice: price,
+                // Descuentos en cero initially (como QuoteItem no tiene descuentos)
+                discountPercentage: 0,
+                discountAmount: 0,
+                // subtotal = total del QuoteItem (antes de descuentos)
+                subtotal: total,
+              };
+            });
+            console.log('Mapped items:', mappedItems);
+            setItems(mappedItems);
+          } else {
+            // No items in quote, keep current items
+            console.log('No items in quote');
+          }
+        } catch (error) {
+          console.error('Error fetching quote items:', error);
+        }
+      } else if (selectedQuoteId === '__none__') {
+        // User selected "Sin cotización" - clear items
+        setItems([]);
+      }
+    };
+    fetchQuoteItems();
+  }, [selectedQuoteId]);
+
+  const addItem = () => {
+    setItems([
+      ...items,
+      { productId: null, unit: "PZA", partNumber: "", description: "", quantity: 1, unitPrice: 0, discountPercentage: 0, discountAmount: 0, subtotal: 0 },
+    ]);
   };
+
+  const removeItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index));
+  };
+
+  const updateItem = (index: number, field: keyof SaleItemForm, value: string | number | null) => {
+    const newItems = [...items];
+    (newItems[index] as any)[field] = value;
+    // Recalculate subtotal
+    const item = newItems[index];
+    const lineTotal = item.quantity * item.unitPrice;
+    const discount = lineTotal * (item.discountPercentage / 100);
+    item.discountAmount = discount;
+    item.subtotal = lineTotal - discount;
+    setItems(newItems);
+  };
+
+  // When selecting a product, autocomplete fields
+  const handleProductSelect = (index: number, product: Product | null) => {
+    const newItems = [...items];
+    newItems[index] = {
+      ...newItems[index],
+      productId: product?.id || null,
+      unit: product?.unit || "PZA",
+      partNumber: product?.code || "",
+      description: product?.name || "",
+      unitPrice: product?.price || product?.cost || 0,
+    };
+    // Recalculate subtotal
+    const item = newItems[index];
+    const lineTotal = item.quantity * item.unitPrice;
+    const discount = lineTotal * (item.discountPercentage / 100);
+    item.discountAmount = discount;
+    item.subtotal = lineTotal - discount;
+    setItems(newItems);
+  };
+
+  const calculateTotals = () => {
+    const subtotal = items.reduce((sum, item) => {
+      const lineTotal = item.quantity * item.unitPrice;
+      const discount = lineTotal * (item.discountPercentage / 100);
+      return sum + (lineTotal - discount);
+    }, 0);
+    const tax = subtotal * (taxPercentage / 100);
+    const total = subtotal + tax;
+    return { subtotal, tax, total };
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+
+    try {
+      const form = e.target as HTMLFormElement;
+      const formData = new FormData(form);
+
+      const { subtotal, tax, total } = calculateTotals();
+
+      const data = {
+        code: formData.get("code") as string,
+        clientId: Number(formData.get("clientId")),
+        quoteRef: selectedQuoteId && selectedQuoteId !== '__none__' ? (quotes.find(q => q.id.toString() === selectedQuoteId)?.code || null) : (formData.get("quoteRef") as string || null),
+        quoteId: selectedQuoteId && selectedQuoteId !== '__none__' ? Number(selectedQuoteId) : null,
+        status: formData.get("status") as string,
+        paymentType: paymentType,
+        creditDays: paymentType === "credit" ? (formData.get("creditDays") ? String(formData.get("creditDays")) : "30") : null,
+        paymentMethod: formData.get("paymentMethod") as string,
+        dueDate: formData.get("dueDate") as string,
+        subtotal: subtotal,
+        taxRate: taxPercentage,
+        tax: tax,
+        total: total,
+        sale_items: items.map(item => ({
+          id: item.id,
+          product_id: item.productId,
+          unit: item.unit,
+          part_number: item.partNumber,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          discount_percentage: item.discountPercentage,
+          discount_amount: item.discountAmount,
+          subtotal: item.subtotal,
+        })),
+      };
+
+      onSubmit(data);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const { subtotal, tax, total } = calculateTotals();
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {editingSale ? "Editar Venta" : "Nueva Venta"}
@@ -113,106 +543,231 @@ export function SaleFormDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="invoice">Factura</Label>
-              <Input
-                id="invoice"
-                name="invoice"
-                placeholder="FAC-YYYY-XXX"
-                defaultValue={editingSale?.invoice || ""}
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="clientId">Cliente</Label>
-              <Select
-                name="clientId"
-                defaultValue={editingSale?.clientId?.toString() || ""}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id.toString()}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/*venta*/}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="quoteRef">Ref. Cotización</Label>
+                <Label htmlFor="code">Venta</Label>
+                <Input
+                  id="code"
+                  name="code"
+                  placeholder="V-YYYY-XXXX"
+                  defaultValue={editingSale?.code || `V-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="clientId">Cliente</Label>
+                <Select
+                  name="clientId"
+                  defaultValue={editingSale?.clientId?.toString() || ""}
+                  onValueChange={(value) => {
+                    setSelectedClientId(value);
+                    setSelectedQuoteId(""); // Reset quote when client changes
+                  }}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clientsList.map((client) => (
+                      <SelectItem key={client.id} value={client.id.toString()}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="quoteSelect">Cotización</Label>
+                <Select
+                  defaultValue={selectedQuoteId}
+                  onValueChange={(value) => {
+                    setSelectedQuoteId(value);
+                    // Actualizar el tax percentage si hay una cotización seleccionada
+                    if (value && value !== '__none__') {
+                      const selectedQuote = quotes.find(q => q.id.toString() === value);
+                      if (selectedQuote?.tax_percentage) {
+                        setTaxPercentage(parseFloat(selectedQuote.tax_percentage));
+                      }
+                    }
+                  }}
+                  disabled={!selectedClientId || loadingQuotes}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={!selectedClientId ? "Seleccione un cliente primero" : loadingQuotes ? "Cargando..." : quotes.length === 0 ? "No hay cotizaciones" : "Seleccionar cotización"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin cotización</SelectItem>
+                    {quotes.map((quote) => (
+                      <SelectItem key={quote.id} value={quote.id.toString()}>
+                        {quote.code} - {quote.title || 'Sin título'} (${Number(quote.total).toLocaleString('es-MX')})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* <div className="grid gap-2">
+                <Label htmlFor="quoteRef">Ref. Cotización (manual)</Label>
                 <Input
                   id="quoteRef"
                   name="quoteRef"
-                  placeholder="COT-XXX"
+                  placeholder="COT-XXX (opcional)"
                   defaultValue={editingSale?.quoteRef || ""}
                 />
+              </div> */}
+            </div>
+
+            {/* Items Section */}
+            <div className="border rounded-md p-4">
+              <div className="flex justify-between items-center mb-4">
+                <Label className="text-lg font-medium">Productos</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                  <Plus className="h-4 w-4 mr-1" /> Agregar
+                </Button>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="quoteId">ID Cotización</Label>
-                <Input
-                  id="quoteId"
-                  name="quoteId"
-                  type="number"
-                  placeholder="0"
-                  defaultValue={editingSale?.quoteId || ""}
-                />
-              </div>
+
+              {items.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No hay productos agregados. Haga clic en "Agregar" para añadir productos.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {items.map((item, index) => (
+                    <div key={index} className="grid grid-cols-12 gap-2 items-end p-3 bg-muted/30 rounded-md">
+                      <div className="col-span-4">
+                        <Label className="text-xs">Producto</Label>
+                        <ProductSelect
+                          value={item.productId}
+                          onChange={(productId, product) => handleProductSelect(index, product)}
+                          products={products}
+                          loading={productsLoading}
+                          item={item}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs">Cantidad</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(e) => updateItem(index, 'quantity', Number(e.target.value))}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs">Precio Unit.</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={item.unitPrice}
+                          onChange={(e) => updateItem(index, 'unitPrice', Number(e.target.value))}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs">Desc. %</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={item.discountPercentage}
+                          onChange={(e) => updateItem(index, 'discountPercentage', Number(e.target.value))}
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <Label className="text-xs">Total</Label>
+                        <div className="text-sm font-medium py-2">
+                          {formatCurrency(item.subtotal)}
+                        </div>
+                      </div>
+                      <div className="col-span-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeItem(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Totals */}
+              {items.length > 0 && (
+                <div className="mt-4 flex justify-end">
+                  <div className="w-64 space-y-2">
+                    <div className="flex justify-between">
+                      <Label htmlFor="iva-input" className="text-muted-foreground">IVA</Label>
+                      <Input
+                        id="iva-input"
+                        type="number"
+                        min={0}
+                        max={100}
+                        className="w-16 h-7 text-right mb-2"
+                        value={taxPercentage}
+                        onChange={(e) => setTaxPercentage(Number(e.target.value))}
+                      />
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Subtotal:</span>
+                      <span className="font-medium">{formatCurrency(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">
+                          IVA ({Number(taxPercentage.toFixed(2))}%):
+                        </span>
+                      </div>
+                      <span className="font-medium">{formatCurrency(tax)}</span>
+                    </div>
+                    <div className="flex justify-between text-lg font-bold border-t pt-2">
+                      <span>Total:</span>
+                      <span>{formatCurrency(total)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Payment Type Selection */}
             <div className="grid gap-2">
-              <Label htmlFor="subtotal">Subtotal</Label>
-              <Input
-                id="subtotal"
-                name="subtotal"
-                type="number"
-                placeholder="0"
-                defaultValue={editingSale?.subtotal || ""}
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="taxRate">Tasa de Impuesto (%)</Label>
-              <Input
-                id="taxRate"
-                name="taxRate"
-                type="number"
-                placeholder="16"
-                defaultValue="16"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="paymentMethod">Método de Pago</Label>
+              <Label htmlFor="paymentType">Tipo de Pago</Label>
               <Select
-                name="paymentMethod"
-                defaultValue={editingSale?.paymentMethod || ""}
+                value={paymentType}
+                onValueChange={setPaymentType}
                 required
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar método de pago" />
+                  <SelectValue placeholder="Seleccionar tipo de pago" />
                 </SelectTrigger>
                 <SelectContent>
-                  {paymentMethods.map((method) => (
-                    <SelectItem key={method.value} value={method.value}>
-                      {method.label}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="cash">Contado</SelectItem>
+                  <SelectItem value="credit">Crédito</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="dueDate">Fecha de Vencimiento</Label>
-              <Input
-                id="dueDate"
-                name="dueDate"
-                type="date"
-                defaultValue={formatDateForInput(editingSale?.dueDate)}
-                required
-              />
-            </div>
+
+            {/* Credit Days - Only show if credit */}
+            {paymentType === "credit" && (
+              <div className="grid gap-2">
+                <Label htmlFor="creditDays">Días de Crédito</Label>
+                <Input
+                  name="creditDays"
+                  type="text"
+                  defaultValue={editingSale?.creditDays?.toString() || "30"}
+                  placeholder="Ej: 30"
+                  required
+                />
+              </div>
+            )}
+            
             <div className="grid gap-2">
               <Label htmlFor="status">Estado</Label>
               <Select
@@ -232,18 +787,6 @@ export function SaleFormDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="paid">Monto Pagado</Label>
-              <Input
-                id="paid"
-                name="paid"
-                type="number"
-                step="0.01"
-                min="0"
-                defaultValue={editingSale?.paid || "0"}
-                placeholder="0.00"
-              />
-            </div>
           </div>
           <DialogFooter>
             <Button
@@ -253,8 +796,8 @@ export function SaleFormDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Guardando..." : "Guardar"}
+            <Button type="submit" disabled={loading || saving}>
+              {loading || saving ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>
         </form>

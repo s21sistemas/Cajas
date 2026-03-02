@@ -40,21 +40,21 @@ class VehicleController extends Controller implements HasMiddleware
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'tipe_vehicle' => 'required|in:car,motorciclet',
+            'type_vehicle' => 'required|in:car,motorcycle',
             'brand' => 'required|string|max:50',
             'model' => 'required|string|max:15',
             'color' => 'required|string|max:15',
             'license_plate' => 'required|string|max:20|unique:vehicles,license_plate',
             'status' => 'nullable|in:Available,Assigned,Under repair,Out of service,Accident,Stolen,Sold',
-            'vehicle_photos' => 'required|string',
+            'vehicle_photos' => 'nullable|string',
             'labeled' => 'required|in:YES,NO',
             'gps' => 'required|in:YES,NO',
             'taxes_paid' => 'required|in:YES,NO',
-            'aseguradora' => 'required|string|max:50',
-            'telefono_aseguradora' => 'required|string|max:15',
-            'archivo_seguro' => 'required|string',
-            'numero_poliza' => 'required|string',
-            'fecha_vencimiento' => 'required|date',
+            'insurance_company' => 'required|string|max:50',
+            'insurance_company_phone' => 'required|string|max:15',
+            'insurance_file' => 'nullable|string',
+            'policy_number' => 'required|string',
+            'expiration_date' => 'required|date',
         ]);
 
         if (! isset($validated['status'])) {
@@ -74,21 +74,21 @@ class VehicleController extends Controller implements HasMiddleware
     public function update(Request $request, Vehicle $vehicle)
     {
         $validated = $request->validate([
-            'tipe_vehicle' => 'sometimes|required|in:car,motorciclet',
+            'type_vehicle' => 'sometimes|required|in:car,motorcycle',
             'brand' => 'sometimes|required|string|max:50',
             'model' => 'sometimes|required|string|max:15',
             'color' => 'sometimes|required|string|max:15',
             'license_plate' => 'sometimes|required|string|max:20|unique:vehicles,license_plate,' . $vehicle->id,
             'status' => 'sometimes|in:Available,Assigned,Under repair,Out of service,Accident,Stolen,Sold',
-            'vehicle_photos' => 'sometimes|required|string',
+            'vehicle_photos' => 'sometimes|nullable|string',
             'labeled' => 'sometimes|required|in:YES,NO',
             'gps' => 'sometimes|required|in:YES,NO',
             'taxes_paid' => 'sometimes|required|in:YES,NO',
-            'aseguradora' => 'sometimes|required|string|max:50',
-            'telefono_aseguradora' => 'sometimes|required|string|max:15',
-            'archivo_seguro' => 'sometimes|required|string',
-            'numero_poliza' => 'sometimes|required|string',
-            'fecha_vencimiento' => 'sometimes|required|date',
+            'insurance_company' => 'sometimes|required|string|max:50',
+            'insurance_company_phone' => 'sometimes|required|string|max:15',
+            'insurance_file' => 'sometimes|nullable|string',
+            'policy_number' => 'sometimes|required|string',
+            'expiration_date' => 'sometimes|required|date',
         ]);
 
         $vehicle->update($validated);

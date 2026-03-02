@@ -150,7 +150,7 @@ export function VehicleTable({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-foreground text-sm">
-                      {vehicle.numeroPoliza || '-'}
+                      {vehicle.policyNumber || '-'}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>

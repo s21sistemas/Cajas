@@ -1,23 +1,21 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { Package, Layers, TrendingUp } from "lucide-react";
+import { Package, TrendingUp } from "lucide-react";
 
 interface ProductStatsCardsProps {
   total: number;
   active: number;
-  lowStock: number;
 }
 
-export function ProductStatsCards({ total, active, lowStock }: ProductStatsCardsProps) {
+export function ProductStatsCards({ total, active }: ProductStatsCardsProps) {
   // Ensure we have valid numbers, default to 0 if undefined/null
   const safeTotal = typeof total === 'number' && !isNaN(total) ? total : 0;
   const safeActive = typeof active === 'number' && !isNaN(active) ? active : 0;
-  const safeLowStock = typeof lowStock === 'number' && !isNaN(lowStock) ? lowStock : 0;
   const inactive = safeTotal - safeActive;
   
   return (
-    <div className="grid gap-4 md:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-3">
       <Card className="bg-card border-border">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
@@ -40,19 +38,6 @@ export function ProductStatsCards({ total, active, lowStock }: ProductStatsCards
             <div className="min-w-0 flex-1">
               <p className="text-xl font-bold text-foreground truncate">{safeActive}</p>
               <p className="text-xs text-muted-foreground">Productos Activos</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      <Card className="bg-card border-border">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-500/10">
-              <Layers className="h-5 w-5 text-amber-500" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xl font-bold text-foreground truncate">{safeLowStock}</p>
-              <p className="text-xs text-muted-foreground">Stock Bajo</p>
             </div>
           </div>
         </CardContent>

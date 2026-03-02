@@ -8,142 +8,157 @@ use Illuminate\Database\Seeder;
 class WarehouseLocationSeeder extends Seeder
 {
     /**
-     * Seed the warehouse_locations table.
+     * Run the database seeds.
      */
     public function run(): void
     {
         $locations = [
-            // Almacén A - Materias Primas
+            // Zona A - Materias Primas
             [
-                'name' => 'Pasillo A-01',
+                'name' => 'A-01-01',
                 'zone' => 'A',
                 'type' => 'rack',
-                'capacity' => 500,
-                'occupancy' => 250,
+                'capacity' => 1000,
+                'occupancy' => 0,
             ],
             [
-                'name' => 'Pasillo A-02',
+                'name' => 'A-01-02',
                 'zone' => 'A',
                 'type' => 'rack',
-                'capacity' => 500,
-                'occupancy' => 180,
+                'capacity' => 1000,
+                'occupancy' => 0,
             ],
             [
-                'name' => 'Pasillo A-03',
+                'name' => 'A-02-01',
                 'zone' => 'A',
                 'type' => 'rack',
-                'capacity' => 500,
-                'occupancy' => 320,
+                'capacity' => 1000,
+                'occupancy' => 0,
             ],
             [
-                'name' => 'Zona de Descarga A',
+                'name' => 'A-02-02',
                 'zone' => 'A',
-                'type' => 'docking',
-                'capacity' => 100,
-                'occupancy' => 20,
+                'type' => 'rack',
+                'capacity' => 1000,
+                'occupancy' => 0,
             ],
-            // Almacén B - Insumos y Herramientas
             [
-                'name' => 'Pasillo B-01',
+                'name' => 'A-03-01',
+                'zone' => 'A',
+                'type' => 'rack',
+                'capacity' => 1000,
+                'occupancy' => 0,
+            ],
+            // Zona B - Materiales en Proceso
+            [
+                'name' => 'B-01-01',
                 'zone' => 'B',
                 'type' => 'rack',
+                'capacity' => 800,
+                'occupancy' => 0,
+            ],
+            [
+                'name' => 'B-01-02',
+                'zone' => 'B',
+                'type' => 'rack',
+                'capacity' => 800,
+                'occupancy' => 0,
+            ],
+            [
+                'name' => 'B-02-01',
+                'zone' => 'B',
+                'type' => 'rack',
+                'capacity' => 800,
+                'occupancy' => 0,
+            ],
+            // Zona C - Productos Terminados
+            [
+                'name' => 'C-01-01',
+                'zone' => 'C',
+                'type' => 'rack',
+                'capacity' => 500,
+                'occupancy' => 0,
+            ],
+            [
+                'name' => 'C-01-02',
+                'zone' => 'C',
+                'type' => 'rack',
+                'capacity' => 500,
+                'occupancy' => 0,
+            ],
+            [
+                'name' => 'C-02-01',
+                'zone' => 'C',
+                'type' => 'rack',
+                'capacity' => 500,
+                'occupancy' => 0,
+            ],
+            [
+                'name' => 'C-02-02',
+                'zone' => 'C',
+                'type' => 'rack',
+                'capacity' => 500,
+                'occupancy' => 0,
+            ],
+            // Zona D - Embalaje
+            [
+                'name' => 'D-01-01',
+                'zone' => 'D',
+                'type' => 'shelf',
                 'capacity' => 300,
-                'occupancy' => 150,
+                'occupancy' => 0,
             ],
             [
-                'name' => 'Pasillo B-02',
-                'zone' => 'B',
+                'name' => 'D-01-02',
+                'zone' => 'D',
                 'type' => 'shelf',
+                'capacity' => 300,
+                'occupancy' => 0,
+            ],
+            // Zona E - Área de Expedición
+            [
+                'name' => 'E-01-01',
+                'zone' => 'E',
+                'type' => 'dock',
                 'capacity' => 200,
-                'occupancy' => 85,
+                'occupancy' => 0,
             ],
             [
-                'name' => 'Pasillo B-03',
-                'zone' => 'B',
-                'type' => 'shelf',
+                'name' => 'E-01-02',
+                'zone' => 'E',
+                'type' => 'dock',
                 'capacity' => 200,
-                'occupancy' => 120,
+                'occupancy' => 0,
             ],
+            // Zona P - Picking
             [
-                'name' => 'Zona de Químicos B',
-                'zone' => 'B',
-                'type' => 'storage',
-                'capacity' => 50,
-                'occupancy' => 30,
-            ],
-            // Almacén C - Herramientas y Refacciones
-            [
-                'name' => 'Pasillo C-01',
-                'zone' => 'C',
-                'type' => 'cabinet',
+                'name' => 'P-01',
+                'zone' => 'P',
+                'type' => 'cart',
                 'capacity' => 100,
-                'occupancy' => 45,
+                'occupancy' => 0,
             ],
             [
-                'name' => 'Pasillo C-02',
-                'zone' => 'C',
-                'type' => 'shelf',
+                'name' => 'P-02',
+                'zone' => 'P',
+                'type' => 'cart',
+                'capacity' => 100,
+                'occupancy' => 0,
+            ],
+            [
+                'name' => 'P-03',
+                'zone' => 'P',
+                'type' => 'cart',
+                'capacity' => 100,
+                'occupancy' => 0,
+            ],
+            // Zona R - Retornos
+            [
+                'name' => 'R-01',
+                'zone' => 'R',
+                'type' => 'area',
                 'capacity' => 150,
-                'occupancy' => 60,
-            ],
-            // Área de Producto Terminado
-            [
-                'name' => 'Zona PT-01',
-                'zone' => 'PT',
-                'type' => 'pallet',
-                'capacity' => 200,
-                'occupancy' => 80,
-            ],
-            [
-                'name' => 'Zona PT-02',
-                'zone' => 'PT',
-                'type' => 'pallet',
-                'capacity' => 200,
-                'occupancy' => 120,
-            ],
-            [
-                'name' => 'Zona PT-03',
-                'zone' => 'PT',
-                'type' => 'pallet',
-                'capacity' => 200,
-                'occupancy' => 95,
-            ],
-            // Área de Empaque
-            [
-                'name' => 'Línea de Empaque 1',
-                'zone' => 'EMP',
-                'type' => 'workstation',
-                'capacity' => 50,
-                'occupancy' => 25,
-            ],
-            [
-                'name' => 'Línea de Empaque 2',
-                'zone' => 'EMP',
-                'type' => 'workstation',
-                'capacity' => 50,
-                'occupancy' => 30,
-            ],
-            // Área de Producción
-            [
-                'name' => 'Zona de Corte',
-                'zone' => 'PROD',
-                'type' => 'workstation',
-                'capacity' => 30,
-                'occupancy' => 15,
-            ],
-            [
-                'name' => 'Zona de Impresión',
-                'zone' => 'PROD',
-                'type' => 'workstation',
-                'capacity' => 25,
-                'occupancy' => 12,
-            ],
-            [
-                'name' => 'Zona de Troquelado',
-                'zone' => 'PROD',
-                'type' => 'workstation',
-                'capacity' => 30,
-                'occupancy' => 18,
+                'occupancy' => 0,
             ],
         ];
 
@@ -153,5 +168,7 @@ class WarehouseLocationSeeder extends Seeder
                 $location
             );
         }
+
+        $this->command->info('Created ' . count($locations) . ' warehouse locations.');
     }
 }

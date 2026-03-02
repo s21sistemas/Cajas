@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CheckCircle, XCircle, RefreshCcw, Clock, Package, AlertCircle } from 'lucide-react';
 import { qualityService, QUALITY_DECISIONS, QualityEvaluation } from '@/lib/services/quality.service';
+import { ERPLayout } from '@/components/erp/erp-layout';
+import { ProtectedRoute } from '@/components/auth/protected-route';
 
 interface PendingProduction {
   id: number;
@@ -70,13 +72,15 @@ export default function QualityPage() {
   };
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Control de Calidad</h1>
-        <Button onClick={fetchPendingEvaluations} variant="outline">
-          Actualizar
-        </Button>
-      </div>
+    <ProtectedRoute>
+      <ERPLayout title="Control de Calidad" subtitle="Evaluación de calidad de producción">
+        <div className="p-6 space-y-6">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold">Control de Calidad</h1>
+            <Button onClick={fetchPendingEvaluations} variant="outline">
+              Actualizar
+            </Button>
+          </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -168,6 +172,8 @@ export default function QualityPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+        </div>
+      </ERPLayout>
+    </ProtectedRoute>
   );
 }

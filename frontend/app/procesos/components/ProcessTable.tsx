@@ -111,7 +111,9 @@ export function ProcessTable({
                         <p className="font-medium text-foreground">{process.name}</p>
                       </div>
                     </TableCell>
-                    <TableCell className="text-foreground">{process.processType}</TableCell>
+                    <TableCell className="text-foreground">
+                      {process.processType?.name || '-'}
+                    </TableCell>
                     <TableCell className="text-muted-foreground max-w-xs truncate">
                       {process.description || '-'}
                     </TableCell>

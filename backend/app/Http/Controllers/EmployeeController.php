@@ -18,17 +18,14 @@ class EmployeeController extends Controller implements HasMiddleware
                 PermissionMiddleware::using('employees.view'),
                 only: ['index', 'show', 'stats', 'departments']
             ),
-
             new Middleware(
                 PermissionMiddleware::using('employees.create'),
                 only: ['store']
             ),
-
             new Middleware(
                 PermissionMiddleware::using('employees.edit'),
                 only: ['update']
             ),
-
             new Middleware(
                 PermissionMiddleware::using('employees.delete'),
                 only: ['destroy']
@@ -60,7 +57,7 @@ class EmployeeController extends Controller implements HasMiddleware
         $perPage = $request->integer('per_page', 15);
         $employees = $query->latest()->paginate($perPage);
 
-        return $this->paginated($employees, 'Empleados listados correctamente');
+        return response()->json($employees);
     }
 
     public function store(Request $request)
@@ -79,19 +76,19 @@ class EmployeeController extends Controller implements HasMiddleware
         ]);
 
         if ($validator->fails()) {
-            return $this->validationError($validator->errors());
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $data = $validator->validated();
         $data['status'] = $data['status'] ?? 'active';
-
         $employee = Employee::create($data);
-        return $this->created($employee, 'Empleado creado correctamente');
+
+        return response()->json($employee, 201);
     }
 
     public function show(Employee $employee)
     {
-        return $this->success($employee, 'Empleado obtenido correctamente');
+        return response()->json($employee);
     }
 
     public function update(Request $request, Employee $employee)
@@ -110,17 +107,17 @@ class EmployeeController extends Controller implements HasMiddleware
         ]);
 
         if ($validator->fails()) {
-            return $this->validationError($validator->errors());
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $employee->update($validator->validated());
-        return $this->success($employee, 'Empleado actualizado correctamente');
+        return response()->json($employee);
     }
 
     public function destroy(Employee $employee)
     {
         $employee->delete();
-        return $this->deleted('Empleado eliminado correctamente');
+        return response()->json(['message' => 'Empleado eliminado'], 204);
     }
 
     public function stats()
@@ -130,7 +127,6 @@ class EmployeeController extends Controller implements HasMiddleware
         $inactive = $employees->where('status', 'inactive')->count();
         $vacation = $employees->where('status', 'vacation')->count();
         $totalSalary = $employees->sum('salary');
-
         $data = [
             'total' => $employees->count(),
             'active' => $active,
@@ -138,14 +134,23 @@ class EmployeeController extends Controller implements HasMiddleware
             'vacation' => $vacation,
             'totalSalary' => $totalSalary,
         ];
-
-        return $this->success($data, 'Estadísticas de empleados obtenidas correctamente');
+        return response()->json($data);
     }
 
     public function departments()
     {
         $departments = Employee::distinct()->pluck('department')->filter()->values();
+        return response()->json($departments);
+    }
 
-        return $this->success($departments, 'Departamentos obtenidos correctamente');
+    public function selectList(){
+        $employees = Employee::select('id', 'name')->where('status','active')->orderBy('name')->get();
+        $data = $employees->map(function ($employee) {
+            return [
+                'value' => $employee->id,
+                'label' => $employee->name,
+            ];
+        });
+        return response()->json($data);
     }
 }

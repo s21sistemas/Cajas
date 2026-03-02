@@ -15,9 +15,11 @@ class WorkOrder extends Model
     const PRODUCTION_STATUS_COMPLETED = 'completed';
 
     protected $fillable = [
+        'code',
         'product_id',
         'client_id',
         'supplier_id',
+        'sale_id',
         'product_name',
         'supplier_name',
         'quantity',
@@ -105,6 +107,14 @@ class WorkOrder extends Model
     }
 
     /**
+     * Relación con Venta
+     */
+    public function sale()
+    {
+        return $this->belongsTo(Sale::class);
+    }
+
+    /**
      * Relación con Producciones
      */
     public function productions()
@@ -115,9 +125,9 @@ class WorkOrder extends Model
     /**
      * Procesos de la orden de trabajo
      */
-    public function processes()
+    public function process()
     {
-        return $this->hasMany(WorkOrderProcess::class)->orderBy('id');
+        return $this->hasMany(Process::class)->orderBy('id');
     }
 
     /**
@@ -153,7 +163,7 @@ class WorkOrder extends Model
      */
     public function getPipelineStatus(): array
     {
-        $productions = $this->productions()->get();
+        $productions = $this->productions()->with(['process', 'parentProcess'])->get();
         
         $totalProcesses = $productions->count();
         $pending = $productions->where('status', 'pending')->count();
@@ -161,8 +171,9 @@ class WorkOrder extends Model
         $paused = $productions->where('status', 'paused')->count();
         $completed = $productions->where('status', 'completed')->count();
         
-        $totalProduced = $productions->sum('quantity_produced');
-        $totalScrap = $productions->sum('quantity_scrap');
+        // Usar good_parts y scrap_parts (no quantity_produced/quantity_scrap)
+        $totalProduced = $productions->sum('good_parts');
+        $totalScrap = $productions->sum('scrap_parts');
         
         $yield = $totalProduced + $totalScrap > 0 
             ? round(($totalProduced / ($totalProduced + $totalScrap)) * 100, 2) 
@@ -171,18 +182,37 @@ class WorkOrder extends Model
             ? round(($totalScrap / ($totalProduced + $totalScrap)) * 100, 2) 
             : 0;
         
+        // Transformar producciones para el frontend
+        $processes = $productions->map(function ($prod) {
+            return [
+                'id' => $prod->id,
+                'name' => $prod->process?->name ?? 'Proceso',
+                'sequence' => $prod->process?->id ?? 1,
+                'status' => $prod->status,
+                'quality_status' => $prod->quality_status,
+                'target_parts' => $prod->target_parts,
+                'good_parts' => $prod->good_parts,
+                'scrap_parts' => $prod->scrap_parts,
+                'start_time' => $prod->start_time,
+                'end_time' => $prod->end_time,
+            ];
+        });
+        
         return [
-            'total_processes' => $totalProcesses,
-            'pending' => $pending,
-            'ready' => $inProgress,
-            'running' => $inProgress,
-            'paused' => $paused,
-            'completed' => $completed,
-            'total_produced' => $totalProduced,
-            'total_scrap' => $totalScrap,
-            'yield' => $yield,
-            'scrap_rate' => $scrapRate,
-            'efficiency' => $totalProcesses > 0 ? round(($completed / $totalProcesses) * 100, 2) : 0,
+            'pipeline_status' => [
+                'total_processes' => $totalProcesses,
+                'pending' => $pending,
+                'ready' => $inProgress,
+                'running' => $inProgress,
+                'paused' => $paused,
+                'completed' => $completed,
+                'total_produced' => $totalProduced,
+                'total_scrap' => $totalScrap,
+                'yield' => $yield,
+                'scrap_rate' => $scrapRate,
+                'efficiency' => $totalProcesses > 0 ? round(($completed / $totalProcesses) * 100, 2) : 0,
+            ],
+            'processes' => $processes,
         ];
     }
 

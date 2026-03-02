@@ -6,7 +6,8 @@ export interface Process extends BaseEntity {
   id: number;
   code: string;
   name: string;
-  processType: string;
+  processTypeId: number;
+  processType?: { id: number; name: string; description: string };
   description: string | null;
   requiresMachine: boolean;
   estimatedTimeMin: number | null;
@@ -25,7 +26,7 @@ export interface ProcessStats {
 export interface CreateProcessDto {
   code?: string;
   name: string;
-  processType: string;
+  processTypeId: number;
   description?: string;
   requiresMachine?: boolean;
   estimatedTimeMin?: number;

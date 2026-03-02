@@ -41,19 +41,18 @@ class ProcessController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $perPage = $request->integer('per_page', 15);
-        $query = Process::query();
+        $query = Process::query()->with('processType');
 
         if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%")
-                  ->orWhere('process_type', 'like', "%{$search}%");
+                  ->orWhere('name', 'like', "%{$search}%");
             });
         }
 
         if ($request->has('type') && $request->type && $request->type !== 'all') {
-            $query->where('process_type', $request->type);
+            $query->where('process_type_id', $request->type);
         }
 
         if ($request->has('status') && $request->status && $request->status !== 'all') {
@@ -75,7 +74,7 @@ class ProcessController extends Controller implements HasMiddleware
         $data = $request->validate([
             'code' => 'nullable|string|max:255|unique:processes,code',
             'name' => 'required|string|max:255',
-            'process_type' => 'required|string|max:255',
+            'process_type_id' => 'required|integer|exists:process_types,id',
             'description' => 'nullable|string',
             'requires_machine' => 'sometimes|boolean',
             'estimated_time_min' => 'nullable|numeric|min:0',
@@ -111,7 +110,7 @@ class ProcessController extends Controller implements HasMiddleware
         $data = $request->validate([
             'code' => 'sometimes|required|string|max:255|unique:processes,code,' . $process->id,
             'name' => 'sometimes|required|string|max:255',
-            'process_type' => 'sometimes|required|string|max:255',
+            'process_type_id' => 'sometimes|required|integer|exists:process_types,id',
             'description' => 'nullable|string',
             'requires_machine' => 'sometimes|boolean',
             'estimated_time_min' => 'nullable|numeric|min:0',
@@ -138,15 +137,23 @@ class ProcessController extends Controller implements HasMiddleware
      */
     public function stats()
     {
-        $processes = Process::all();
+        $processes = Process::with('processType')->get();
 
         return response()->json([
             'total' => $processes->count(),
             'active' => $processes->where('status', 'active')->count(),
             'inactive' => $processes->where('status', 'inactive')->count(),
-            'byType' => $processes->groupBy('process_type')->map->count(),
+            'byType' => $processes->groupBy('process_type_id')->map->count(),
             'withMachine' => $processes->where('requires_machine', true)->count(),
             'withoutMachine' => $processes->where('requires_machine', false)->count(),
         ]);
+    }
+
+    /**
+     * Get processes for select list (id and name only).
+     */
+    public function selectList()
+    {
+        return response()->json(Process::select('id', 'name')->orderBy('name')->get());
     }
 }

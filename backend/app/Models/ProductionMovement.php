@@ -22,7 +22,6 @@ class ProductionMovement extends Model
 
     protected $fillable = [
         'work_order_id',
-        'work_order_process_id',
         'production_id',
         'quality_evaluation_id',
         'movement_type',
@@ -58,9 +57,9 @@ class ProductionMovement extends Model
     /**
      * Relación con el proceso
      */
-    public function workOrderProcess()
+    public function process()
     {
-        return $this->belongsTo(WorkOrderProcess::class);
+        return $this->belongsTo(Process::class);
     }
 
     /**
@@ -84,7 +83,7 @@ class ProductionMovement extends Model
      */
     public function sourceProcess()
     {
-        return $this->belongsTo(WorkOrderProcess::class, 'source_process_id');
+        return $this->belongsTo(Process::class, 'source_process_id');
     }
 
     /**
@@ -92,7 +91,7 @@ class ProductionMovement extends Model
      */
     public function destinationProcess()
     {
-        return $this->belongsTo(WorkOrderProcess::class, 'destination_process_id');
+        return $this->belongsTo(Process::class, 'destination_process_id');
     }
 
     /**
@@ -107,18 +106,14 @@ class ProductionMovement extends Model
      * Registrar un movimiento de producción
      */
     public static function recordProduction(
-        WorkOrderProcess $process,
-        int $quantity,
-        ?Production $production = null
+        Production $production,
+        int $quantity
     ): self {
         return self::create([
-            'work_order_id' => $process->work_order_id,
-            'work_order_process_id' => $process->id,
-            'production_id' => $production?->id,
+            'work_order_id' => $production->work_order_id,
+            'production_id' => $production->id,
             'movement_type' => self::TYPE_PRODUCTION,
             'quantity' => $quantity,
-            'quantity_before' => $process->completed_quantity,
-            'quantity_after' => $process->completed_quantity + $quantity,
             'description' => "Producción registrada: {$quantity} unidades",
         ]);
     }
@@ -127,18 +122,14 @@ class ProductionMovement extends Model
      * Registrar un movimiento de scrap
      */
     public static function recordScrap(
-        WorkOrderProcess $process,
-        int $quantity,
-        ?Production $production = null
+        Production $production,
+        int $quantity
     ): self {
         return self::create([
-            'work_order_id' => $process->work_order_id,
-            'work_order_process_id' => $process->id,
-            'production_id' => $production?->id,
+            'work_order_id' => $production->work_order_id,
+            'production_id' => $production->id,
             'movement_type' => self::TYPE_SCRAP,
             'quantity' => $quantity,
-            'quantity_before' => $process->scrap_quantity,
-            'quantity_after' => $process->scrap_quantity + $quantity,
             'description' => "Scrap registrado: {$quantity} unidades",
         ]);
     }
@@ -147,12 +138,12 @@ class ProductionMovement extends Model
      * Registrar liberación de proceso
      */
     public static function recordProcessReleased(
-        WorkOrderProcess $process,
+        Production $production,
         int $availableQuantity
     ): self {
         return self::create([
-            'work_order_id' => $process->work_order_id,
-            'work_order_process_id' => $process->id,
+            'work_order_id' => $production->work_order_id,
+            'production_id' => $production->id,
             'movement_type' => self::TYPE_PROCESS_RELEASED,
             'quantity' => $availableQuantity,
             'description' => "Proceso liberado con {$availableQuantity} unidades disponibles",
@@ -162,13 +153,13 @@ class ProductionMovement extends Model
     /**
      * Registrar completado de proceso
      */
-    public static function recordProcessCompleted(WorkOrderProcess $process): self {
+    public static function recordProcessCompleted(Production $production): self {
         return self::create([
-            'work_order_id' => $process->work_order_id,
-            'work_order_process_id' => $process->id,
+            'work_order_id' => $production->work_order_id,
+            'production_id' => $production->id,
             'movement_type' => self::TYPE_PROCESS_COMPLETED,
-            'quantity' => $process->completed_quantity,
-            'description' => "Proceso completado: {$process->completed_quantity} unidades producidas",
+            'quantity' => $production->good_parts,
+            'description' => "Proceso completado: {$production->good_parts} unidades producidas",
         ]);
     }
 
@@ -187,7 +178,11 @@ class ProductionMovement extends Model
      */
     public static function getHistoryForProcess(int $processId): \Illuminate\Database\Eloquent\Collection
     {
-        return self::where('work_order_process_id', $processId)
+        // Buscar producciones con ese proceso y obtener sus movimientos
+        $productions = Production::where('process_id', $processId)->get();
+        $productionIds = $productions->pluck('id');
+        
+        return self::whereIn('production_id', $productionIds)
             ->orderBy('movement_date', 'desc')
             ->get();
     }

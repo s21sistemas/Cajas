@@ -13,14 +13,17 @@ class CatalogSeeder extends Seeder
     {
         $this->call([
             ProductSeeder::class,
+            MaterialSeeder::class,
             MachineSeeder::class,
-            // ProcessSeeder::class,
+            ProcessSeeder::class,
             OperatorSeeder::class,
             ClientSeeder::class,
             SupplierSeeder::class,
             EmployeeSeeder::class,
+            // Vinculaciones de productos con procesos y materiales
+            ProductProcessSeeder::class,
             // InventoryItemSeeder::class,
-            // WarehouseLocationSeeder::class,
+            WarehouseLocationSeeder::class,
         ]);
     }
 }

@@ -67,7 +67,7 @@ class MachineController extends Controller implements HasMiddleware
         $perPage = $request->integer('per_page', 15);
         $machines = $query->orderBy('name')->paginate($perPage);
 
-        return $this->paginated($machines, 'Máquinas listadas correctamente');
+        return response()->json($machines);
     }
 
     /**
@@ -89,7 +89,7 @@ class MachineController extends Controller implements HasMiddleware
         }
 
         $machine = Machine::create($data);
-        return $this->created($machine, 'Máquina creada correctamente');
+        return response()->json($machine, 201);
     }
 
     /**
@@ -97,7 +97,7 @@ class MachineController extends Controller implements HasMiddleware
      */
     public function show(Machine $machine)
     {
-        return $this->success($machine, 'Máquina obtenida correctamente');
+        return response()->json($machine);
     }
 
     /**
@@ -115,7 +115,7 @@ class MachineController extends Controller implements HasMiddleware
         ]);
 
         $machine->update($data);
-        return $this->success($machine, 'Máquina actualizada correctamente');
+        return response()->json($machine);
     }
 
     /**
@@ -124,7 +124,7 @@ class MachineController extends Controller implements HasMiddleware
     public function destroy(Machine $machine)
     {
         $machine->delete();
-        return $this->deleted('Máquina eliminada correctamente');
+        return response()->json(null, 204);
     }
 
     /**
@@ -137,7 +137,7 @@ class MachineController extends Controller implements HasMiddleware
         ]);
 
         $machine->update($data);
-        return $this->success($machine, 'Estado de máquina actualizado correctamente');
+        return response()->json($machine);
     }
 
     /**
@@ -146,7 +146,7 @@ class MachineController extends Controller implements HasMiddleware
     public function startOperation(Request $request, Machine $machine)
     {
         $machine->update(['status' => 'running']);
-        return $this->success($machine, 'Operación de máquina iniciada');
+        return response()->json($machine);
     }
 
     /**
@@ -155,7 +155,7 @@ class MachineController extends Controller implements HasMiddleware
     public function stopOperation(Request $request, Machine $machine)
     {
         $machine->update(['status' => 'available']);
-        return $this->success($machine, 'Operación de máquina detenida');
+        return response()->json($machine);
     }
 
     /**
@@ -181,7 +181,7 @@ class MachineController extends Controller implements HasMiddleware
             'priority' => 'medium',
         ]);
 
-        return $this->created($maintenanceOrder->load('machine'), 'Mantenimiento programado correctamente');
+        return response()->json($maintenanceOrder->load('machine'), 201);
     }
 
     /**
@@ -196,7 +196,7 @@ class MachineController extends Controller implements HasMiddleware
             'end_date' => now(),
         ]);
 
-        return $this->success($machine, 'Mantenimiento completado correctamente');
+        return response()->json($machine);
     }
 
     /**
@@ -222,7 +222,7 @@ class MachineController extends Controller implements HasMiddleware
             ];
         });
 
-        return $this->success($utilization, 'Utilización de máquinas obtenida correctamente');
+        return response()->json($utilization);
     }
 
     /**
@@ -241,6 +241,15 @@ class MachineController extends Controller implements HasMiddleware
             'averageUtilization' => 0,
         ];
 
-        return $this->success($data, 'Estadísticas de máquinas obtenidas correctamente');
+        return response()->json($data);
+    }
+
+    /**
+     * Select list for forms (only requires auth, no permissions).
+     */
+    public function selectList()
+    {
+        $machines = Machine::select('id', 'name', 'code')->orderBy('name')->get();
+        return response()->json($machines);
     }
 }

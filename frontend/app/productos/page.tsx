@@ -12,7 +12,6 @@ interface ProductStats {
   total: number;
   active: number;
   inactive: number;
-  lowStock: number;
 }
 import { useToast } from "@/components/erp/action-toast"; 
 import { ConfirmDialog } from "@/components/erp/confirm-dialog";
@@ -38,7 +37,6 @@ export default function ProductosPage() {
     total: 0,
     active: 0,
     inactive: 0,
-    lowStock: 0,
   });
   
   // Paginación
@@ -193,7 +191,6 @@ export default function ProductosPage() {
           <ProductStatsCards
             total={stats.total}
             active={stats.active}
-            lowStock={stats.lowStock}
           />
 
           <ProductTable

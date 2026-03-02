@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('code')->unique();
             $table->string('name');
-            $table->string('process_type');
+            $table->foreignId('process_type_id')->constrained('process_types');
             $table->string('description')->nullable();
             $table->boolean('requires_machine')->default(false);
             $table->decimal('estimated_time_min', 6, 2)->nullable();

@@ -16,7 +16,6 @@ class QualityEvaluation extends Model
 
     protected $fillable = [
         'production_id',
-        'work_order_process_id',
         'quantity_evaluated',
         'decision',
         'quantity_approved',
@@ -44,14 +43,6 @@ class QualityEvaluation extends Model
     }
 
     /**
-     * Relación con el proceso de la orden
-     */
-    public function workOrderProcess()
-    {
-        return $this->belongsTo(WorkOrderProcess::class);
-    }
-
-    /**
      * Relación con el evaluador
      */
     public function evaluator()
@@ -73,24 +64,20 @@ class QualityEvaluation extends Model
      */
     public function applyDecision(): array
     {
-        $process = $this->workOrderProcess;
+        $production = $this->production;
         
-        if (!$process) {
-            return ['success' => false, 'message' => 'Proceso no encontrado'];
+        if (!$production) {
+            return ['success' => false, 'message' => 'Producción no encontrada'];
         }
 
-        $workOrder = $process->workOrder;
+        $workOrder = $production->workOrder;
 
         switch ($this->decision) {
             case self::DECISION_APPROVED:
-                // Mantener cantidades actuales, liberar siguiente proceso
-                $process->update([
-                    'mes_status' => WorkOrderProcess::STATUS_COMPLETED,
-                    'completed_at' => now(),
+                // Mantener cantidades actuales, actualizar estado de calidad
+                $production->update([
+                    'quality_status' => 'APPROVED',
                 ]);
-                
-                // Liberar siguiente proceso
-                $nextProcess = $process->releaseNextProcess();
                 
                 // Registrar movimiento de trazabilidad
                 $this->createMovement('QUALITY_APPROVED', $this->quantity_approved);
@@ -184,8 +171,7 @@ class QualityEvaluation extends Model
         ?int $destinationProcessId = null
     ): ProductionMovement {
         return ProductionMovement::create([
-            'work_order_id' => $this->workOrderProcess->work_order_id,
-            'work_order_process_id' => $this->work_order_process_id,
+            'work_order_id' => $this->production?->work_order_id,
             'production_id' => $this->production_id,
             'quality_evaluation_id' => $this->id,
             'movement_type' => $type,

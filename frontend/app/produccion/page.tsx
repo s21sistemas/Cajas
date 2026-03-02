@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ERPLayout } from "@/components/erp/erp-layout";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/erp/action-toast";
+import { toast } from "sonner";
 import { productionService } from "@/lib/services/production.service";
 import type { ProductionOrder } from "@/lib/types/production.types";
 import {
@@ -18,7 +18,7 @@ import {
   EmptyProductionList,
   RegisterPartsDialog,
 } from "./components";
-import type { CreateProductionForm, Process, Operator, Machine, WorkOrder } from "./types";
+import type { CreateProductionForm, Process, Operator, Machine, WorkOrder, Product } from "./types";
 import { DEFAULT_FORM } from "./types";
 
 // Valores por defecto para datos mock (usados solo si falla el backend)
@@ -57,6 +57,7 @@ export default function ProduccionPage() {
   const [machines, setMachines] = useState<Machine[]>(DEFAULT_MACHINES);
   const [operators, setOperators] = useState<Operator[]>(DEFAULT_OPERATORS);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   
@@ -76,18 +77,18 @@ export default function ProduccionPage() {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   
   const [form, setForm] = useState<CreateProductionForm>(DEFAULT_FORM);
-  const { showToast } = useToast();
 
   // Cargar datos iniciales
   useEffect(() => {
     async function loadData() {
       try {
-        const [productionsData, processesData, machinesData, operatorsData, workOrdersData] = await Promise.all([
+        const [productionsData, processesData, machinesData, operatorsData, workOrdersData, productsData] = await Promise.all([
           productionService.getAll().catch(() => []),
           productionService.getProcesses().catch(() => DEFAULT_PROCESSES as any),
           productionService.getMachines().catch(() => DEFAULT_MACHINES as any),
           productionService.getOperators().catch(() => DEFAULT_OPERATORS as any),
           productionService.getWorkOrders().catch(() => []),
+          productionService.getProducts().catch(() => []),
         ]);
         
         setProductions(productionsData || []);
@@ -95,6 +96,7 @@ export default function ProduccionPage() {
         setMachines(machinesData || DEFAULT_MACHINES);
         setOperators(operatorsData || DEFAULT_OPERATORS);
         setWorkOrders(workOrdersData || []);
+        setProducts(productsData || []);
       } catch (error) {
         console.error("Error cargando datos:", error);
       } finally {
@@ -116,28 +118,38 @@ export default function ProduccionPage() {
   // Handlers de acciones
   async function handleCreate() {
     if (!form.processId) {
-      showToast("error", "Error", "Selecciona un proceso");
+      toast.error("Selecciona un proceso");
       return;
     }
+    
+    // Validar que tenga product_id o work_order_id
+    if (!form.productId && !form.workOrderId) {
+      toast.error("Selecciona un producto o una orden de trabajo");
+      return;
+    }
+    
     setSaving(true);
     try {
       const newProduction = await productionService.create({
         processId: parseInt(form.processId),
         operatorId: form.operatorId ? parseInt(form.operatorId) : null,
         machineId: form.machineId ? parseInt(form.machineId) : null,
+        productId: form.productId ? parseInt(form.productId) : null,
         targetParts: form.targetParts,
         notes: form.notes || undefined,
         startTime: new Date().toISOString(),
         workOrderId: form.workOrderId ? parseInt(form.workOrderId) : null,
+        parentProductionId: form.parentProductionId ? parseInt(form.parentProductionId) : null,
       });
       
       setProductions([newProduction, ...productions]);
       setShowCreateDialog(false);
       setForm(DEFAULT_FORM);
-      showToast("success", "Éxito", "Orden de producción creada");
-    } catch (error) {
+      toast.success("Orden de producción creada");
+    } catch (error: any) {
       console.error("Error:", error);
-      showToast("error", "Error", "No se pudo crear la orden");
+      const errorMessage = error?.message || "No se pudo crear la orden";
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -148,10 +160,10 @@ export default function ProduccionPage() {
     try {
       const updated = await productionService.start(parseInt(p.id));
       setProductions(productions.map((prod) => (prod.id === p.id ? updated : prod)));
-      showToast("success", "Éxito", "Producción iniciada");
-    } catch (error) {
-      console.error("Error:", error);
-      showToast("error", "Error", "No se pudo iniciar la producción");
+      toast.success("Producción iniciada");
+    } catch (error: any) {
+      const errorMessage = error?.message || "No se pudo iniciar la producción";
+      toast.error(errorMessage);
     } finally {
       setLoadingAction(null);
     }
@@ -165,10 +177,11 @@ export default function ProduccionPage() {
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
       setShowPauseDialog(false);
       setPauseReason("");
-      showToast("success", "Éxito", "Producción pausada");
-    } catch (error) {
+      toast.success("Producción pausada");
+    } catch (error: any) {
       console.error("Error:", error);
-      showToast("error", "Error", "No se pudo pausar");
+      const errorMessage = error?.message || "No se pudo pausar";
+      toast.error(errorMessage);
     } finally {
       setLoadingAction(null);
     }
@@ -181,10 +194,11 @@ export default function ProduccionPage() {
       const updated = await productionService.resume(parseInt(selectedProduction.id));
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
       setShowResumeDialog(false);
-      showToast("success", "Éxito", "Producción reanudada");
-    } catch (error) {
+      toast.success("Producción reanudada");
+    } catch (error: any) {
       console.error("Error:", error);
-      showToast("error", "Error", "No se pudo reanudar");
+      const errorMessage = error?.message || "No se pudo reanudar";
+      toast.error(errorMessage);
     } finally {
       setLoadingAction(null);
     }
@@ -201,10 +215,11 @@ export default function ProduccionPage() {
       );
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
       setShowCompleteDialog(false);
-      showToast("success", "Éxito", "Producción completada");
-    } catch (error) {
+      toast.success("Producción completada");
+    } catch (error: any) {
       console.error("Error:", error);
-      showToast("error", "Error", "No se pudo completar");
+      const errorMessage = error?.message || "No se pudo completar";
+      toast.error(errorMessage);
     } finally {
       setLoadingAction(null);
     }
@@ -217,10 +232,11 @@ export default function ProduccionPage() {
       const updated = await productionService.cancel(parseInt(selectedProduction.id), "Cancelado por usuario");
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
       setShowCancelDialog(false);
-      showToast("success", "Éxito", "Producción cancelada");
-    } catch (error) {
+      toast.success("Producción cancelada");
+    } catch (error: any) {
       console.error("Error:", error);
-      showToast("error", "Error", "No se pudo cancelar");
+      const errorMessage = error?.message || "No se pudo cancelar";
+      toast.error(errorMessage);
     } finally {
       setLoadingAction(null);
     }
@@ -244,10 +260,11 @@ export default function ProduccionPage() {
       );
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
       setShowRegisterPartsDialog(false);
-      showToast("success", "Éxito", "Piezas registradas correctamente");
-    } catch (error) {
+      toast.success("Piezas registradas correctamente");
+    } catch (error: any) {
       console.error("Error:", error);
-      showToast("error", "Error", "No se pudieron registrar las piezas");
+      const errorMessage = error?.message || "No se pudieron registrar las piezas";
+      toast.error(errorMessage);
     } finally {
       setLoadingAction(null);
     }
@@ -257,12 +274,14 @@ export default function ProduccionPage() {
   function openEditDialog(p: ProductionOrder) {
     setSelectedProduction(p);
     setForm({
-      processId: String(p.id),
-      machineId: undefined,
-      operatorId: undefined,
-      targetParts: p.targetParts,
+      processId: '', // El proceso no se puede cambiar en edición
+      machineId: p.machineId ? String(p.machineId) : '',
+      operatorId: p.operatorId ? String(p.operatorId) : '',
+      productId: '',
+      targetParts: p.targetParts || 0,
       notes: '',
-      workOrderId: undefined,
+      workOrderId: '',
+      parentProductionId: p.parentProductionId ? String(p.parentProductionId) : '',
     });
     setShowEditDialog(true);
   }
@@ -278,16 +297,19 @@ export default function ProduccionPage() {
     setSaving(true);
     try {
       const updated = await productionService.update(parseInt(selectedProduction.id), {
+        machineId: form.machineId ? parseInt(form.machineId) : null,
+        operatorId: form.operatorId ? parseInt(form.operatorId) : null,
         targetParts: form.targetParts,
-        notes: form.notes || undefined,
+        notes: form.notes || null,
       });
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
       setShowEditDialog(false);
       setForm(DEFAULT_FORM);
-      showToast("success", "Éxito", "Orden actualizada correctamente");
-    } catch (error) {
+      toast.success("Orden actualizada correctamente");
+    } catch (error: any) {
       console.error("Error:", error);
-      showToast("error", "Error", "No se pudo actualizar la orden");
+      const errorMessage = error?.message || "No se pudo actualizar la orden";
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -301,10 +323,11 @@ export default function ProduccionPage() {
       await productionService.delete(parseInt(selectedProduction.id));
       setProductions(productions.filter((p) => p.id !== selectedProduction.id));
       setShowDeleteDialog(false);
-      showToast("success", "Éxito", "Orden eliminada correctamente");
-    } catch (error) {
+      toast.success("Orden eliminada correctamente");
+    } catch (error: any) {
       console.error("Error:", error);
-      showToast("error", "Error", "No se pudo eliminar la orden");
+      const errorMessage = error?.message || "No se pudo eliminar la orden";
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -396,6 +419,7 @@ export default function ProduccionPage() {
           machines={machines}
           operators={operators}
           workOrders={workOrders}
+          products={products}
           onSubmit={handleCreate}
           saving={saving}
         />
@@ -432,6 +456,9 @@ export default function ProduccionPage() {
           onOpenChange={setShowEditDialog}
           form={form}
           onFormChange={setForm}
+          machines={machines}
+          operators={operators}
+          requiresMachine={selectedProduction?.requiresMachine ?? false}
           onSave={handleEdit}
           saving={saving}
         />

@@ -132,7 +132,7 @@ export function QuoteViewDialog({
                 <span>{formatCurrency(quote.subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">IVA (16%):</span>
+                <span className="text-muted-foreground">IVA ({Math.round(quote.taxPercentage)}%):</span>
                 <span>{formatCurrency(quote.tax)}</span>
               </div>
               <div className="flex justify-between font-bold border-t pt-2">

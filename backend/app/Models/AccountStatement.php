@@ -10,7 +10,7 @@ class AccountStatement extends Model
     use HasFactory;
 
     protected $fillable = [
-        'invoice_number',
+        'sale_id',
         'client_id',
         'client_name',
         'date',
@@ -33,5 +33,15 @@ class AccountStatement extends Model
     public function client()
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function sale()
+    {
+        return $this->belongsTo(Sale::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
     }
 }

@@ -95,8 +95,28 @@ export const workOrdersService = {
     return api.get<PaginatedResponse<Client>>('/work-orders/clients', params);
   },
 
+  // Get clients list for select (optimized)
+  getClientsSelectList: (): Promise<Client[]> => {
+    return api.get<Client[]>('/clients/select-list-client');
+  },
+
   // Get suppliers for work order form (requires workorders.create permission)
   getSuppliers: (params?: { search?: string; per_page?: number }): Promise<PaginatedResponse<Supplier>> => {
     return api.get<PaginatedResponse<Supplier>>('/work-orders/suppliers', params);
+  },
+
+  // Get productions for work order
+  getProductions: (workOrderId: number): Promise<any[]> => {
+    return api.get<any[]>(`/work-orders/${workOrderId}/productions`);
+  },
+
+  // Get pipeline status for work order
+  getPipelineStatus: (workOrderId: number): Promise<any> => {
+    return api.get<any>(`/work-orders/${workOrderId}/pipeline-status`);
+  },
+
+  // Get available products for a sale (for work order form)
+  getAvailableProducts: (saleId: number): Promise<{ data: any[]; success: boolean }> => {
+    return api.get<{ data: any[]; success: boolean }>(`/work-orders/available-products?sale_id=${saleId}`);
   }
 };

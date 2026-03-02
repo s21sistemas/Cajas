@@ -24,6 +24,7 @@ export default function EntregasPage() {
   const [editingDelivery, setEditingDelivery] = useState<Delivery | null>(null);
   const [deletingDelivery, setDeletingDelivery] = useState<Delivery | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string[]>>({});
 
   // Función para obtener entregas
   const fetchDeliveries = async () => {
@@ -64,6 +65,7 @@ export default function EntregasPage() {
 
   const handleSubmit = async (data: CreateDeliveryDto) => {
     setSubmitting(true);
+    setFormErrors({});
     try {
       if (editingDelivery) {
         await deliveriesService.update(Number(editingDelivery.id), data);
@@ -76,8 +78,17 @@ export default function EntregasPage() {
       setEditingDelivery(null);
       fetchDeliveries();
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
-      showToast("error", "Error", errorMessage);
+      console.error("Error submitting delivery:", error);
+      const errors = error?.errors;
+      if (errors) {
+        setFormErrors(errors);
+        const errorMessages = Object.entries(errors).map(([field, msgs]: [string, any]) => `${field}: ${msgs.join(', ')}`);
+        showToast("error", "Error de validación", errorMessages.join('\n'));
+      } else if (error?.message) {
+        showToast("error", "Error", error.message);
+      } else {
+        showToast("error", "Error", "Error desconocido");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -146,11 +157,12 @@ export default function EntregasPage() {
 
         <DeliveryFormDialog
           open={modalOpen}
-          onOpenChange={(open) => { setModalOpen(open); if (!open) setEditingDelivery(null); }}
+          onOpenChange={(open) => { setModalOpen(open); if (!open) { setEditingDelivery(null); setFormErrors({}); } }}
           editingDelivery={editingDelivery}
           vehicles={vehicles}
           onSubmit={handleSubmit}
           loading={submitting}
+          errors={formErrors}
         />
 
         <ConfirmDialog

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -26,9 +27,10 @@ interface DeliveryFormProps {
   vehicles: Vehicle[];
   onSubmit: (data: CreateDeliveryDto) => Promise<void>;
   isLoading?: boolean;
+  errors?: Record<string, string[]>;
 }
 
-export function DeliveryForm({ defaultValues, vehicles, onSubmit, isLoading }: DeliveryFormProps) {
+export function DeliveryForm({ defaultValues, vehicles, onSubmit, isLoading, errors }: DeliveryFormProps) {
   const form = useForm<DeliveryFormValues>({
     resolver: zodResolver(deliverySchema),
     defaultValues: {
@@ -40,6 +42,20 @@ export function DeliveryForm({ defaultValues, vehicles, onSubmit, isLoading }: D
       completedAt: defaultValues?.completedAt || '',
     },
   });
+
+  // Set backend errors on fields
+  useEffect(() => {
+    if (errors) {
+      Object.entries(errors).forEach(([field, messages]) => {
+        if (messages && messages.length > 0) {
+          form.setError(field as keyof DeliveryFormValues, {
+            type: 'server',
+            message: messages[0],
+          });
+        }
+      });
+    }
+  }, [errors, form]);
 
   return (
     <Form {...form}>
@@ -79,8 +95,8 @@ export function DeliveryForm({ defaultValues, vehicles, onSubmit, isLoading }: D
             <FormItem>
               <FormLabel>Vehículo</FormLabel>
               <Select 
-                onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)} 
-                defaultValue={field.value ? field.value.toString() : ''}
+                onValueChange={(value) => field.onChange(value === "0" ? undefined : (value ? parseInt(value) : undefined))} 
+                defaultValue={field.value ? field.value.toString() : '0'}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -88,7 +104,7 @@ export function DeliveryForm({ defaultValues, vehicles, onSubmit, isLoading }: D
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">Sin vehículo</SelectItem>
+                  <SelectItem value="0">Sin vehículo</SelectItem>
                   {vehicles.map((vehicle) => (
                     <SelectItem key={vehicle.id} value={vehicle.id.toString()}>
                       {vehicle.brand} {vehicle.model} - {vehicle.licensePlate}

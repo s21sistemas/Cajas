@@ -180,7 +180,7 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
                 ) : (
                   <Select 
                     onValueChange={(value) => {
-                      const materialId = Number(value);
+                      const materialId = value;
                       field.onChange(materialId);
                       const material = materials.find((m: any) => m.id === materialId);
                       if (material) {

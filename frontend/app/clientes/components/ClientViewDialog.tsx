@@ -54,6 +54,14 @@ export function ClientViewDialog({ client, open, onOpenChange, formatCurrency }:
               <p className="font-medium">{client.phone || "-"}</p>
             </div>
             <div className="min-w-0">
+              <label className="text-xs text-muted-foreground">WhatsApp</label>
+              <p className="font-medium">{client.whatsapp || "-"}</p>
+            </div>
+            <div className="min-w-0">
+              <label className="text-xs text-muted-foreground">Contacto</label>
+              <p className="font-medium">{client.contacto || "-"}</p>
+            </div>
+            <div className="min-w-0">
               <label className="text-xs text-muted-foreground">Dirección</label>
               <p className="font-medium break-words">{client.address}</p>
             </div>

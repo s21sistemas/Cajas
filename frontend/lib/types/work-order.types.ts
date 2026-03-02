@@ -11,6 +11,8 @@ export interface WorkOrder extends BaseEntity {
   clientName: string | null;
   supplierId: number | null;
   supplierName: string | null;
+  saleId: number | null;
+  saleCode: string | null;
   productId: number | null;
   productName: string;
   quantity: number;
@@ -69,6 +71,7 @@ export interface CreateWorkOrderDto {
   product_id?: number | null;
   client_id?: number | null;
   supplier_id?: number | null;
+  sale_id?: number | null;
   product_name?: string;
   quantity?: number;
   priority?: WorkOrderPriority;

@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
+import { Search, MoreHorizontal, Eye, Pencil, Trash2, Mail, FileDown } from "lucide-react";
 import type { Quote, QuoteStatus } from "@/lib/types";
 
 interface QuoteTableProps {
@@ -29,6 +29,8 @@ interface QuoteTableProps {
   onView: (quote: Quote) => void;
   onEdit: (quote: Quote) => void;
   onDelete: (quote: Quote) => void;
+  onSendEmail?: (quote: Quote) => void;
+  onDownloadPdf?: (quote: Quote) => void;
   loading?: boolean;
   currentPage: number;
   lastPage: number;
@@ -63,6 +65,8 @@ export function QuoteTable({
   onView,
   onEdit,
   onDelete,
+  onSendEmail,
+  onDownloadPdf,
   loading = false,
   currentPage,
   lastPage,
@@ -162,6 +166,16 @@ export function QuoteTable({
                           <DropdownMenuItem onClick={() => onView(quote)}>
                             <Eye className="h-4 w-4 mr-2" /> Ver detalle
                           </DropdownMenuItem>
+                          {onDownloadPdf && (
+                            <DropdownMenuItem onClick={() => onDownloadPdf(quote)}>
+                              <FileDown className="h-4 w-4 mr-2" /> Descargar PDF
+                            </DropdownMenuItem>
+                          )}
+                          {onSendEmail && quote.status !== 'sent' && quote.status !== 'approved' && quote.status !== 'rejected' && (
+                            <DropdownMenuItem onClick={() => onSendEmail(quote)}>
+                              <Mail className="h-4 w-4 mr-2" /> Enviar por correo
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => onEdit(quote)}>
                             <Pencil className="h-4 w-4 mr-2" /> Editar
                           </DropdownMenuItem>

@@ -2,16 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Client extends Model
 {
+    use HasFactory;
     protected $fillable = [
         'code',
         'name',
         'rfc',
         'email',
         'phone',
+        'contacto',
+        'whatsapp',
         'address',
         'city',
         'state',
@@ -43,10 +47,5 @@ class Client extends Model
     public function accountStatements()
     {
         return $this->hasMany(AccountStatement::class);
-    }
-
-    public function serviceOrders()
-    {
-        return $this->hasMany(ServiceOrder::class);
     }
 }

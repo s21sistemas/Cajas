@@ -150,6 +150,18 @@ export const financeService = {
   _useDemo: false,
 
   /**
+   * Obtener lista de cuentas bancarias para selects (solo id, bank y name)
+   */
+  async getBankAccountsSelectList(): Promise<{ id: number; bank: string; name: string }[]> {
+    if (this._useDemo) {
+      return mockBankAccounts.map(a => ({ id: a.id, bank: a.bank, name: a.name }));
+    }
+
+    const response = await apiClient.get<{ id: number; bank: string; name: string }[]>("/bank-accounts");
+    return response.data;
+  },
+
+  /**
    * Obtener todas las cuentas bancarias
    */
   async getBankAccounts(): Promise<PaginatedResponse<BankAccount>> {
@@ -166,6 +178,18 @@ export const financeService = {
     }
 
     const response = await apiClient.get<PaginatedResponse<BankAccount>>("/bank-accounts");
+    return response.data;
+  },
+
+  /**
+   * Obtener lista de cuentas bancarias para selects (solo id, bank y name)
+   */
+  async getBankAccountsSelectList(): Promise<{ id: number; bank: string; name: string }[]> {
+    if (this._useDemo) {
+      return mockBankAccounts.map(a => ({ id: a.id, bank: a.bank, name: a.name }));
+    }
+
+    const response = await apiClient.get<{ id: number; bank: string; name: string }[]>("/bank-accounts");
     return response.data;
   },
 
@@ -423,6 +447,16 @@ export const financeService = {
     }
 
     const response = await apiClient.get<PaginatedResponse<BankTransaction>>("/bank-transactions");
+    return response.data;
+  },
+};
+
+/**
+ * Servicio separado para cuentas bancarias (select lists)
+ */
+export const bankAccountsService = {
+  getAll: async () => {
+    const response = await apiClient.get<any[]>("/bank-accounts");
     return response.data;
   },
 };

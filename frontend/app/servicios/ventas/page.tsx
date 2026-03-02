@@ -5,7 +5,7 @@ import { ERPLayout } from "@/components/erp/erp-layout";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Button } from "@/components/ui/button";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
-import { serviceOrdersService } from "@/lib/services";
+import { serviceOrdersService, salesService } from "@/lib/services";
 import { useToast } from "@/components/erp/action-toast";
 import { ConfirmDialog } from "@/components/erp/confirm-dialog";
 import { SaleStatsCards } from "./components/SaleStatsCards";
@@ -24,6 +24,7 @@ export default function VentasPage() {
   const [viewingSale, setViewingSale] = useState<Sale | null>(null);
   const [deletingSale, setDeletingSale] = useState<Sale | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<any>(null);
   const [stats, setStats] = useState<any>({
     total: 0,
     pending: 0,
@@ -44,7 +45,7 @@ export default function VentasPage() {
   // Función para obtener estadísticas
   const fetchStats = async () => {
     try {
-      const statsData = await serviceOrdersService.getSaleStats();
+      const statsData = await salesService.getStats();
       setStats(statsData);
     } catch (error: any) {
       console.error("Error al cargar estadísticas:", error?.message || error);
@@ -123,16 +124,40 @@ export default function VentasPage() {
 
   const handleSubmit = async (data: any) => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
       if (editingSale) {
-        await serviceOrdersService.updateSale(editingSale.id, data);
+        await salesService.update(editingSale.id, data);
         showToast("success", "Venta actualizada", "");
       } else {
-        await serviceOrdersService.createSale(data);
+        await salesService.create(data);
         showToast("success", "Venta creada", "");
       }
       setModalOpen(false);
       setEditingSale(null);
+      fetchSales(search, currentPage);
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      // Check if it's a validation error with field errors
+      if (error?.response?.data?.errors) {
+        setSubmitError(error);
+        // Don't close modal, show field errors
+      } else {
+        showToast("error", "Error", errorMessage);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingSale) return;
+    setSubmitting(true);
+    try {
+      await salesService.delete(deletingSale.id);
+      showToast("success", "Venta eliminada", "");
+      setDeletingSale(null);
       fetchSales(search, currentPage);
       fetchStats();
     } catch (error: any) {
@@ -143,20 +168,21 @@ export default function VentasPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!deletingSale) return;
-    setSubmitting(true);
+  const handleDownloadPdf = async (sale: Sale) => {
     try {
-      await serviceOrdersService.delete(deletingSale.id);
-      showToast("success", "Venta eliminada", "");
-      setDeletingSale(null);
-      fetchSales(search, currentPage);
-      fetchStats();
+      const blob = await salesService.exportPdf(sale.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `venta-${sale.code}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      showToast("success", "PDF descargado", "");
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      const errorMessage = error?.response?.data?.message || error?.message || "Error al descargar PDF";
       showToast("error", "Error", errorMessage);
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -172,12 +198,12 @@ export default function VentasPage() {
 
   return (
     <ProtectedRoute>
-      <ERPLayout title="Ventas" subtitle="Gestiona las ventas y facturas">
+      <ERPLayout title="Ventas" subtitle="Gestiona las ventas">
         <div className="p-6 space-y-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-foreground">Ventas</h1>
-              <p className="text-muted-foreground">Gestiona las ventas y facturas</p>
+              <p className="text-muted-foreground">Gestiona las ventas</p>
             </div>
             <Button onClick={() => { setEditingSale(null); setModalOpen(true); }} className="gap-2">
               <Plus className="h-4 w-4" />
@@ -187,10 +213,7 @@ export default function VentasPage() {
 
           <SaleStatsCards
             total={stats.total || sales.length}
-            pending={stats.pending || sales.filter((s) => s.status === "pending").length}
-            paid={stats.paid || sales.filter((s) => s.status === "paid").length}
             totalAmount={stats.totalAmount || sales.reduce((sum, s) => sum + (s.total || 0), 0)}
-            totalPaid={stats.totalPaid || sales.reduce((sum, s) => sum + (s.paid || 0), 0)}
             formatCurrency={formatCurrency}
           />
 
@@ -201,6 +224,7 @@ export default function VentasPage() {
             onView={setViewingSale}
             onEdit={openEditModal}
             onDelete={setDeletingSale}
+            onDownloadPdf={handleDownloadPdf}
             formatCurrency={formatCurrency}
             loading={loading}
           />
@@ -242,10 +266,11 @@ export default function VentasPage() {
 
         <SaleFormDialog
           open={modalOpen}
-          onOpenChange={(open) => { setModalOpen(open); if (!open) setEditingSale(null); }}
+          onOpenChange={(open) => { setModalOpen(open); if (!open) { setEditingSale(null); setSubmitError(null); } }}
           editingSale={editingSale}
           onSubmit={handleSubmit}
           loading={submitting}
+          error={submitError}
         />
 
         <SaleViewDialog
@@ -259,7 +284,7 @@ export default function VentasPage() {
           open={!!deletingSale}
           onOpenChange={() => setDeletingSale(null)}
           title="Eliminar Venta"
-          description={`¿Estás seguro de eliminar la venta "${deletingSale?.invoice}"? Esta acción no se puede deshacer.`}
+          description={`¿Estás seguro de eliminar la venta "${deletingSale?.code}"? Esta acción no se puede deshacer.`}
           confirmText="Eliminar"
           variant="destructive"
           onConfirm={handleDelete}

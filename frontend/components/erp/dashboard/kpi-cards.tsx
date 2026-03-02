@@ -21,6 +21,31 @@ interface KPICardProps {
   suffix?: string;
 }
 
+// Helper function to format numbers with 2 decimal places
+function formatNumber(value: number, decimals: number = 2): string {
+  if (typeof value !== 'number' || isNaN(value)) return '0';
+  return value.toFixed(decimals);
+}
+
+// Helper function to format large numbers with K, M suffixes or line break
+function formatLargeNumber(value: number): string {
+  if (typeof value !== 'number' || isNaN(value)) return '0';
+  
+  if (value >= 1000000) {
+    return (value / 1000000).toFixed(1) + 'M';
+  } else if (value >= 1000) {
+    return (value / 1000).toFixed(1) + 'K';
+  }
+  return value.toLocaleString();
+}
+
+// Helper function to format change percentage
+function formatChange(value: number): string {
+  if (typeof value !== 'number' || isNaN(value)) return '0%';
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value.toFixed(2)}%`;
+}
+
 function KPICard({ title, value, change, changeLabel, icon, iconBg = "bg-primary/10", suffix }: KPICardProps) {
   const isPositive = change && change > 0;
   const isNegative = change && change < 0;
@@ -31,7 +56,7 @@ function KPICard({ title, value, change, changeLabel, icon, iconBg = "bg-primary
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{title}</p>
-            <div className="flex items-baseline gap-1 mt-1">
+            <div className="flex items-baseline gap-1 mt-1 flex-wrap">
               <span className="text-2xl font-bold text-card-foreground">{value}</span>
               {suffix && <span className="text-sm text-muted-foreground">{suffix}</span>}
             </div>
@@ -46,7 +71,7 @@ function KPICard({ title, value, change, changeLabel, icon, iconBg = "bg-primary
                   "text-xs font-medium",
                   isPositive ? "text-success" : isNegative ? "text-destructive" : "text-muted-foreground"
                 )}>
-                  {isPositive ? "+" : ""}{change}%
+                  {formatChange(change)}
                 </span>
                 {changeLabel && (
                   <span className="text-xs text-muted-foreground">{changeLabel}</span>
@@ -68,7 +93,7 @@ export function KPICards({ data }: KPICardsProps) {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <KPICard
         title="Producción Total"
-        value={data.totalProduction.toLocaleString()}
+        value={formatLargeNumber(data.totalProduction)}
         change={data.productionChange}
         changeLabel="vs. mes anterior"
         icon={<Factory className="h-5 w-5 text-primary" />}
@@ -77,7 +102,7 @@ export function KPICards({ data }: KPICardsProps) {
       />
       <KPICard
         title="Eficiencia"
-        value={data.efficiency}
+        value={formatNumber(data.efficiency)}
         change={data.efficiencyChange}
         changeLabel="vs. semana anterior"
         icon={<Gauge className="h-5 w-5 text-success" />}
@@ -86,7 +111,7 @@ export function KPICards({ data }: KPICardsProps) {
       />
       <KPICard
         title="Tasa de Scrap"
-        value={data.scrapRate}
+        value={formatNumber(data.scrapRate)}
         change={data.scrapRateChange}
         changeLabel="vs. semana anterior"
         icon={<AlertTriangle className="h-5 w-5 text-warning" />}

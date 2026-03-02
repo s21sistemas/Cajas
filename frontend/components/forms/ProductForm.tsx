@@ -17,8 +17,6 @@ const productSchema = z.object({
   category: z.string().optional().default(''),
   price: z.number().min(0, 'El precio debe ser positivo').default(0),
   cost: z.number().min(0, 'El costo debe ser positivo').default(0),
-  stock: z.number().int().min(0, 'El stock debe ser positivo').default(0),
-  minStock: z.number().int().min(0, 'El stock mínimo debe ser positivo').default(0),
   status: z.enum(['diseño', 'en_producción', 'completado', 'active', 'inactive', 'discontinued']).default('diseño'),
   unit: z.string().optional().default(''),
 });
@@ -41,8 +39,6 @@ export function ProductForm({ defaultValues, onSubmit, isLoading }: ProductFormP
       category: defaultValues?.category || '',
       price: defaultValues?.price || 0,
       cost: defaultValues?.cost || 0,
-      stock: defaultValues?.stock || 0,
-      minStock: defaultValues?.minStock || 0,
       status: (defaultValues?.status as ProductFormValues['status']) || 'diseño',
       unit: defaultValues?.unit || '',
     },
@@ -56,8 +52,6 @@ export function ProductForm({ defaultValues, onSubmit, isLoading }: ProductFormP
       category: data.category || undefined,
       price: data.price || undefined,
       cost: data.cost || undefined,
-      stock: data.stock || 0,
-      minStock: data.minStock || 0,
       status: data.status || 'diseño',
       unit: data.unit || undefined,
     };
@@ -168,45 +162,6 @@ export function ProductForm({ defaultValues, onSubmit, isLoading }: ProductFormP
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="stock"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Stock</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="number" 
-                    placeholder="0"
-                    value={field.value}
-                    onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="minStock"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Stock Mínimo</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="number" 
-                    placeholder="0"
-                    value={field.value}
-                    onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
             name="status"
             render={({ field }) => (
               <FormItem>
@@ -236,9 +191,23 @@ export function ProductForm({ defaultValues, onSubmit, isLoading }: ProductFormP
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Unidad</FormLabel>
-                <FormControl>
-                  <Input placeholder="pza" {...field} />
-                </FormControl>
+                <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="pza">Pieza</SelectItem>
+                    <SelectItem value="kg">Kilogramo</SelectItem>
+                    <SelectItem value="ton">Tonelada</SelectItem>
+                    <SelectItem value="metro">Metro</SelectItem>
+                    <SelectItem value="roll">Rollo</SelectItem>
+                    <SelectItem value="hoja">Hoja</SelectItem>
+                    <SelectItem value="par">Par</SelectItem>
+                    <SelectItem value="litro">Litro</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

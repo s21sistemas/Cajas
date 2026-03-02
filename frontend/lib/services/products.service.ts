@@ -4,7 +4,7 @@ import type {
   CreateProductDto,
   UpdateProductDto,
   ProductFilters,
-  ProductPart,
+  ProductMaterial,
   ProductProcess,
   Material,
   PaginatedResponse
@@ -19,6 +19,11 @@ export const productsService = {
   // Get product by ID
   getById: (id: number): Promise<Product> => {
     return api.get<Product>(`/products/${id}`);
+  },
+
+  // Get products for select list
+  selectList: (): Promise<Product[]> => {
+    return api.get<Product[]>('/products/select-list');
   },
 
   // Get product with details (parts and processes)
@@ -67,8 +72,8 @@ export const productsService = {
   },
 
   // Get materials of a product
-  getParts: (productId: number): Promise<ProductPart[]> => {
-    return api.get<ProductPart[]>(`/products/${productId}/materials`);
+  getParts: (productId: number): Promise<ProductMaterial[]> => {
+    return api.get<ProductMaterial[]>(`/products/${productId}/materials`);
   },
 
   // Add material to product
@@ -96,9 +101,7 @@ export const productsService = {
   // Add process to product
   addProcess: (productId: number, data: {
     name: string;
-    process_type: string;
-    description?: string;
-    machine_id?: number;
+    process_id: number;
     sequence: number;
     estimated_time_min?: number;
   }): Promise<ProductProcess> => {
@@ -121,5 +124,17 @@ export const productsService = {
   // Remove process from product
   removeProcess: (productId: number, processId: number): Promise<void> => {
     return api.delete(`/products/${productId}/processes/${processId}`);
+  },
+
+  // === CREAR PRODUCTO DESDE COTIZACIÓN ===
+
+  // Crear producto básico desde cotización (solo nombre, código, unidad, precio)
+  createFromQuote: (data: {
+    name: string;
+    code?: string;
+    unit?: string;
+    price?: number;
+  }): Promise<Product> => {
+    return api.post<Product>('/products/from-quote', data);
   }
 };

@@ -6,6 +6,8 @@ export interface Client extends BaseEntity {
   rfc: string | null;
   email: string | null;
   phone: string | null;
+  contacto: string | null;
+  whatsapp: string | null;
   address: string;
   city: string;
   state: string;
@@ -34,6 +36,7 @@ export interface Quote extends BaseEntity {
   items: any; // JSON structure for quote items
   subtotal: number;
   tax: number;
+  taxPercentage: number;
   total: number;
   status: 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
   validUntil: string;
@@ -42,16 +45,20 @@ export interface Quote extends BaseEntity {
 }
 
 export interface Sale extends BaseEntity {
-  invoice: string;
+  code: string;
   clientId: number;
+  clientName: string;
   quoteRef: string | null;
-  items: any; // JSON structure for sale items
+  quoteId: number | null;
+  items: number;
   subtotal: number;
+  taxRate: number;
   tax: number;
   total: number;
-  paid: number;
-  status: 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled';
+  status: 'pending' | 'paid' | 'overdue' | 'cancelled';
   paymentMethod: string;
+  paymentType: 'cash' | 'credit';
+  creditDays: string | null;
   dueDate: string;
   client?: Client;
   quote?: Quote;
@@ -61,8 +68,10 @@ export interface AccountStatement extends BaseEntity {
   clientId: number;
   clientName: string;
   invoiceNumber: string;
+  invoice_number?: string;
   date: string;
   dueDate: string | null;
+  due_date?: string | null;
   amount: number;
   paid: number;
   balance: number;
@@ -112,7 +121,7 @@ export interface CreateQuoteDto {
 }
 
 export interface CreateSaleDto {
-  invoice: string;
+  code: string;
   clientId: number;
   quoteRef?: string;
   items?: any;

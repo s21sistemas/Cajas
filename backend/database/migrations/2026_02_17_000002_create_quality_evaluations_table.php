@@ -23,12 +23,6 @@ return new class extends Migration
                 ->on('productions')
                 ->onDelete('cascade');
             
-            // Referencia al proceso evaluado
-            $table->unsignedBigInteger('work_order_process_id');
-            $table->foreign('work_order_process_id')
-                ->references('id')
-                ->on('work_order_processes')
-                ->onDelete('cascade');
 
             // Cantidad evaluada
             $table->integer('quantity_evaluated')->default(0);
@@ -57,7 +51,6 @@ return new class extends Migration
             $table->timestamps();
             
             // Índices para búsquedas rápidas
-            $table->index(['work_order_process_id', 'decision']);
             $table->index(['production_id', 'decision']);
         });
     }

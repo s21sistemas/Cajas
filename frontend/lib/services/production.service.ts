@@ -11,18 +11,28 @@ import type {
 } from '../types/production.types';
 
 // Tipo para WorkOrder (del módulo de Órdenes de Trabajo)
-export interface WorkOrder {
+// Definido aquí para evitar dependencia circular con app/produccion/types
+interface WorkOrder {
   id: number;
   code: string;
   product_name: string;
   client_name: string;
   quantity: number;
-  completed: number;
-  progress: number;
+  completed?: number;
+  progress?: number;
   status: 'draft' | 'in_progress' | 'completed' | 'cancelled' | 'on_hold';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
   due_date?: string;
 }
+
+// Tipo para Product
+interface Product {
+  id: number;
+  name: string;
+  code?: string;
+}
+
+export type { WorkOrder, Product };
 
 // Tipos para respuesta paginada
 interface PaginatedResponse<T> {
@@ -46,7 +56,9 @@ function transformProductionToOrder(production: Production): ProductionOrder {
     processName: production.process?.name || 'Proceso',
     processType: production.process?.processType || production.process?.name || 'Proceso',
     requiresMachine: production.process?.requiresMachine ?? true,
+    machineId: production.machine_id ?? null,
     machineName: production.machine?.name || null,
+    operatorId: production.operator_id ?? null,
     operatorName: production.operator?.name || 'Sin operador',
     status: production.status || 'pending',
     pauseReason: production.pause_reason || undefined,
@@ -55,6 +67,12 @@ function transformProductionToOrder(production: Production): ProductionOrder {
     scrapParts: production.scrap_parts || 0,
     startTime: production.start_time || '',
     endTime: production.end_time || null,
+    parentProductionId: production.parent_production_id || null,
+    qualityStatus: production.quality_status || 'PENDING',
+    // Nuevos campos
+    productName: production.work_order?.product?.name || production.work_order?.product_name || '',
+    clientName: production.work_order?.client?.name || production.work_order?.client_name || null,
+    saleCode: production.work_order?.sale?.invoice || null,
   };
 }
 
@@ -65,6 +83,7 @@ function toSnakeCase(data: CreateProductionDTO | UpdateProductionDTO): Record<st
   if ('processId' in data && data.processId !== undefined) result.process_id = data.processId;
   if ('machineId' in data && data.machineId !== undefined) result.machine_id = data.machineId;
   if ('operatorId' in data && data.operatorId !== undefined && data.operatorId !== null) result.operator_id = data.operatorId;
+  if ('productId' in data && data.productId !== undefined && data.productId !== null) result.product_id = data.productId;
   if ('targetParts' in data && data.targetParts !== undefined) result.target_parts = data.targetParts;
   if ('startTime' in data && data.startTime !== undefined) result.start_time = data.startTime;
   if ('endTime' in data && data.endTime !== undefined) result.end_time = data.endTime;
@@ -74,6 +93,7 @@ function toSnakeCase(data: CreateProductionDTO | UpdateProductionDTO): Record<st
   if ('status' in data && data.status !== undefined) result.status = data.status;
   if ('pauseReason' in data && data.pauseReason !== undefined) result.pause_reason = data.pauseReason;
   if ('workOrderId' in data && data.workOrderId !== undefined && data.workOrderId !== null) result.work_order_id = data.workOrderId;
+  if ('parentProductionId' in data && data.parentProductionId !== undefined && data.parentProductionId !== null) result.parent_production_id = data.parentProductionId;
   
   return result;
 }
@@ -81,7 +101,15 @@ function toSnakeCase(data: CreateProductionDTO | UpdateProductionDTO): Record<st
 // Extraer datos de respuesta API (maneja el formato { success, message, data })
 function extractData<T>(response: any): T {
   // Si la respuesta tiene el formato { success, message, data }
-  if (response && typeof response === 'object' && 'data' in response) {
+  if (response && typeof response === 'object' && 'success' in response) {
+    // Verificar si la respuesta indica un error del servidor
+    if (response.success === false) {
+      // Lanzar un error con el mensaje del servidor
+      const error = new Error(response.message || 'Error del servidor');
+      (error as any).response = response;
+      throw error;
+    }
+    // Si success es true, retornar los datos
     return response.data;
   }
   // Si es un array directo o paginación
@@ -95,11 +123,20 @@ function extractDataArray<T>(response: any): T[] {
 }
 
 export const productionService = {
-  // Obtener todas las producciones (paginado)
-  async getAll(): Promise<ProductionOrder[]> {
+  // Obtener todas las producciones (paginado) con filtros
+  async getAll(filters?: { client_id?: number; sale_id?: number; status?: string }): Promise<ProductionOrder[]> {
     try {
-      const response = await api.get<PaginatedResponse<Production>>('/productions');
+      // Construir query params
+      const params = new URLSearchParams();
+      if (filters?.client_id) params.append('client_id', String(filters.client_id));
+      if (filters?.sale_id) params.append('sale_id', String(filters.sale_id));
+      if (filters?.status && filters.status !== 'all') params.append('status', filters.status);
       
+      const queryString = params.toString();
+      const url = queryString ? `/productions?${queryString}` : '/productions';
+      
+      const response = await api.get<PaginatedResponse<Production>>(url);
+       
       // El paginator de Laravel tiene la estructura: { data: [...], current_page: 1, ... }
       let productions: Production[] = [];
       
@@ -149,8 +186,9 @@ export const productionService = {
       const production = extractData<Production>(response);
       return transformProductionToOrder(production);
     } catch (error: any) {
-      console.error(`Error updating production ${id}:`, error?.message || error);
-      throw error;
+      // El error ya viene con el mensaje del servidor desde el interceptor de axios
+      const errorMsg = error?.message || error?.response?.data?.message || 'Error al actualizar la producción';
+      throw new Error(errorMsg);
     }
   },
 
@@ -208,10 +246,10 @@ export const productionService = {
     return this.update(id, { goodParts, scrapParts });
   },
 
-  // Obtener procesos disponibles
+  // Obtener procesos disponibles (selectList)
   async getProcesses(): Promise<Process[]> {
     try {
-      const response = await api.get<Process[]>('/processes');
+      const response = await api.get<Process[]>('/processes/select-list');
       return extractDataArray<Process>(response);
     } catch (error: any) {
       console.warn('Error fetching processes:', error?.message || error);
@@ -219,10 +257,10 @@ export const productionService = {
     }
   },
 
-  // Obtener máquinas disponibles
+  // Obtener máquinas disponibles (selectList)
   async getMachines(): Promise<Machine[]> {
     try {
-      const response = await api.get<Machine[]>('/machines');
+      const response = await api.get<Machine[]>('/machines/select-list');
       return extractDataArray<Machine>(response);
     } catch (error: any) {
       console.warn('Error fetching machines:', error?.message || error);
@@ -230,13 +268,24 @@ export const productionService = {
     }
   },
 
-  // Obtener operadores disponibles
+  // Obtener operadores disponibles (selectList)
   async getOperators(): Promise<Operator[]> {
     try {
-      const response = await api.get<Operator[]>('/operators');
+      const response = await api.get<Operator[]>('/operators/select-list');
       return extractDataArray<Operator>(response);
     } catch (error: any) {
       console.warn('Error fetching operators:', error?.message || error);
+      return [];
+    }
+  },
+
+  // Obtener productos disponibles (selectList)
+  async getProducts(): Promise<Product[]> {
+    try {
+      const response = await api.get<any>('/products/select-list');
+      return extractDataArray<Product>(response);
+    } catch (error: any) {
+      console.warn('Error fetching products:', error?.message || error);
       return [];
     }
   },
@@ -262,16 +311,11 @@ export const productionService = {
     return this.getByStatus('completed');
   },
 
-  // Obtener work orders disponibles para vincular a producción
+  // Obtener work orders disponibles para vincular a producción (selectList)
   async getWorkOrders(): Promise<WorkOrder[]> {
     try {
-      // Obtener work orders sin filtrar por status para mostrar todas las disponibles
-      const response = await api.get<any>('/work-orders?per_page=100');
-      const data = extractData<any>(response);
-      if (data && 'data' in data) {
-        return data.data || [];
-      }
-      return [];
+      const response = await api.get<any>('/work-orders/select-list');
+      return extractDataArray<WorkOrder>(response);
     } catch (error: any) {
       console.warn('Error fetching work orders:', error?.message || error);
       return [];

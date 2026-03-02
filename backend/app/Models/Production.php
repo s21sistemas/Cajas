@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\Schema;
 
 class Production extends Model
 {
@@ -18,8 +19,9 @@ class Production extends Model
     protected $fillable = [
         'code',
         'work_order_id',
-        'product_process_id',
+        'product_id',
         'process_id',
+        'parent_production_id',
         'machine_id',
         'operator_id',
         'start_time',
@@ -30,13 +32,9 @@ class Production extends Model
         'target_parts',
         'status',
         'pause_reason',
-        // Campos MES adicionales
-        'quantity_produced',
-        'quantity_scrap',
-        'rework_quantity',
         'quality_status',
-        'fecha_inicio',
-        'fecha_fin',
+        'sale_id',
+        'client_id',
     ];
 
     protected $casts = [
@@ -45,12 +43,6 @@ class Production extends Model
         'good_parts' => 'integer',
         'scrap_parts' => 'integer',
         'target_parts' => 'integer',
-        // Campos MES
-        'quantity_produced' => 'integer',
-        'quantity_scrap' => 'integer',
-        'rework_quantity' => 'integer',
-        'fecha_inicio' => 'datetime',
-        'fecha_fin' => 'datetime',
     ];
 
     /**
@@ -59,6 +51,22 @@ class Production extends Model
     public function process()
     {
         return $this->belongsTo(Process::class);
+    }
+
+    /**
+     * Relación con el proceso padre (proceso anterior en la secuencia)
+     */
+    public function parentProcess()
+    {
+        return $this->belongsTo(Production::class, 'parent_production_id');
+    }
+
+    /**
+     * Relación con los procesos hijos (procesos siguientes en la secuencia)
+     */
+    public function childProductions()
+    {
+        return $this->hasMany(Production::class, 'parent_production_id');
     }
 
     /**
@@ -86,19 +94,19 @@ class Production extends Model
     }
 
     /**
-     * Relación con WorkOrderProcess
+     * Relación con la venta
      */
-    public function workOrderProcess()
+    public function sale()
     {
-        return $this->belongsTo(WorkOrderProcess::class, 'work_order_process_id');
+        return $this->belongsTo(Sale::class);
     }
 
     /**
-     * Relación con ProductProcess (receta del producto)
+     * Relación con el cliente
      */
-    public function productProcess()
+    public function client()
     {
-        return $this->belongsTo(ProductProcess::class, 'product_process_id');
+        return $this->belongsTo(Client::class);
     }
 
     /**
@@ -130,8 +138,8 @@ class Production extends Model
                 $production->code = 'PRD-' . date('Ymd') . '-' . str_pad(static::count() + 1, 6, '0', STR_PAD_LEFT);
             }
             
-            // Inicializar fechas si no existen
-            if (empty($production->fecha_inicio)) {
+            // Inicializar fecha_inicio solo si la columna existe
+            if (Schema::hasColumn('productions', 'fecha_inicio') && empty($production->fecha_inicio)) {
                 $production->fecha_inicio = $production->start_time ?? now();
             }
         });
@@ -142,15 +150,15 @@ class Production extends Model
      */
     public function registerInProcess(): bool
     {
-        $process = $this->workOrderProcess;
+        $process = $this->process;
         
         if (!$process) {
             return false;
         }
 
-        // Usar quantity_produced o good_parts
-        $quantityProduced = $this->quantity_produced ?? $this->good_parts ?? 0;
-        $quantityScrap = $this->quantity_scrap ?? $this->scrap_parts ?? 0;
+        // Usar good_parts
+        $quantityProduced = $this->good_parts ?? 0;
+        $quantityScrap = $this->scrap_parts ?? 0;
 
         // Registrar en el proceso
         $process->registerProduction($quantityProduced, $quantityScrap);
@@ -171,11 +179,6 @@ class Production extends Model
             }
         }
 
-        // Sincronizar con modelo legacy
-        $this->good_parts = $quantityProduced;
-        $this->scrap_parts = $quantityScrap;
-        $this->save();
-
         return true;
     }
 
@@ -186,11 +189,19 @@ class Production extends Model
     {
         $this->good_parts = $goodParts ?? $this->good_parts ?? 0;
         $this->scrap_parts = $scrapParts ?? $this->scrap_parts ?? 0;
-        $this->quantity_produced = $this->good_parts;
-        $this->quantity_scrap = $this->scrap_parts;
         $this->end_time = now();
-        $this->fecha_fin = now();
         $this->status = 'completed';
+        
+        // Solo guardar campos adicionales si existen
+        if (Schema::hasColumn('productions', 'quantity_produced')) {
+            $this->quantity_produced = $this->good_parts;
+        }
+        if (Schema::hasColumn('productions', 'quantity_scrap')) {
+            $this->quantity_scrap = $this->scrap_parts;
+        }
+        if (Schema::hasColumn('productions', 'fecha_fin')) {
+            $this->fecha_fin = now();
+        }
         
         $this->save();
         
@@ -208,7 +219,7 @@ class Production extends Model
         $this->save();
         
         // Pausar el proceso
-        $process = $this->workOrderProcess;
+        $process = $this->process;
         if ($process) {
             $process->pause($reason);
         }
@@ -224,7 +235,7 @@ class Production extends Model
         $this->save();
         
         // Reanudar el proceso
-        $process = $this->workOrderProcess;
+        $process = $this->process;
         if ($process) {
             $process->start();
         }
@@ -235,8 +246,7 @@ class Production extends Model
      */
     public function getTotalQuantity(): int
     {
-        return ($this->quantity_produced ?? $this->good_parts ?? 0) + 
-               ($this->quantity_scrap ?? $this->scrap_parts ?? 0);
+        return ($this->good_parts ?? 0) + ($this->scrap_parts ?? 0);
     }
 
     /**
@@ -244,7 +254,7 @@ class Production extends Model
      */
     public function getGoodQuantity(): int
     {
-        return $this->quantity_produced ?? $this->good_parts ?? 0;
+        return $this->good_parts ?? 0;
     }
 
     /**
@@ -301,6 +311,6 @@ class Production extends Model
      */
     public function scopeForProcess($query, int $processId)
     {
-        return $query->where('work_order_process_id', $processId);
+        return $query->where('process_id', $processId);
     }
 }

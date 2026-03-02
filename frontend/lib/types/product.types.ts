@@ -9,8 +9,6 @@ export interface Product extends BaseEntity {
   price: number | null;
   cost: number | null;
   unit: string | null;
-  stock: number;
-  minStock: number;
   status: ProductStatus;
   materials?: ProductMaterial[];
   processes?: ProductProcess[];
@@ -54,8 +52,6 @@ export interface CreateProductDto {
   price?: number;
   cost?: number;
   unit?: string;
-  stock?: number;
-  minStock?: number;
   status?: ProductStatus;
 }
 
@@ -64,6 +60,4 @@ export interface UpdateProductDto extends Partial<CreateProductDto> {}
 export interface ProductFilters extends BaseFilters {
   status?: ProductStatus;
   category?: string;
-  minStock?: number;
-  maxStock?: number;
 }

@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
+import { Search, MoreHorizontal, Eye, Pencil, Trash2, FileDown } from "lucide-react";
 import type { Sale } from "@/lib/types/service-order.types";
 
 // Función helper para formatear fecha para visualización
@@ -41,13 +41,13 @@ interface SaleTableProps {
   onView: (sale: Sale) => void;
   onEdit: (sale: Sale) => void;
   onDelete: (sale: Sale) => void;
+  onDownloadPdf?: (sale: Sale) => void;
   formatCurrency: (value: number | null | undefined) => string;
   loading?: boolean;
 }
 
 const statusVariants: Record<string, string> = {
   pending: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  partial: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   paid: "bg-green-500/20 text-green-400 border-green-500/30",
   overdue: "bg-red-500/20 text-red-400 border-red-500/30",
   cancelled: "bg-gray-500/20 text-gray-400 border-gray-500/30",
@@ -55,7 +55,6 @@ const statusVariants: Record<string, string> = {
 
 const statusLabels: Record<string, string> = {
   pending: "Pendiente",
-  partial: "Parcial",
   paid: "Pagada",
   overdue: "Vencida",
   cancelled: "Cancelada",
@@ -68,6 +67,7 @@ export function SaleTable({
   onView,
   onEdit,
   onDelete,
+  onDownloadPdf,
   formatCurrency,
   loading = false,
 }: SaleTableProps) {
@@ -96,12 +96,12 @@ export function SaleTable({
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="text-muted-foreground">Factura</TableHead>
+                <TableHead className="text-muted-foreground">Codigo</TableHead>
                 <TableHead className="text-muted-foreground">Ref. Cotización</TableHead>
                 <TableHead className="text-muted-foreground">Cliente</TableHead>
+                <TableHead className="text-muted-foreground">Cant.</TableHead>
                 <TableHead className="text-muted-foreground">Total</TableHead>
-                <TableHead className="text-muted-foreground">Pagado</TableHead>
-                <TableHead className="text-muted-foreground">Vence</TableHead>
+                {/* <TableHead className="text-muted-foreground">Vence</TableHead> */}
                 <TableHead className="text-muted-foreground">Estado</TableHead>
                 <TableHead className="text-muted-foreground text-right">Acciones</TableHead>
               </TableRow>
@@ -113,6 +113,7 @@ export function SaleTable({
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
@@ -123,19 +124,23 @@ export function SaleTable({
                 ))
               ) : sales.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No hay ventas registradas.
                   </TableCell>
                 </TableRow>
               ) : (
                 sales.map((sale) => (
                   <TableRow key={sale.id} className="border-border">
-                    <TableCell className="font-mono text-sm text-foreground">{sale.invoice}</TableCell>
+                    <TableCell className="font-mono text-sm text-foreground">{sale.code}</TableCell>
                     <TableCell className="text-foreground">{sale.quoteRef || '-'}</TableCell>
                     <TableCell className="text-foreground">{sale.clientName || 'N/A'}</TableCell>
+                    <TableCell className="text-foreground">
+                      {typeof (sale.items as any) === 'number' ? sale.items : 
+                        Array.isArray(sale.items) ? sale.items.length : 
+                        (sale.items as any)?.quantity || 0}
+                    </TableCell>
                     <TableCell className="text-foreground font-medium">{formatCurrency(sale.total)}</TableCell>
-                    <TableCell className="text-foreground">{formatCurrency(sale.paid)}</TableCell>
-                    <TableCell className="text-foreground">{formatDate(sale.dueDate)}</TableCell>
+                    {/* <TableCell className="text-foreground">{formatDate(sale.dueDate)}</TableCell> */}
                     <TableCell>{getStatusBadge(sale.status)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -148,6 +153,11 @@ export function SaleTable({
                           <DropdownMenuItem onClick={() => onView(sale)}>
                             <Eye className="h-4 w-4 mr-2" /> Ver detalle
                           </DropdownMenuItem>
+                          {onDownloadPdf && (
+                            <DropdownMenuItem onClick={() => onDownloadPdf(sale)}>
+                              <FileDown className="h-4 w-4 mr-2" /> Descargar PDF
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => onEdit(sale)}>
                             <Pencil className="h-4 w-4 mr-2" /> Editar
                           </DropdownMenuItem>

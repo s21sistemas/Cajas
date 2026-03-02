@@ -82,8 +82,10 @@ async function getCachedMachines(): Promise<DashboardMachine[]> {
     return machinesPromise;
   }
   
-  machinesPromise = machinesService.getAll({}).then((response) => {
-    const data = response.data.map((machine: any) => ({
+  machinesPromise = machinesService.getAll({ per_page: 100 }).then((response) => {
+    // Handle paginated response - extract data from response.data
+    const machinesArray = response.data?.data || response.data || [];
+    const data = machinesArray.map((machine: any) => ({
       id: String(machine.id),
       code: machine.code || `M-${machine.id}`,
       name: machine.name || machine.code || `Máquina ${machine.id}`,

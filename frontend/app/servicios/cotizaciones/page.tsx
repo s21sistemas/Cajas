@@ -5,20 +5,19 @@ import { ERPLayout } from "@/components/erp/erp-layout";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { quotesService, type QuoteStats, clientsService } from "@/lib/services";
+import { quotesService, type QuoteStats } from "@/lib/services";
 import { useToast } from "@/components/erp/action-toast";
 import { ConfirmDialog } from "@/components/erp/confirm-dialog";
 import { QuoteStatsCards } from "./components/QuoteStatsCards";
 import { QuoteTable } from "./components/QuoteTable";
 import { QuoteFormDialog } from "./components/QuoteFormDialog";
 import { QuoteViewDialog } from "./components/QuoteViewDialog";
-import type { Quote, Client } from "@/lib/types";
+import type { Quote } from "@/lib/types";
 
 export default function CotizacionesPage() {
   const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
@@ -54,17 +53,6 @@ export default function CotizacionesPage() {
     }
   };
 
-  // Función para obtener clientes (para el select)
-  const fetchClients = async () => {
-    try {
-      const response = await clientsService.getAll({});
-      const data = Array.isArray(response?.data) ? response.data : [];
-      setClients(data);
-    } catch (error: any) {
-      console.error("Error al cargar clientes:", error);
-    }
-  };
-
   // Función para obtener cotizaciones con paginación
   const fetchQuotes = async (searchValue: string, page: number = 1) => {
     setLoading(true);
@@ -93,7 +81,6 @@ export default function CotizacionesPage() {
   useEffect(() => {
     fetchQuotes("");
     fetchStats();
-    fetchClients();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -193,6 +180,31 @@ export default function CotizacionesPage() {
     }
   };
 
+  const handleSendEmail = async (quote: Quote) => {
+    setSubmitting(true);
+    try {
+      await quotesService.sendEmail(quote.id);
+      showToast("success", "Cotización enviada", "Se ha enviado la cotización al correo del cliente");
+      fetchQuotes(search, currentPage);
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      showToast("error", "Error al enviar", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDownloadPdf = async (quote: Quote) => {
+    try {
+      await quotesService.downloadPdf(quote.id);
+      showToast("success", "PDF descargado", "La cotización se ha descargado correctamente");
+    } catch (error: any) {
+      const errorMessage = error?.message || "Error desconocido";
+      showToast("error", "Error al descargar", errorMessage);
+    }
+  };
+
   const formatCurrency = (value: number | null) => {
     return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value || 0);
   };
@@ -236,6 +248,8 @@ export default function CotizacionesPage() {
             onView={handleView}
             onEdit={handleEdit}
             onDelete={setDeletingQuote}
+            onSendEmail={handleSendEmail}
+            onDownloadPdf={handleDownloadPdf}
             loading={loading}
             currentPage={currentPage}
             lastPage={lastPage}

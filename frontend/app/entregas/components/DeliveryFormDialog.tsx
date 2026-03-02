@@ -17,6 +17,7 @@ interface DeliveryFormDialogProps {
   vehicles: Vehicle[];
   onSubmit: (data: CreateDeliveryDto) => Promise<void>;
   loading: boolean;
+  errors?: Record<string, string[]>;
 }
 
 export function DeliveryFormDialog({
@@ -26,6 +27,7 @@ export function DeliveryFormDialog({
   vehicles,
   onSubmit,
   loading,
+  errors,
 }: DeliveryFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -39,6 +41,7 @@ export function DeliveryFormDialog({
           vehicles={vehicles}
           onSubmit={onSubmit}
           isLoading={loading}
+          errors={errors}
           defaultValues={editingDelivery ? {
             vehicleId: editingDelivery.vehicleId || undefined,
             driver: editingDelivery.driver,

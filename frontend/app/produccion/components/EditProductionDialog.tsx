@@ -4,14 +4,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
-import type { CreateProductionForm } from '../types';
+import type { CreateProductionForm, Operator, Machine } from '../types';
 
 interface EditProductionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   form: CreateProductionForm;
   onFormChange: (form: CreateProductionForm) => void;
+  machines: Machine[];
+  operators: Operator[];
+  requiresMachine: boolean;
   onSave: () => void;
   saving: boolean;
 }
@@ -21,6 +31,9 @@ export function EditProductionDialog({
   onOpenChange,
   form,
   onFormChange,
+  machines,
+  operators,
+  requiresMachine,
   onSave,
   saving,
 }: EditProductionDialogProps) {
@@ -31,6 +44,56 @@ export function EditProductionDialog({
           <DialogTitle>Editar Orden de Producción</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {/* Máquina - solo mostrar si el proceso requiere máquina */}
+          {requiresMachine && (
+            <div>
+              <Label>Máquina</Label>
+              <Select
+                value={form.machineId || ''}
+                onValueChange={(v) => onFormChange({ ...form, machineId: v })}
+              >
+                <SelectTrigger className="bg-secondary border-border">
+                  <SelectValue placeholder="Seleccionar máquina" />
+                </SelectTrigger>
+                <SelectContent>
+                  {machines.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">No hay máquinas disponibles</div>
+                  ) : (
+                    machines.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
+          {/* Operador */}
+          <div>
+            <Label>Operador</Label>
+            <Select
+              value={form.operatorId || ''}
+              onValueChange={(v) => onFormChange({ ...form, operatorId: v })}
+            >
+              <SelectTrigger className="bg-secondary border-border">
+                <SelectValue placeholder="Seleccionar operador" />
+              </SelectTrigger>
+              <SelectContent>
+                {operators.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground">No hay operadores disponibles</div>
+                ) : (
+                  operators.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          
           <div>
             <Label>Cantidad objetivo</Label>
             <Input

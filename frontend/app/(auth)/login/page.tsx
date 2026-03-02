@@ -178,6 +178,16 @@ export default function LoginPage() {
                 <p><strong>Contraseña:</strong> 123456</p>
               </div>
             </div>
+
+            {/* Operator Login Link */}
+            <div className="mt-4 text-center">
+              <Link 
+                href="/operador/login" 
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                ¿Eres operador de producción? Entrar al panel de operador
+              </Link>
+            </div>
           </CardContent>
         </Card>
 

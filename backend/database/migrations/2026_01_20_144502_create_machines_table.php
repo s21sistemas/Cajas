@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('machines', function (Blueprint $table) {
             $table->id();
-            $table->string('code')->unique();
+            $table->string('code')->nullable()->unique();
             $table->string('name');
             $table->string('type'); // lathe, milling, cnc...
             $table->unsignedTinyInteger('axes')->nullable();

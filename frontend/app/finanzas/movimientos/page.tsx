@@ -83,18 +83,24 @@ export default function MovementsPage() {
     return matchesSearch && matchesType;
   });
 
-  const totalIncome = movements
-    .filter((m: Movement) => m.type === "income")
+  const incomeMXN = movements
+    .filter((m: Movement) => m.type === "income" && (m.bankAccount?.currency === 'MXN' || !m.bankAccount))
     .reduce((sum: number, m: Movement) => sum + (m.amount || 0), 0);
-  const totalExpense = movements
-    .filter((m: Movement) => m.type === "expense")
+  const incomeUSD = movements
+    .filter((m: Movement) => m.type === "income" && m.bankAccount?.currency === 'USD')
+    .reduce((sum: number, m: Movement) => sum + (m.amount || 0), 0);
+  const expenseMXN = movements
+    .filter((m: Movement) => m.type === "expense" && (m.bankAccount?.currency === 'MXN' || !m.bankAccount))
+    .reduce((sum: number, m: Movement) => sum + Math.abs(m.amount || 0), 0);
+  const expenseUSD = movements
+    .filter((m: Movement) => m.type === "expense" && m.bankAccount?.currency === 'USD')
     .reduce((sum: number, m: Movement) => sum + Math.abs(m.amount || 0), 0);
   const pendingMovements = movements.filter((m: Movement) => m.status === "pending").length;
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number, currency: string = 'MXN') => {
     return new Intl.NumberFormat("es-MX", {
       style: "currency",
-      currency: "MXN",
+      currency: currency,
     }).format(Math.abs(amount));
   };
 
@@ -234,7 +240,17 @@ export default function MovementsPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Ingresos</p>
-                  <p className="text-2xl font-bold text-foreground">{formatCurrency(totalIncome)}</p>
+                  <div className="flex flex-col">
+                    {incomeMXN > 0 && (
+                      <p className="text-xl font-bold text-green-400 break-all">{formatCurrency(incomeMXN, 'MXN')}</p>
+                    )}
+                    {incomeUSD > 0 && (
+                      <p className="text-xl font-bold text-green-400 break-all">{formatCurrency(incomeUSD, 'USD')}</p>
+                    )}
+                    {incomeMXN === 0 && incomeUSD === 0 && (
+                      <p className="text-xl font-bold text-green-400 break-all">{formatCurrency(0, 'MXN')}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -247,7 +263,17 @@ export default function MovementsPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Gastos</p>
-                  <p className="text-2xl font-bold text-foreground">{formatCurrency(totalExpense)}</p>
+                  <div className="flex flex-col">
+                    {expenseMXN > 0 && (
+                      <p className="text-xl font-bold text-red-400 break-all">{formatCurrency(expenseMXN, 'MXN')}</p>
+                    )}
+                    {expenseUSD > 0 && (
+                      <p className="text-xl font-bold text-red-400 break-all">{formatCurrency(expenseUSD, 'USD')}</p>
+                    )}
+                    {expenseMXN === 0 && expenseUSD === 0 && (
+                      <p className="text-xl font-bold text-red-400 break-all">{formatCurrency(0, 'MXN')}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -255,12 +281,28 @@ export default function MovementsPage() {
           <Card className="bg-card border-border">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/10">
-                  <DollarSign className="h-5 w-5 text-blue-400" />
+                <div className={`p-2 rounded-lg ${(incomeMXN + incomeUSD) - (expenseMXN + expenseUSD) >= 0 ? 'bg-blue-500/10' : 'bg-red-500/10'}`}>
+                  <DollarSign className={`h-5 w-5 ${(incomeMXN + incomeUSD) - (expenseMXN + expenseUSD) >= 0 ? 'text-blue-400' : 'text-red-400'}`} />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Neto</p>
-                  <p className="text-2xl font-bold text-foreground">{formatCurrency(totalIncome - totalExpense)}</p>
+                  <div className="flex flex-col">
+                    {incomeMXN - expenseMXN > 0 && (
+                      <p className="text-xl font-bold text-blue-400 break-all">{formatCurrency(incomeMXN - expenseMXN, 'MXN')}</p>
+                    )}
+                    {incomeMXN - expenseMXN < 0 && (
+                      <p className="text-xl font-bold text-red-400 break-all">-{formatCurrency(Math.abs(incomeMXN - expenseMXN), 'MXN')}</p>
+                    )}
+                    {incomeUSD - expenseUSD > 0 && (
+                      <p className="text-xl font-bold text-blue-400 break-all">{formatCurrency(incomeUSD - expenseUSD, 'USD')}</p>
+                    )}
+                    {incomeUSD - expenseUSD < 0 && (
+                      <p className="text-xl font-bold text-red-400 break-all">-{formatCurrency(Math.abs(incomeUSD - expenseUSD), 'USD')}</p>
+                    )}
+                    {(incomeMXN + incomeUSD) - (expenseMXN + expenseUSD) === 0 && (
+                      <p className="text-xl font-bold text-muted-foreground break-all">{formatCurrency(0, 'MXN')}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -322,6 +364,8 @@ export default function MovementsPage() {
                 <TableHeader>
                   <TableRow className="border-border">
                     <TableHead className="text-muted-foreground">Fecha</TableHead>
+                    <TableHead className="text-muted-foreground">Banco</TableHead>
+                    <TableHead className="text-muted-foreground">Cuenta</TableHead>
                     <TableHead className="text-muted-foreground">Referencia</TableHead>
                     <TableHead className="text-muted-foreground">Categoría</TableHead>
                     <TableHead className="text-muted-foreground">Descripción</TableHead>
@@ -335,6 +379,8 @@ export default function MovementsPage() {
                   {filtered.map((movement: Movement) => (
                     <TableRow key={movement.id} className="border-border">
                       <TableCell className="text-muted-foreground">{movement.date}</TableCell>
+                      <TableCell className="text-muted-foreground">{movement.bankAccount?.bank}</TableCell>
+                      <TableCell className="text-muted-foreground">{movement.bankAccount?.clabe}</TableCell>
                       <TableCell className="font-mono text-sm text-primary">{movement.reference}</TableCell>
                       <TableCell className="text-muted-foreground">{movement.category}</TableCell>
                       <TableCell className="text-foreground">{movement.description}</TableCell>

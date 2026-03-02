@@ -75,6 +75,15 @@ export function ProductionCard({
               )}
             </div>
             <CardTitle className="text-lg mt-1">{production.processName}</CardTitle>
+            {(production as any).productName && (
+              <p className="text-sm text-muted-foreground">Producto: {(production as any).productName}</p>
+            )}
+            {(production as any).clientName && (
+              <p className="text-sm text-muted-foreground">Cliente: {(production as any).clientName}</p>
+            )}
+            {(production as any).saleCode && (
+              <p className="text-sm text-muted-foreground">Venta: {(production as any).saleCode}</p>
+            )}
           </div>
           <Badge className={cn('text-xs', STATUS_CONFIG[production.status]?.color || 'bg-muted text-muted-foreground')}>
             {STATUS_CONFIG[production.status]?.label || production.status}
@@ -107,6 +116,27 @@ export function ProductionCard({
           <span className="mx-1">•</span>
           <span>{production.operatorName || 'Sin operador'}</span>
         </div>
+        
+        {/* Estado de Calidad */}
+        {production.qualityStatus && production.qualityStatus !== 'PENDING' && (
+          <div className={`flex items-center gap-2 text-xs px-2 py-1 rounded ${
+            production.qualityStatus === 'APPROVED' ? 'bg-green-100 text-green-700' :
+            production.qualityStatus === 'SCRAP' ? 'bg-red-100 text-red-700' :
+            production.qualityStatus === 'REWORK' ? 'bg-yellow-100 text-yellow-700' : ''
+          }`}>
+            {production.qualityStatus === 'APPROVED' && '✓ Aprobado por Calidad'}
+            {production.qualityStatus === 'SCRAP' && '✗ Scrap'}
+            {production.qualityStatus === 'REWORK' && '↻ Rework'}
+          </div>
+        )}
+        
+        {/* Indicador de proceso padre */}
+        {production.parentProductionId && (
+          <div className="text-xs text-amber-600 flex items-center gap-1">
+            <span className="i-lucide-link" />
+            Proceso encadenado (debe esperar aprobación del anterior)
+          </div>
+        )}
         
         {/* Acciones principales */}
         <div className="flex flex-col gap-2 pt-2">

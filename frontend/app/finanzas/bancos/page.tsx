@@ -94,14 +94,16 @@ export default function BanksPage() {
       account.accountNumber?.includes(search)
   );
 
-  const totalBalance = accounts.reduce((sum: number, acc: BankAccount) => sum + (acc.balance || 0), 0);
-  const totalAvailable = accounts.reduce((sum: number, acc: BankAccount) => sum + (acc.availableBalance || 0), 0);
+  const totalBalanceMXN = accounts.filter(acc => acc.currency === 'MXN').reduce((sum: number, acc: BankAccount) => sum + (Number(acc.balance) || 0), 0);
+  const totalBalanceUSD = accounts.filter(acc => acc.currency === 'USD').reduce((sum: number, acc: BankAccount) => sum + (Number(acc.balance) || 0), 0);
+  const totalAvailableMXN = accounts.filter(acc => acc.currency === 'MXN').reduce((sum: number, acc: BankAccount) => sum + (Number(acc.availableBalance) || 0), 0);
+  const totalAvailableUSD = accounts.filter(acc => acc.currency === 'USD').reduce((sum: number, acc: BankAccount) => sum + (Number(acc.availableBalance) || 0), 0);
   const activeAccounts = accounts.filter((acc: BankAccount) => acc.status === "active").length;
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number, currency: string = "MXN") => {
     return new Intl.NumberFormat("es-MX", {
       style: "currency",
-      currency: "MXN",
+      currency: currency,
     }).format(amount);
   };
 
@@ -227,7 +229,17 @@ export default function BanksPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Saldo Total</p>
-                  <p className="text-2xl font-bold text-foreground">{formatCurrency(totalBalance)}</p>
+                  <div className="flex flex-col">
+                    {totalBalanceMXN > 0 && (
+                      <p className="text-xl font-bold text-foreground truncate">{formatCurrency(totalBalanceMXN)} MXN</p>
+                    )}
+                    {totalBalanceUSD > 0 && (
+                      <p className="text-xl font-bold text-foreground truncate">{formatCurrency(totalBalanceUSD)} USD</p>
+                    )}
+                    {totalBalanceMXN === 0 && totalBalanceUSD === 0 && (
+                      <p className="text-xl font-bold text-foreground truncate">{formatCurrency(0)}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -240,7 +252,17 @@ export default function BanksPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Disponible</p>
-                  <p className="text-2xl font-bold text-foreground">{formatCurrency(totalAvailable)}</p>
+                  <div className="flex flex-col">
+                    {totalAvailableMXN > 0 && (
+                      <p className="text-xl font-bold text-foreground truncate">{formatCurrency(totalAvailableMXN)} MXN</p>
+                    )}
+                    {totalAvailableUSD > 0 && (
+                      <p className="text-xl font-bold text-foreground truncate">{formatCurrency(totalAvailableUSD)} USD</p>
+                    )}
+                    {totalAvailableMXN === 0 && totalAvailableUSD === 0 && (
+                      <p className="text-xl font-bold text-foreground truncate">{formatCurrency(0)}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -311,7 +333,7 @@ export default function BanksPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">{account.currency}</TableCell>
                       <TableCell className="text-right font-medium text-foreground">
-                        {formatCurrency(account.balance)}
+                        {formatCurrency(Number(account.balance) || 0, account.currency || "MXN")}
                       </TableCell>
                       <TableCell>{getStatusBadge(account.status)}</TableCell>
                       <TableCell className="text-right">

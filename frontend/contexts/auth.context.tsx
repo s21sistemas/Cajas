@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { authApi } from '@/lib/api';
 import type { AuthUser, LoginCredentials, RegisterData, ApiError } from '@/lib/types';
 
@@ -25,11 +26,17 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
 
-  // Check for existing session on mount
+  // Check for existing session on mount (skip on login page)
   useEffect(() => {
+    // Skip auth check on login page to avoid unnecessary requests
+    if (pathname === '/login') {
+      setLoading(false);
+      return;
+    }
     checkAuthStatus();
-  }, []);
+  }, [pathname]);
 
   const checkAuthStatus = async () => {
     const token = localStorage.getItem('auth_token');

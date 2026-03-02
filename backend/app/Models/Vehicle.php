@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Vehicle extends Model
 {
     protected $fillable = [
-        'tipe_vehicle',
+        'type_vehicle',
         'brand',
         'model',
         'color',
@@ -17,15 +17,15 @@ class Vehicle extends Model
         'labeled',
         'gps',
         'taxes_paid',
-        'aseguradora',
-        'telefono_aseguradora',
-        'archivo_seguro',
-        'numero_poliza',
-        'fecha_vencimiento',
+        'insurance_company',
+        'insurance_company_phone',
+        'insurance_file',
+        'policy_number',
+        'expiration_date',
     ];
 
     protected $casts = [
-        'fecha_vencimiento' => 'date',
+        'expiration_date' => 'date',
     ];
 
     public function deliveries()

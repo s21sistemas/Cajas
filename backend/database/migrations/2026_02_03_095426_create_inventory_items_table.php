@@ -13,16 +13,10 @@ return new class extends Migration
     {
         Schema::create('inventory_items', function (Blueprint $table) {
             $table->id();
-            $table->string('code')->unique();
+            $table->string('code');
             $table->string('name');
 
-            $table->enum('category', [
-                'raw_material',
-                'component',
-                'tool',
-                'consumable',
-                'finished_product'
-            ]);
+            $table->string('category');
 
             $table->decimal('quantity', 15, 2)->default(0);
             $table->decimal('min_stock', 15, 2)->default(0);

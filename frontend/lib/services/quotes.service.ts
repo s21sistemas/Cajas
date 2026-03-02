@@ -1,78 +1,64 @@
-import { api } from '@/lib/api';
-import type { 
-  CreateQuoteDto, 
-  UpdateQuoteDto,
-  Quote, 
-  QuoteItem,
-  CreateQuoteItemDto,
-  UpdateQuoteItemDto,
-  QuoteStats,
-  QuoteFilters
-} from '@/lib/types';
-
-export type { QuoteStats };
+import { api, apiClient } from '@/lib/api';
 
 export const quotesService = {
-  // Quotes CRUD
-  getAll: async (params?: QuoteFilters) => {
+  getByClient: async (clientId: number) => {
+    return api.get<any>(`/quotes/by-client/${clientId}`);
+  },
+
+  getItems: async (quoteId: number) => {
+    return api.get<any>(`/quotes/${quoteId}/items`);
+  },
+
+  getAll: async (params?: { search?: string; status?: string; per_page?: number }) => {
     const searchParams = new URLSearchParams();
     if (params?.search) searchParams.set('search', params.search);
     if (params?.status) searchParams.set('status', params.status);
-    if (params?.clientId) searchParams.set('client_id', params.clientId.toString());
-    if (params?.perPage) searchParams.set('per_page', params.perPage.toString());
-    if (params?.page) searchParams.set('page', params.page.toString());
+    if (params?.per_page) searchParams.set('per_page', params.per_page.toString());
     
     const query = searchParams.toString();
-    return api.get<{ data: Quote[]; total: number; currentPage: number; lastPage: number }>(
-      `/quotes${query ? `?${query}` : ''}`
-    );
+    return api.get<any>(`/quotes${query ? `?${query}` : ''}`);
   },
 
-  getById: async (id: number): Promise<Quote> => {
-    return api.get<Quote>(`/quotes/${id}`);
+  getById: async (id: number) => {
+    return api.get<any>(`/quotes/${id}`);
   },
 
-  create: async (data: CreateQuoteDto): Promise<Quote> => {
-    return api.post<Quote>('/quotes', data);
+  create: async (data: any) => {
+    return api.post<any>('/quotes', data);
   },
 
-  update: async (id: number, data: UpdateQuoteDto): Promise<Quote> => {
-    return api.put<Quote>(`/quotes/${id}`, data);
+  update: async (id: number, data: Partial<any>) => {
+    return api.put<any>(`/quotes/${id}`, data);
   },
 
-  delete: async (id: number): Promise<void> => {
-    return api.delete<void>(`/quotes/${id}`);
+  delete: async (id: number) => {
+    return api.delete<any>(`/quotes/${id}`);
   },
 
-  getStats: async (): Promise<QuoteStats> => {
-    return api.get<QuoteStats>('/quotes/stats');
+  sendEmail: async (id: number, email: string) => {
+    return api.post<any>(`/quotes/${id}/send-email`, { email });
   },
 
-  exportPdf: async (id: number): Promise<Blob> => {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/quotes/${id}/pdf`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
-      },
+  getStats: async () => {
+    return api.get<any>('/quotes/stats');
+  },
+
+  downloadPdf: async (id: number) => {
+    const response = await apiClient.get(`/quotes/${id}/pdf`, {
+      responseType: 'blob',
     });
-    if (!response.ok) throw new Error('Error al generar PDF');
-    return response.blob();
-  },
-
-  // Quote Items CRUD
-  getItems: async (quoteId: number): Promise<QuoteItem[]> => {
-    const quote = await api.get<Quote & { items: QuoteItem[] }>(`/quotes/${quoteId}`);
-    return quote.items || [];
-  },
-
-  addItem: async (quoteId: number, data: CreateQuoteItemDto): Promise<QuoteItem> => {
-    return api.post<QuoteItem>(`/quotes/${quoteId}/items`, data);
-  },
-
-  updateItem: async (quoteId: number, itemId: number, data: UpdateQuoteItemDto): Promise<QuoteItem> => {
-    return api.put<QuoteItem>(`/quotes/${quoteId}/items/${itemId}`, data);
-  },
-
-  deleteItem: async (quoteId: number, itemId: number): Promise<void> => {
-    return api.delete<void>(`/quotes/${quoteId}/items/${itemId}`);
+    
+    // Crear un blob URL para descargar el PDF
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `cotizacion-${id}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode?.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    return response;
   },
 };

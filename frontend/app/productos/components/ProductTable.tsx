@@ -86,7 +86,6 @@ export function ProductTable({
                 <TableHead className="text-muted-foreground">Nombre</TableHead>
                 <TableHead className="text-muted-foreground">Categoría</TableHead>
                 <TableHead className="text-right text-muted-foreground">Precio</TableHead>
-                <TableHead className="text-right text-muted-foreground">Stock</TableHead>
                 <TableHead className="text-muted-foreground">Estado</TableHead>
                 <TableHead className="text-right text-muted-foreground">Acciones</TableHead>
               </TableRow>
@@ -130,12 +129,6 @@ export function ProductTable({
                     </TableCell>
                     <TableCell className="text-foreground">{product.category || '-'}</TableCell>
                     <TableCell className="text-right text-foreground">{formatCurrency(product.price)}</TableCell>
-                    <TableCell className="text-right">
-                      <span className={product.stock <= product.minStock ? "text-red-500 font-medium" : ""}>
-                        {product.stock}
-                      </span>
-                      <span className="text-muted-foreground text-xs"> / {product.minStock}</span>
-                    </TableCell>
                     <TableCell>
                       <Badge className={statusConfig[product.status]?.class}>
                         {statusConfig[product.status]?.label || product.status}

@@ -11,6 +11,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\ProcessController;
 use App\Http\Controllers\MachineController;
+use App\Http\Controllers\MachineMovementController;
 use App\Http\Controllers\OperatorController;
 use App\Http\Controllers\ProductionController;
 use App\Http\Controllers\SettingController;
@@ -19,22 +20,26 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierStatementController;
 use App\Http\Controllers\AccountStatementController;
 use App\Http\Controllers\BankAccountController;
-use App\Http\Controllers\BankTransactionController;
 use App\Http\Controllers\MovementController;
 use App\Http\Controllers\ServiceOrderController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\QuoteItemController;
 use App\Http\Controllers\QRItemController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\WarehouseLocationController;
 use App\Http\Controllers\WarehouseMovementController;
+use App\Http\Controllers\InventoryItemController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\GuardPaymentController;
 use App\Http\Controllers\DiscountController;
 use App\Http\Controllers\DiscountTypeController;
+use App\Http\Controllers\ProcessTypeController;
 use App\Http\Controllers\LoanTypeController;
+use App\Http\Controllers\LoanController;
+use App\Http\Controllers\LoanPaymentController;
 use App\Http\Controllers\VacationRequestController;
 use App\Http\Controllers\DisabilityController;
 use App\Http\Controllers\AbsenceController;
@@ -43,12 +48,24 @@ use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\QualityController;
 use App\Http\Controllers\EmployeeAccountController;
+use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\DeliveryController;
+use App\Http\Controllers\NotificationController;
 
 // Route::get('/user', function (Request $request) {
 //     return $request->user();
 // })->middleware('auth:sanctum');
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+
+// Login de operadores - público sin autenticación
+Route::post('/operator/login', [AuthController::class, 'operatorLogin']);
+
+// Rutas de operador protegidas
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/operator/logout', [AuthController::class, 'operatorLogout']);
+    Route::get('/operator/user', [AuthController::class, 'getOperatorUser']);
+});
 
 Route::middleware('auth:sanctum')->group(function () {
     // Core auth / users / roles / permissions
@@ -70,30 +87,52 @@ Route::middleware('auth:sanctum')->group(function () {
     // Procesos del producto
     Route::get('/products/{product}/processes', [ProductController::class, 'getProcesses']);
     Route::post('/products/{product}/processes', [ProductController::class, 'addProcess']);
-    Route::put('/products/{product}/processes/{productProcess}', [ProductController::class, 'updateProcess']);
     Route::delete('/products/{product}/processes/{productProcess}', [ProductController::class, 'removeProcess']);    
     // Productos
     Route::get('/products/low-stock', [ProductController::class, 'lowStock']);
     Route::get('/products/stats', [ProductController::class, 'stats']);
+    Route::get('/products/select-list', [ProductController::class, 'selectListProducts']);
     Route::get('/products/{product}/details', [ProductController::class, 'showWithDetails']);
+    Route::post('/products/from-quote', [ProductController::class, 'createFromQuote']);
     Route::apiResource('products', ProductController::class);
 
     // Procesos
     Route::get('/processes/stats', [ProcessController::class, 'stats']);
-    Route::get('/processes/select-list', [ProcessController::class, 'selectListProcesses']);
+    Route::get('/processes/select-list', [ProcessController::class, 'selectList']);
     Route::apiResource('processes', ProcessController::class);
 
     //Maquinaria
+    Route::get('/machines/stats', [MachineController::class, 'stats']);
+    Route::get('/machines/select-list', [MachineController::class, 'selectList']);
     Route::patch('/machines/{machine}/status', [MachineController::class, 'updateStatus']);
     Route::post('/machines/{machine}/start', [MachineController::class, 'startOperation']);
     Route::post('/machines/{machine}/stop', [MachineController::class, 'stopOperation']);
     Route::post('/machines/{machine}/maintenance', [MachineController::class, 'scheduleMaintenance']);
     Route::post('/machines/{machine}/maintenance/complete', [MachineController::class, 'completeMaintenance']);
-    Route::get('/machines/utilization', [MachineController::class, 'utilization']);
-    Route::get('/machines/stats', [MachineController::class, 'stats']);
+    Route::get('/machines/utilization', [MachineController::class, 'utilization']);    
     Route::apiResource('machines', MachineController::class);
 
+    // Machine Movements - Tracking de uso de máquinas
+    // IMPORTANTE: Rutas específicas deben estar ANTES del apiResource
+    Route::post('/machine-movements/start', [MachineMovementController::class, 'start']);
+    Route::post('/machine-movements/{machineMovement}/stop', [MachineMovementController::class, 'stop']);
+    Route::get('/machine-movements/utilization/{machine}', [MachineMovementController::class, 'utilization']);
+    Route::apiResource('machine-movements', MachineMovementController::class);
+
+    // Reportes
+    Route::get('/reports/dashboard', [ReportController::class, 'dashboard']);
+    Route::get('/reports/machines', [ReportController::class, 'machines']);
+    Route::get('/reports/production', [ReportController::class, 'production']);
+    Route::get('/reports/sales', [ReportController::class, 'sales']);
+    Route::get('/reports/inventory', [ReportController::class, 'inventory']);
+    Route::get('/reports/finance', [ReportController::class, 'finance']);
+    Route::get('/reports/executive', [ReportController::class, 'executive']);
+
     // Operadores
+    Route::post('/operators/login', [OperatorController::class, 'login']);
+    // La ruta de login no debe tener middleware de autenticacion
+    Route::get('/operators/my-productions', [OperatorController::class, 'myProductions'])->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
+    Route::get('/operators/select-list', [OperatorController::class, 'selectList']);
     Route::get('/operators/stats', [OperatorController::class, 'stats']);
     Route::apiResource('operators', OperatorController::class);
 
@@ -120,34 +159,53 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('clients', ClientController::class);
     Route::get('/branches/stats', [BranchController::class, 'stats']);
     Route::apiResource('branches', BranchController::class);
-    // Quotes - rutas específicas ANTES del apiResource
+    // Quotes - rutas específicas para cotizaciones por cliente
+    Route::get('/quotes/by-client/{client_id}', [QuoteController::class, 'getByClient'])
+        ->name('quotes.byclient')
+        ->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
     Route::get('/quotes/stats', [QuoteController::class, 'stats'])->name('quotes.stats');
-    Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'exportPdf'])->name('quotes.pdf');
+    Route::get('/quotes/{quote}/items', [QuoteController::class, 'getItems'])
+        ->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
+    Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'exportPdf'])
+        ->name('quotes.pdf')
+        ->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
+    Route::post('/quotes/{quote}/send-email', [QuoteController::class, 'sendEmail'])->name('quotes.send-email');
     Route::post('/quotes/{quote}/items', [QuoteItemController::class, 'store'])->name('quotes.items.store');
     Route::put('/quotes/{quote}/items/{item}', [QuoteItemController::class, 'update'])->name('quotes.items.update');
     Route::delete('/quotes/{quote}/items/{item}', [QuoteItemController::class, 'destroy'])->name('quotes.items.destroy');
     Route::apiResource('quotes', QuoteController::class);
     Route::apiResource('qr-items', QRItemController::class);
-    Route::post('/sales/{sale}/payment', [SaleController::class, 'recordPayment']);
+    Route::get('/sales/by-client/{client_id}', [SaleController::class, 'getByClient'])->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
+    Route::post('/sales/{sale}/payment', [SaleController::class, 'createPayment']);
+    Route::get('/sales/{sale}/payments', [SaleController::class, 'getPayments']);
+    Route::post('/sales/{sale}/complete', [SaleController::class, 'complete']);
+    Route::get('/sales/{sale}/pdf', [SaleController::class, 'exportPdf'])
+        ->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
+    Route::get('/sales/{sale}/items', [SaleController::class, 'getItems']);
+    Route::post('/sales/{sale}/items', [SaleController::class, 'addItem']);
+    Route::put('/sales/{sale}/items/{item}', [SaleController::class, 'updateItem']);
+    Route::delete('/sales/{sale}/items/{item}', [SaleController::class, 'deleteItem']);
     Route::get('/sales/stats', [SaleController::class, 'stats']);
     Route::apiResource('sales', SaleController::class);
-    Route::apiResource('warehouse-locations', WarehouseLocationController::class);
+    
+    // Warehouse - Almacén
     Route::get('/warehouse-locations/stats', [WarehouseLocationController::class, 'stats']);
-    Route::get('/warehouse-locations/{warehouseLocation}/occupancy', [WarehouseLocationController::class, 'occupancy']);
     Route::get('/warehouse-locations/available', [WarehouseLocationController::class, 'available']);
-    Route::apiResource('inventory-items', InventoryItemController::class);
+    Route::get('/warehouse-locations/{warehouseLocation}/occupancy', [WarehouseLocationController::class, 'occupancy']);
+    Route::apiResource('warehouse-locations', WarehouseLocationController::class);
     Route::get('/inventory-items/stats', [InventoryItemController::class, 'stats']);
     Route::get('/inventory-items/low-stock', [InventoryItemController::class, 'lowStock']);
     Route::get('/inventory-items/category', [InventoryItemController::class, 'byCategory']);
     Route::get('/inventory-items/location', [InventoryItemController::class, 'byLocation']);
     Route::patch('/inventory-items/{inventoryItem}/quantity', [InventoryItemController::class, 'updateQuantity']);
+    Route::apiResource('inventory-items', InventoryItemController::class);
     // Warehouse Movements - Movimientos de almacén (ingresos y egresos)
     Route::apiResource('warehouse-movements', WarehouseMovementController::class);
     Route::get('/warehouse-movements/stats', [WarehouseMovementController::class, 'stats']);
     Route::post('/warehouse-movements/income', [WarehouseMovementController::class, 'registerIncome']);
     Route::post('/warehouse-movements/expense', [WarehouseMovementController::class, 'registerExpense']);
     Route::get('/warehouse-movements/item/{inventoryItemId}', [WarehouseMovementController::class, 'byInventoryItem']);
-    
+
     Route::patch('/service-orders/{serviceOrder}/status', [ServiceOrderController::class, 'updateStatus']);
     Route::get('/service-orders/stats', [ServiceOrderController::class, 'stats']);
     Route::apiResource('service-orders', ServiceOrderController::class);
@@ -161,13 +219,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Finance
     Route::apiResource('bank-accounts', BankAccountController::class);
-    Route::apiResource('bank-transactions', BankTransactionController::class);
     Route::apiResource('movements', MovementController::class);
+    Route::get('account-statements/stats', [AccountStatementController::class, 'stats']);
     Route::apiResource('account-statements', AccountStatementController::class);
 
     // HR / Payroll    
     Route::get('/employees/stats', [EmployeeController::class, 'stats']);
     Route::get('/employees/departments', [EmployeeController::class, 'departments']);
+    Route::get('/employees/select-list',[EmployeeController::class, 'selectList']);
     Route::apiResource('employees', EmployeeController::class);
     Route::apiResource('overtimes', OvertimeController::class);
     Route::patch('/overtimes/{overtime}/approve', [OvertimeController::class, 'approve']);
@@ -177,6 +236,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/discounts/{discount}/pause', [DiscountController::class, 'pause']);
     Route::patch('/discounts/{discount}/resume', [DiscountController::class, 'resume']);
     Route::apiResource('discount-types', DiscountTypeController::class);
+    Route::apiResource('process-types', ProcessTypeController::class);
     Route::apiResource('loan-types', LoanTypeController::class);
     Route::apiResource('loans', LoanController::class);
     Route::get('/loans/stats', [LoanController::class, 'stats']);
@@ -201,35 +261,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/maintenance-orders/machine/{machine}', [MaintenanceOrderController::class, 'byMachine']);
     
     // Work Orders - custom routes first (before apiResource to avoid conflicts)
-    Route::get('/work-orders/products', [WorkOrderController::class, 'getProducts']);
-    Route::get('/work-orders/clients', [WorkOrderController::class, 'getClients']);
-    Route::get('/work-orders/suppliers', [WorkOrderController::class, 'getSuppliers']);
-    
-    Route::apiResource('work-orders', WorkOrderController::class);
-    Route::patch('/work-orders/{workOrder}/status', [WorkOrderController::class, 'updateStatus']);
-    Route::patch('/work-orders/{workOrder}/progress', [WorkOrderController::class, 'updateProgress']);
-    Route::get('/work-orders/{workOrder}/items', [WorkOrderController::class, 'getItems']);
-    Route::post('/work-orders/{workOrder}/items', [WorkOrderController::class, 'addItem']);
-    Route::get('/work-orders/{workOrder}/processes', [WorkOrderController::class, 'getProcesses']);
-    Route::get('/work-orders/{workOrder}/productions', [WorkOrderController::class, 'getProductions']);
+    Route::get('/work-orders/available-products', [WorkOrderController::class, 'getAvailableProducts']);
+    Route::get('/work-orders/select-list', [WorkOrderController::class, 'selectListWorkOrders']);
+    Route::get('/work-orders/{workOrder}/pipeline-status', [WorkOrderController::class, 'getPipelineStatus']);
     Route::get('/work-orders/stats', [WorkOrderController::class, 'stats']);
-    Route::get('/work-orders/assigned', [WorkOrderController::class, 'getAssigned']);
-    Route::post('/work-orders/{workOrder}/mark-complete', [WorkOrderController::class, 'markComplete']);
-    
-    // Work Order Processes - Ahora manejado por ProductionController
-    Route::get('/work-order-processes', [ProductionController::class, 'processIndex']);
-    Route::post('/work-order-processes', [ProductionController::class, 'processStore']);
-    Route::get('/work-order-processes/{workOrderProcess}', [ProductionController::class, 'processShow']);
-    Route::put('/work-order-processes/{workOrderProcess}', [ProductionController::class, 'processUpdate']);
-    Route::delete('/work-order-processes/{workOrderProcess}', [ProductionController::class, 'processDestroy']);
-    
-    // Rutas de procesos MES
-    Route::post('/work-order-processes/{workOrderProcess}/start', [ProductionController::class, 'startProcess']);
-    Route::post('/work-order-processes/{workOrderProcess}/pause', [ProductionController::class, 'pauseProcess']);
-    Route::post('/work-order-processes/{workOrderProcess}/complete', [ProductionController::class, 'completeProcess']);
-    Route::get('/work-order-processes/{workOrderProcess}/metrics', [ProductionController::class, 'processMetrics']);
-    Route::post('/work-orders/{workOrderId}/initialize-pipeline', [ProductionController::class, 'initializePipeline']);
-    Route::get('/work-orders/{workOrderId}/pipeline-status', [ProductionController::class, 'pipelineStatus']);
+    Route::apiResource('work-orders', WorkOrderController::class);
     
     // Quality Evaluations - MES
     Route::get('/quality/pending', [QualityController::class, 'pendingEvaluations']);
@@ -239,4 +275,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/quality/movements', [QualityController::class, 'getMovements']);
     Route::get('/quality/dashboard', [QualityController::class, 'dashboard']);
     Route::apiResource('quality', QualityController::class);
+    
+    // Vehicles
+    Route::apiResource('vehicles', VehicleController::class);
+    
+    // Deliveries
+    Route::apiResource('deliveries', DeliveryController::class);
+
+    // Notifications
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread', [NotificationController::class, 'unread']);
+    Route::post('/notifications/mark-read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications', [NotificationController::class, 'destroy']);
 });

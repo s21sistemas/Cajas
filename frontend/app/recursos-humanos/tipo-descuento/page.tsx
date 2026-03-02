@@ -31,46 +31,42 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Search, Edit, Trash2, Tags } from "lucide-react";
-
-interface DiscountType {
-  id: string;
-  code: string;
-  name: string;
-  description: string;
-  category: "legal" | "voluntary" | "company";
-  status: "active" | "inactive";
-}
-
-const mockTypes: DiscountType[] = [
-  { id: "1", code: "DSC-001", name: "Prestamo Personal", description: "Descuento por prestamo otorgado por la empresa", category: "company", status: "active" },
-  { id: "2", code: "DSC-002", name: "INFONAVIT", description: "Retencion para credito de vivienda INFONAVIT", category: "legal", status: "active" },
-  { id: "3", code: "DSC-003", name: "FONACOT", description: "Descuento por credito FONACOT", category: "legal", status: "active" },
-  { id: "4", code: "DSC-004", name: "Pension Alimenticia", description: "Retencion por orden judicial", category: "legal", status: "active" },
-  { id: "5", code: "DSC-005", name: "Caja de Ahorro", description: "Aportacion voluntaria a caja de ahorro", category: "voluntary", status: "active" },
-  { id: "6", code: "DSC-006", name: "Seguro de Vida", description: "Prima de seguro de vida adicional", category: "voluntary", status: "inactive" },
-];
+import { discountTypesService, type DiscountType } from "@/lib/services";
+import { useToast } from "@/components/erp/action-toast";
+import { ConfirmDialog } from "@/components/erp/confirm-dialog";
 
 export default function DiscountTypesPage() {
+  const { showToast } = useToast();
   const [types, setTypes] = useState<DiscountType[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<DiscountType | null>(null);
+  const [deletingItem, setDeletingItem] = useState<DiscountType | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     code: "",
     name: "",
     description: "",
-    category: "company" as const,
-    status: "active" as const,
+    category: "company" as "legal" | "voluntary" | "company",
+    status: "active" as "active" | "inactive",
   });
 
-  useEffect(() => {
-    const loadData = async () => {
-      await new Promise((r) => setTimeout(r, 300));
-      setTypes(mockTypes);
+  const fetchTypes = async () => {
+    setLoading(true);
+    try {
+      const data = await discountTypesService.getAll();
+      setTypes(data);
+    } catch (error: any) {
+      console.error("Error fetching discount types:", error);
+      showToast("error", "Error", "No se pudieron cargar los tipos de descuento");
+    } finally {
       setLoading(false);
-    };
-    loadData();
+    }
+  };
+
+  useEffect(() => {
+    fetchTypes();
   }, []);
 
   const filtered = types.filter(
@@ -96,28 +92,47 @@ export default function DiscountTypesPage() {
     setFormData({
       code: item.code,
       name: item.name,
-      description: item.description,
+      description: item.description || "",
       category: item.category,
       status: item.status,
     });
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (editingItem) {
-      setTypes(types.map((t) => (t.id === editingItem.id ? { ...t, ...formData } : t)));
-    } else {
-      const newItem: DiscountType = {
-        id: String(types.length + 1),
-        ...formData,
-      };
-      setTypes([...types, newItem]);
+  const handleSave = async () => {
+    setSubmitting(true);
+    try {
+      if (editingItem) {
+        await discountTypesService.update(editingItem.id, formData);
+        showToast("success", "Éxito", "Tipo de descuento actualizado correctamente");
+      } else {
+        await discountTypesService.create(formData);
+        showToast("success", "Éxito", "Tipo de descuento creado correctamente");
+      }
+      setIsModalOpen(false);
+      fetchTypes();
+    } catch (error: any) {
+      const errorMessage = error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
+    } finally {
+      setSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string) => {
-    setTypes(types.filter((t) => t.id !== id));
+  const handleDelete = async () => {
+    if (!deletingItem) return;
+    setSubmitting(true);
+    try {
+      await discountTypesService.delete(deletingItem.id);
+      showToast("success", "Éxito", "Tipo de descuento eliminado correctamente");
+      setDeletingItem(null);
+      fetchTypes();
+    } catch (error: any) {
+      const errorMessage = error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getCategoryBadge = (category: string) => {
@@ -134,7 +149,7 @@ export default function DiscountTypesPage() {
   };
 
   return (
-    <ERPLayout>
+    <ERPLayout title="Tipos de Descuento" subtitle="Catálogo de tipos de descuento para nómina">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -246,7 +261,7 @@ export default function DiscountTypesPage() {
                           <Button variant="ghost" size="icon" onClick={() => openEditModal(item)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => setDeletingItem(item)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
@@ -309,10 +324,22 @@ export default function DiscountTypesPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSave}>Guardar</Button>
+              <Button onClick={handleSave} disabled={submitting}>
+                {submitting ? "Guardando..." : "Guardar"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <ConfirmDialog
+          open={!!deletingItem}
+          onOpenChange={(open) => !open && setDeletingItem(null)}
+          title="Eliminar Tipo de Descuento"
+          description={`¿Está seguro de eliminar el tipo de descuento "${deletingItem?.name}"? Esta acción no se puede deshacer.`}
+          confirmText="Eliminar"
+          onConfirm={handleDelete}
+          variant="destructive"
+        />
       </div>
     </ERPLayout>
   );

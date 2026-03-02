@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
-import type { CreateProductionForm, Process, Operator, Machine, WorkOrder } from '../types';
+import type { CreateProductionForm, Process, Operator, Machine, WorkOrder, Product } from '../types';
 
 interface CreateProductionDialogProps {
   open: boolean;
@@ -23,6 +23,7 @@ interface CreateProductionDialogProps {
   machines: Machine[];
   operators: Operator[];
   workOrders: WorkOrder[];
+  products: Product[];
   onSubmit: () => void;
   saving: boolean;
 }
@@ -36,6 +37,7 @@ export function CreateProductionDialog({
   machines,
   operators,
   workOrders,
+  products,
   onSubmit,
   saving,
 }: CreateProductionDialogProps) {
@@ -50,7 +52,7 @@ export function CreateProductionDialog({
             <Label>Orden de Trabajo (opcional)</Label>
             <Select
               value={form.workOrderId || ''}
-              onValueChange={(v) => onFormChange({ ...form, workOrderId: v || undefined })}
+              onValueChange={(v) => onFormChange({ ...form, workOrderId: v })}
             >
               <SelectTrigger className="bg-secondary border-border">
                 <SelectValue placeholder="Vincular a orden de trabajo" />
@@ -69,10 +71,34 @@ export function CreateProductionDialog({
             </Select>
           </div>
           <div>
-            <Label>Proceso</Label>
+            <Label>Producto *</Label>
+            <Select
+              value={form.productId || ''}
+              onValueChange={(v) => onFormChange({ ...form, productId: v })}
+              required
+            >
+              <SelectTrigger className="bg-secondary border-border">
+                <SelectValue placeholder="Seleccionar producto" />
+              </SelectTrigger>
+              <SelectContent>
+                {products.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground">No hay productos disponibles</div>
+                ) : (
+                  products.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name} {p.code ? `(${p.code})` : ''}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Proceso *</Label>
             <Select
               value={form.processId}
               onValueChange={(v) => onFormChange({ ...form, processId: v })}
+              required
             >
               <SelectTrigger className="bg-secondary border-border">
                 <SelectValue placeholder="Seleccionar proceso" />
@@ -90,7 +116,7 @@ export function CreateProductionDialog({
             <Label>Máquina (opcional)</Label>
             <Select
               value={form.machineId || ''}
-              onValueChange={(v) => onFormChange({ ...form, machineId: v || undefined })}
+              onValueChange={(v) => onFormChange({ ...form, machineId: v })}
             >
               <SelectTrigger className="bg-secondary border-border">
                 <SelectValue placeholder="Seleccionar máquina" />
@@ -108,7 +134,7 @@ export function CreateProductionDialog({
             <Label>Operador (opcional)</Label>
             <Select
               value={form.operatorId || ''}
-              onValueChange={(v) => onFormChange({ ...form, operatorId: v || undefined })}
+              onValueChange={(v) => onFormChange({ ...form, operatorId: v })}
             >
               <SelectTrigger className="bg-secondary border-border">
                 <SelectValue placeholder="Seleccionar operador" />
@@ -128,6 +154,15 @@ export function CreateProductionDialog({
               type="number"
               value={form.targetParts}
               onChange={(e) => onFormChange({ ...form, targetParts: parseInt(e.target.value) || 0 })}
+              className="bg-secondary border-border"
+            />
+          </div>
+          <div>
+            <Label>Producción Padre (opcional)</Label>
+            <Input
+              value={form.parentProductionId || ''}
+              onChange={(e) => onFormChange({ ...form, parentProductionId: e.target.value })}
+              placeholder="ID de producción anterior"
               className="bg-secondary border-border"
             />
           </div>

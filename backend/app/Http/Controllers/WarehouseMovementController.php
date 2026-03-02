@@ -76,7 +76,7 @@ class WarehouseMovementController extends Controller implements HasMiddleware
 
         $movements = $query->orderByDesc('created_at')->paginate($perPage);
 
-        return $this->paginated($movements, 'Movimientos de almacén listados correctamente');
+        return response()->json($movements);
     }
 
     /**
@@ -99,7 +99,7 @@ class WarehouseMovementController extends Controller implements HasMiddleware
 
         $movement = WarehouseMovement::register($data);
 
-        return $this->created($movement->load(['inventoryItem', 'warehouseLocation']), 'Movimiento de almacén registrado correctamente');
+        return response()->json($movement->load(['inventoryItem', 'warehouseLocation']), 201);
     }
 
     /**
@@ -107,7 +107,7 @@ class WarehouseMovementController extends Controller implements HasMiddleware
      */
     public function show(WarehouseMovement $warehouseMovement)
     {
-        return $this->success($warehouseMovement->load(['inventoryItem', 'warehouseLocation', 'warehouseLocationTo']), 'Movimiento de almacén obtenido correctamente');
+        return response()->json($warehouseMovement->load(['inventoryItem', 'warehouseLocation', 'warehouseLocationTo']));
     }
 
     /**
@@ -122,7 +122,7 @@ class WarehouseMovementController extends Controller implements HasMiddleware
 
         $warehouseMovement->update($data);
 
-        return $this->success($warehouseMovement, 'Movimiento de almacén actualizado correctamente');
+        return response()->json($warehouseMovement);
     }
 
     /**
@@ -132,12 +132,12 @@ class WarehouseMovementController extends Controller implements HasMiddleware
     {
         // Solo permitir eliminar movimientos pendientes
         if ($warehouseMovement->status !== 'pending') {
-            return $this->error('Solo se pueden eliminar movimientos pendientes');
+            return response()->json(['message' => 'Solo se pueden eliminar movimientos pendientes'], 422);
         }
 
         $warehouseMovement->delete();
 
-        return $this->deleted('Movimiento de almacén eliminado correctamente');
+        return response()->json(['message' => 'Movimiento de almacén eliminado correctamente']);
     }
 
     /**
@@ -159,7 +159,7 @@ class WarehouseMovementController extends Controller implements HasMiddleware
         
         $movement = WarehouseMovement::register($data);
 
-        return $this->created($movement->load(['inventoryItem', 'warehouseLocation']), 'Ingreso al almacén registrado correctamente');
+        return response()->json($movement->load(['inventoryItem', 'warehouseLocation']), 201);
     }
 
     /**
@@ -180,14 +180,14 @@ class WarehouseMovementController extends Controller implements HasMiddleware
         // Verificar que hay suficiente stock
         $inventoryItem = InventoryItem::findOrFail($data['inventory_item_id']);
         if ($inventoryItem->quantity < $data['quantity']) {
-            return $this->error('Stock insuficiente. Disponible: ' . $inventoryItem->quantity);
+            return response()->json(['message' => 'Stock insuficiente. Disponible: ' . $inventoryItem->quantity], 422);
         }
 
         $data['movement_type'] = 'expense';
         
         $movement = WarehouseMovement::register($data);
 
-        return $this->created($movement->load(['inventoryItem', 'warehouseLocation']), 'Egreso del almacén registrado correctamente');
+        return response()->json($movement->load(['inventoryItem', 'warehouseLocation']), 201);
     }
 
     /**
@@ -201,7 +201,7 @@ class WarehouseMovementController extends Controller implements HasMiddleware
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
-        return $this->paginated($movements, 'Movimientos del item obtenidos correctamente');
+        return response()->json($movements);
     }
 
     /**
@@ -223,12 +223,12 @@ class WarehouseMovementController extends Controller implements HasMiddleware
 
         $pendingMovements = WarehouseMovement::where('status', 'pending')->count();
 
-        return $this->success([
+        return response()->json([
             'total_income' => $totalIncome,
             'total_expense' => $totalExpense,
             'net_movement' => $totalIncome - $totalExpense,
             'total_adjustments' => $totalAdjustments,
             'pending_movements' => $pendingMovements,
-        ], 'Estadísticas de almacén obtenidas correctamente');
+        ]);
     }
 }
