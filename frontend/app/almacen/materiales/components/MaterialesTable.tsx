@@ -20,7 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, Pencil, Trash2, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { Search, MoreHorizontal, Pencil, Trash2, ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft } from "lucide-react";
 import type { InventoryItem } from "@/lib/types";
 
 const categoryLabels: Record<string, string> = {
@@ -47,6 +47,7 @@ interface MaterialesTableProps {
   onDelete: (item: InventoryItem) => void;
   onEntry: (item: InventoryItem) => void;
   onExit: (item: InventoryItem) => void;
+  onTransfer: (item: InventoryItem) => void;
   loading?: boolean;
 }
 
@@ -58,12 +59,14 @@ export function MaterialesTable({
   onDelete,
   onEntry,
   onExit,
+  onTransfer,
   loading = false 
 }: MaterialesTableProps) {
   const handleEdit = useCallback((item: InventoryItem) => onEdit(item), [onEdit]);
   const handleDelete = useCallback((item: InventoryItem) => onDelete(item), [onDelete]);
   const handleEntry = useCallback((item: InventoryItem) => onEntry(item), [onEntry]);
   const handleExit = useCallback((item: InventoryItem) => onExit(item), [onExit]);
+  const handleTransfer = useCallback((item: InventoryItem) => onTransfer(item), [onTransfer]);
 
   const formatCurrency = (value: number | null | undefined) => {
     if (value === null || value === undefined) return "$0.00";
@@ -73,9 +76,12 @@ export function MaterialesTable({
     }).format(value);
   };
 
-  const getStockStatus = (quantity: number, minStock: number) => {
-    if (quantity <= 0) return { label: "Agotado", class: "bg-red-500/20 text-red-400" };
-    if (quantity <= minStock) return { label: "Bajo", class: "bg-amber-500/20 text-amber-400" };
+  const getStockStatus = (quantity: number | string, minStock: number | string) => {
+    const q = Number(quantity);
+    const m = Number(minStock);
+
+    if (q <= 0) return { label: "Agotado", class: "bg-red-500/20 text-red-400" };
+    if (q <= m) return { label: "Bajo", class: "bg-amber-500/20 text-amber-400" };
     return { label: "OK", class: "bg-green-500/20 text-green-400" };
   };
 
@@ -168,6 +174,9 @@ export function MaterialesTable({
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleExit(item)}>
                               <ArrowUpFromLine className="h-4 w-4 mr-2" /> Salida
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleTransfer(item)}>
+                              <ArrowRightLeft className="h-4 w-4 mr-2" /> Transferencia
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEdit(item)}>
                               <Pencil className="h-4 w-4 mr-2" /> Editar

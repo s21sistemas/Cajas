@@ -55,4 +55,10 @@ class Machine extends Model
     {
         return $this->hasMany(MachineMovement::class);
     }
+
+    // Alias para compatibilidad
+    public function movements()
+    {
+        return $this->hasMany(MachineMovement::class);
+    }
 }

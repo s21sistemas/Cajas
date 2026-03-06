@@ -18,6 +18,8 @@ return new class extends Migration
             $table->foreignId('supplier_id')->constrained('suppliers');
             $table->string('supplier_name');
 
+            $table->foreignId('purchase_order_id')->nullable()->constrained('purchase_orders')->onDelete('set null');
+
             $table->date('date');
             $table->date('due_date');
 

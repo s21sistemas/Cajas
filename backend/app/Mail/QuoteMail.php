@@ -64,9 +64,21 @@ class QuoteMail extends Mailable
             // Cargar relaciones si no están cargadas
             $this->quote->loadMissing(['client', 'items']);
 
+            // Obtener datos de la empresa desde settings
+            $companySettings = \App\Models\Setting::where('module', 'company')->get();
+            $company = [];
+            foreach ($companySettings as $setting) {
+                $company[$setting->key] = $setting->value;
+            }
+
+            // URL del logo
+            $logoUrl = asset('villazco_logo.jpeg');
+
             // Generar el PDF
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.quote', [
-                'quote' => $this->quote
+                'quote' => $this->quote,
+                'company' => $company,
+                'logoUrl' => $logoUrl
             ]);
 
             return [

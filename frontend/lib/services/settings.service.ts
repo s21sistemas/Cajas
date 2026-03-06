@@ -19,6 +19,7 @@ export interface Settings {
     holidayMultiplier?: number;
     qualityThreshold?: number;
     scrapThreshold?: number;
+    machinesDeletePin?: string;
   };
   notifications?: {
     emailAlerts?: boolean;

@@ -50,6 +50,7 @@ class TablePermissionSeeder extends Seeder
             'workorders.view', 'workorders.create', 'workorders.edit', 'workorders.delete',
             'quality.view', 'quality.create', 'quality.edit', 'quality.delete',
             'machines.view', 'machines.create', 'machines.edit', 'machines.delete',
+            'machines.force_delete.view', 'machines.force_delete.create', 'machines.force_delete.edit', 'machines.force_delete.delete',
             'processes.view', 'processes.create', 'processes.edit', 'processes.delete',
             'processtypes.view', 'processtypes.create', 'processtypes.edit', 'processtypes.delete',
             'productions.view', 'productions.create', 'productions.edit', 'productions.delete',
@@ -81,6 +82,9 @@ class TablePermissionSeeder extends Seeder
             'vehicles.view', 'vehicles.create', 'vehicles.edit', 'vehicles.delete',
             'deliveries.view', 'deliveries.create', 'deliveries.edit', 'deliveries.delete',
             'gasolinereceipts.view', 'gasolinereceipts.create', 'gasolinereceipts.edit', 'gasolinereceipts.delete',
+            
+            // Órdenes de Pedido
+            'ordenes_pedido.view', 'ordenes_pedido.create', 'ordenes_pedido.edit', 'ordenes_pedido.delete',
         ];
     }
 
@@ -116,6 +120,15 @@ class TablePermissionSeeder extends Seeder
             str_starts_with($p, 'operators') ||
             str_starts_with($p, 'qualityevaluations') ||
             str_starts_with($p, 'maintenanceorders')
+        ));
+
+        // Máquinas permissions para roles especiales
+        $machinesPermissions = array_values(array_filter($all, fn ($p) =>
+            str_starts_with($p, 'machines')
+        ));
+
+        $machinesForceDeletePermissions = array_values(array_filter($all, fn ($p) =>
+            str_starts_with($p, 'machines.force_delete')
         ));
 
         $warehousePermissions = array_values(array_filter($all, fn ($p) =>
@@ -224,13 +237,17 @@ class TablePermissionSeeder extends Seeder
             
             'Mantenimiento' => array_merge(
                 $maintenancePermissions,
-                ['machines.view', 'machines.create', 'machines.edit']
+                ['machines.view', 'machines.create', 'machines.edit', 'machines.force_delete.view', 'machines.force_delete.delete']
             ),
             
             'Logística' => array_merge(
                 $logisticsPermissions,
                 ['vehicles.view', 'vehicles.create', 'vehicles.edit', 'deliveries.create', 'deliveries.edit', 'gasolinereceipts.create']
             ),
+            
+            'Proveedor Externo' => [
+                'ordenes_pedido.view',
+            ],
             
             // Roles legacy (mantener para compatibilidad)
             'operator'    => array_merge(

@@ -20,7 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, Pencil, Trash2, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { Search, MoreHorizontal, Pencil, Trash2, ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft } from "lucide-react";
 import type { InventoryItem } from "@/lib/types";
 
 const categoryLabels: Record<string, string> = {
@@ -41,6 +41,7 @@ interface ProductoTerminadoTableProps {
   onDelete: (item: InventoryItem) => void;
   onEntry: (item: InventoryItem) => void;
   onExit: (item: InventoryItem) => void;
+  onTransfer: (item: InventoryItem) => void;
   loading?: boolean;
 }
 
@@ -52,12 +53,14 @@ export function ProductoTerminadoTable({
   onDelete,
   onEntry,
   onExit,
+  onTransfer,
   loading = false 
 }: ProductoTerminadoTableProps) {
   const handleEdit = useCallback((item: InventoryItem) => onEdit(item), [onEdit]);
   const handleDelete = useCallback((item: InventoryItem) => onDelete(item), [onDelete]);
   const handleEntry = useCallback((item: InventoryItem) => onEntry(item), [onEntry]);
   const handleExit = useCallback((item: InventoryItem) => onExit(item), [onExit]);
+  const handleTransfer = useCallback((item: InventoryItem) => onTransfer(item), [onTransfer]);
 
   const formatCurrency = (value: number | null | undefined) => {
     if (value === null || value === undefined) return "$0.00";
@@ -100,7 +103,7 @@ export function ProductoTerminadoTable({
                 <TableHead className="text-right text-muted-foreground">Stock</TableHead>
                 <TableHead className="text-right text-muted-foreground">Mín.</TableHead>
                 <TableHead className="text-right text-muted-foreground">Costo</TableHead>
-                <TableHead className="text-muted-foreground">Almacén</TableHead>
+                <TableHead className="text-muted-foreground">Ubicación</TableHead>
                 <TableHead className="text-muted-foreground">Estado</TableHead>
                 <TableHead className="text-right text-muted-foreground">Acciones</TableHead>
               </TableRow>
@@ -158,10 +161,13 @@ export function ProductoTerminadoTable({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => handleEntry(item)}>
-                              <ArrowDownToLine className="h-4 w-4 mr-2" /> Producción
+                              <ArrowDownToLine className="h-4 w-4 mr-2" /> Entrada
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleExit(item)}>
-                              <ArrowUpFromLine className="h-4 w-4 mr-2" /> Venta
+                              <ArrowUpFromLine className="h-4 w-4 mr-2" /> Salida
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleTransfer(item)}>
+                              <ArrowRightLeft className="h-4 w-4 mr-2" /> Transferencia
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEdit(item)}>
                               <Pencil className="h-4 w-4 mr-2" /> Editar

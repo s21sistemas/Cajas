@@ -8,7 +8,7 @@ import { ToastProvider } from "./action-toast";
 
 interface ERPLayoutProps {
   children: React.ReactNode;
-  title: string;
+  title?: string;
   subtitle?: string;
 }
 

@@ -13,6 +13,7 @@ import { MaterialesStatsCards } from "./components/MaterialesStatsCards";
 import { MaterialesTable } from "./components/MaterialesTable";
 import { MaterialesFormDialog } from "./components/MaterialesFormDialog";
 import { MaterialesMovimientoDialog } from "./components/MaterialesMovimientoDialog";
+import { TransferenciaDialog } from "./components/TransferenciaDialog";
 
 export default function MaterialesPage() {
   const { showToast } = useToast();
@@ -33,6 +34,10 @@ export default function MaterialesPage() {
   const [movementItem, setMovementItem] = useState<InventoryItem | null>(null);
   const [movementType, setMovementType] = useState<"entry" | "exit">("entry");
   
+  // Transfer dialog
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferItem, setTransferItem] = useState<InventoryItem | null>(null);
+  
   // Stats
   const [stats, setStats] = useState({
     totalItems: 0,
@@ -49,11 +54,13 @@ export default function MaterialesPage() {
   const fetchItems = useCallback(async (searchValue: string = "") => {
     setLoading(true);
     try {
-      const params: any = { per_page: 100, category: "raw_material" };
+      // Filtrar solo materiales (excluir productos terminados)
+      const params: any = { per_page: 100, wharehouse: 'materials'};
       if (searchValue && searchValue.trim()) {
         params.search = searchValue.trim();
       }
       const response = await inventoryService.getAll(params);
+      // Filtrar del lado del cliente para excluir finished_product
       const data = response?.data || [];
       setItems(data);
     } catch (error: any) {
@@ -148,16 +155,34 @@ export default function MaterialesPage() {
     }
   };
 
-  const handleMovement = async (data: { quantity: number; reference?: string; notes?: string }) => {
+  const handleMovement = async (data: { 
+    quantity: number; 
+    reference?: string; 
+    notes?: string; 
+    performed_by?: string;
+  }) => {
     if (!movementItem) return;
     setSubmitting(true);
     try {
-      await inventoryService.recordMovement(Number(movementItem.id), {
-        type: movementType === "entry" ? "in" : "out",
-        quantity: data.quantity,
-        reason: data.notes || data.reference || (movementType === "entry" ? "Entrada de material" : "Salida de material"),
-        reference: data.reference,
-      });
+      if (movementType === "entry") {
+        await inventoryService.registerIncome({
+          inventory_item_id: Number(movementItem.id),
+          quantity: data.quantity,
+          reference_type: data.reference ? "external" : undefined,
+          reference_id: data.reference ? parseInt(data.reference) : undefined,
+          notes: data.notes,
+          performed_by: data.performed_by,
+        });
+      } else {
+        await inventoryService.registerExpense({
+          inventory_item_id: Number(movementItem.id),
+          quantity: data.quantity,
+          reference_type: data.reference ? "external" : undefined,
+          reference_id: data.reference ? parseInt(data.reference) : undefined,
+          notes: data.notes,
+          performed_by: data.performed_by,
+        });
+      }
       showToast("success", 
         movementType === "entry" ? "Entrada registrada" : "Salida registrada", 
         ""
@@ -191,6 +216,44 @@ export default function MaterialesPage() {
     setMovementOpen(true);
   };
 
+  const openTransferModal = (item: InventoryItem) => {
+    setTransferItem(item);
+    setTransferOpen(true);
+  };
+
+  const handleTransfer = async (data: { 
+    quantity: number; 
+    warehouse_location_id: number;
+    warehouse_location_to_id: number;
+    reference?: string; 
+    notes?: string; 
+    performed_by?: string;
+  }) => {
+    if (!transferItem) return;
+    setSubmitting(true);
+    try {
+      await inventoryService.registerTransfer({
+        inventory_item_id: Number(transferItem.id),
+        quantity: data.quantity,
+        warehouse_location_id: data.warehouse_location_id,
+        warehouse_location_to_id: data.warehouse_location_to_id,
+        reference_type: data.reference ? "transfer" : undefined,
+        notes: data.notes,
+        performed_by: data.performed_by,
+      });
+      showToast("success", "Transferencia registrada", "");
+      setTransferOpen(false);
+      setTransferItem(null);
+      fetchItems(search);
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <ERPLayout title="Almacén de Materiales" subtitle="Gestión de inventario de materiales">
       <div className="space-y-6">
@@ -222,6 +285,7 @@ export default function MaterialesPage() {
           onDelete={setDeletingItem}
           onEntry={openEntryModal}
           onExit={openExitModal}
+          onTransfer={openTransferModal}
           loading={loading}
         />
 
@@ -250,6 +314,14 @@ export default function MaterialesPage() {
           description={`¿Estás seguro de que deseas eliminar "${deletingItem?.name}"? Esta acción no se puede deshacer.`}
           confirmText="Eliminar"
           variant="destructive"
+        />
+
+        <TransferenciaDialog
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
+          item={transferItem}
+          onSubmit={handleTransfer}
+          isLoading={submitting}
         />
       </div>
     </ERPLayout>

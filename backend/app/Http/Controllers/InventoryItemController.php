@@ -38,11 +38,15 @@ class InventoryItemController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $perPage = $request->integer('per_page', 15);
-        $query = InventoryItem::orderBy('code');
+        $perPage = $request->integer('per_page', 100);
+        $query = InventoryItem::with('warehouseLocation')->orderBy('code');
 
         if ($request->has('category') && $request->category && $request->category !== 'all') {
             $query->where('category', $request->category);
+        }
+
+        if ($request->has('warehouse') && $request->warehouse) {
+            $query->where('warehouse', $request->warehouse);
         }
 
         if ($request->has('search') && $request->search) {
@@ -59,14 +63,14 @@ class InventoryItemController extends Controller implements HasMiddleware
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'code' => 'required|string|max:255|unique:inventory_items,code',
+            'code' => 'required|string|max:255',
             'name' => 'required|string|max:255',
-            'category' => 'required|in:raw_material,component,tool,consumable',
+            'category' => 'required|string|max:255',
             'quantity' => 'sometimes|numeric|min:0',
             'min_stock' => 'sometimes|numeric|min:0',
             'max_stock' => 'nullable|numeric|min:0',
             'unit_cost' => 'required|numeric|min:0',
-            'location' => 'nullable|string|max:255',
+            'warehouse_location_id' => 'nullable|integer',
             'last_movement' => 'nullable|date',
         ]);
 
@@ -91,12 +95,12 @@ class InventoryItemController extends Controller implements HasMiddleware
     {
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
-            'category' => 'sometimes|in:raw_material,component,tool,consumable',
+            'category' => 'required|string|max:255',
             'quantity' => 'sometimes|numeric|min:0',
             'min_stock' => 'sometimes|numeric|min:0',
             'max_stock' => 'nullable|numeric|min:0',
             'unit_cost' => 'sometimes|numeric|min:0',
-            'location' => 'nullable|string|max:255',
+            'warehouse_location_id' => 'nullable|integer',
             'last_movement' => 'nullable|date',
         ]);
 

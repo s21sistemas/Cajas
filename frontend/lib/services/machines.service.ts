@@ -30,8 +30,8 @@ export const machinesService = {
   },
 
   // Delete machine
-  delete: (id: number): Promise<void> => {
-    return api.delete(`/machines/${id}`);
+  delete: (id: number, pin?: string): Promise<void> => {
+    return api.delete(`/machines/${id}`, pin ? { data: { pin } } : undefined);
   },
 
   // Get machines by status

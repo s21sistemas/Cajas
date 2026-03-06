@@ -94,6 +94,14 @@ class Production extends Model
     }
 
     /**
+     * Relación con el producto
+     */
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    /**
      * Relación con la venta
      */
     public function sale()

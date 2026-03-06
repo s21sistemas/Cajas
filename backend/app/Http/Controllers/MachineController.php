@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Machine;
+use App\Models\MachineMovement;
 use Illuminate\Http\Request;
 use \Spatie\Permission\Middleware\PermissionMiddleware;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -10,6 +11,49 @@ use Illuminate\Routing\Controllers\Middleware;
 
 class MachineController extends Controller implements HasMiddleware
 {
+    /**
+     * Create a machine movement record.
+     */
+    private function createMovement(
+        Machine $machine,
+        string $type,
+        string $status,
+        ?string $notes = null,
+        ?int $productionId = null,
+        ?int $operatorId = null
+    ): MachineMovement {
+        return MachineMovement::create([
+            'machine_id' => $machine->id,
+            'production_id' => $productionId,
+            'operator_id' => $operatorId,
+            'start_time' => now(),
+            'type' => $type,
+            'status' => $status,
+            'notes' => $notes,
+        ]);
+    }
+
+    /**
+     * Close the last active movement for a machine.
+     */
+    private function closeActiveMovement(Machine $machine, ?string $notes = null): ?MachineMovement
+    {
+        $activeMovement = $machine->movements()
+            ->where('status', 'active')
+            ->latest('start_time')
+            ->first();
+
+        if ($activeMovement) {
+            $activeMovement->update([
+                'end_time' => now(),
+                'status' => 'completed',
+                'notes' => $notes ?? $activeMovement->notes,
+            ]);
+        }
+
+        return $activeMovement;
+    }
+
     public static function middleware(): array
     {
         return [
@@ -31,7 +75,7 @@ class MachineController extends Controller implements HasMiddleware
             ),
 
             new Middleware(
-                PermissionMiddleware::using('machines.delete'),
+                PermissionMiddleware::using('machines.force_delete.delete'),
                 only: ['destroy']
             ),
         ];
@@ -89,6 +133,15 @@ class MachineController extends Controller implements HasMiddleware
         }
 
         $machine = Machine::create($data);
+        
+        // Registrar movimiento de creación
+        $this->createMovement(
+            $machine,
+            'creation',
+            'active',
+            "Máquina creada con código: {$machine->code}, nombre: {$machine->name}, tipo: {$machine->type}"
+        );
+        
         return response()->json($machine, 201);
     }
 
@@ -114,15 +167,91 @@ class MachineController extends Controller implements HasMiddleware
             'notes' => 'nullable|string',
         ]);
 
+        // Registrar los cambios realizados
+        $changes = [];
+        foreach ($data as $key => $value) {
+            $oldValue = $machine->$key;
+            $changes[] = "{$key}: '{$oldValue}' → '{$value}'";
+        }
+        
+        $notes = !empty($changes) ? "Actualización de campos: " . implode(', ', $changes) : null;
+
         $machine->update($data);
+        
+        // Registrar movimiento de actualización
+        $this->createMovement(
+            $machine,
+            'update',
+            'active',
+            $notes
+        );
+        
         return response()->json($machine);
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Machine $machine)
+    public function destroy(Request $request, Machine $machine)
     {
+        // Obtener configuraciones
+        $settings = \App\Models\Setting::where('module', 'production')->get()->keyBy('key');
+        
+        // Verificar si hay un PIN configurado para eliminar máquinas
+        $settingPin = $settings->get('machinesDeletePin');
+        $requirePin = $settingPin && !empty($settingPin->value);
+        $configuredPin = null;
+        
+        if ($requirePin) {
+            // Decodificar el valor ya que se guarda como JSON
+            $pinValue = $settingPin->value;
+            $decoded = json_decode($pinValue, true);
+            $configuredPin = json_last_error() === JSON_ERROR_NONE ? $decoded : $pinValue;
+            
+            // Validar que se proporcione el PIN
+            $request->validate([
+                'pin' => 'required|string',
+            ]);
+
+            $decodedPinSetting = json_decode($request->input('pin'), true);
+            
+            // Verificar que el PIN sea correcto
+            if ($decodedPinSetting !== $configuredPin) {
+                return response()->json([
+                    'message' => 'PIN de confirmación incorrecto'
+                ], 422);
+            }
+        }
+        
+        // Verificar si la máquina tiene producciones asociadas
+        $hasProductions = $machine->productions()->exists();
+        
+        if ($hasProductions) {
+            return response()->json([
+                'message' => 'No se puede eliminar la máquina porque tiene producciones asociadas'
+            ], 422);
+        }
+        
+        // Verificar si la máquina tiene movimientos
+        $hasMovements = $machine->movements()->exists();
+        
+        if ($hasMovements) {
+            return response()->json([
+                'message' => 'No se puede eliminar la máquina porque tiene movimientos asociados'
+            ], 422);
+        }
+        
+        // Cerrar cualquier movimiento activo
+        $this->closeActiveMovement($machine, 'Máquina eliminada');
+        
+        // Registrar movimiento de eliminación (antes de eliminar)
+        $this->createMovement(
+            $machine,
+            'deletion',
+            'active',
+            "Máquina eliminada: código {$machine->code}, nombre {$machine->name}"
+        );
+        
         $machine->delete();
         return response()->json(null, 204);
     }
@@ -136,7 +265,20 @@ class MachineController extends Controller implements HasMiddleware
             'status' => 'required|string|in:available,running,maintenance,offline',
         ]);
 
+        $oldStatus = $machine->status;
         $machine->update($data);
+        
+        // Cerrar cualquier movimiento activo anterior
+        $this->closeActiveMovement($machine, "Cambio de estado de '{$oldStatus}' a '{$data['status']}'");
+        
+        // Registrar movimiento de cambio de estado
+        $this->createMovement(
+            $machine,
+            'status_change',
+            'active',
+            "Cambio de estado: {$oldStatus} → {$data['status']}"
+        );
+        
         return response()->json($machine);
     }
 
@@ -145,7 +287,19 @@ class MachineController extends Controller implements HasMiddleware
      */
     public function startOperation(Request $request, Machine $machine)
     {
+        // Cerrar cualquier operación activa anterior
+        $this->closeActiveMovement($machine, 'Nueva operación iniciada');
+        
         $machine->update(['status' => 'running']);
+        
+        // Registrar movimiento de inicio de operación
+        $this->createMovement(
+            $machine,
+            'operation_start',
+            'active',
+            $request->notes ?? 'Início de operación'
+        );
+        
         return response()->json($machine);
     }
 
@@ -154,7 +308,19 @@ class MachineController extends Controller implements HasMiddleware
      */
     public function stopOperation(Request $request, Machine $machine)
     {
+        // Cerrar el movimiento activo
+        $this->closeActiveMovement($machine, $request->notes ?? 'Operación finalizada');
+        
         $machine->update(['status' => 'available']);
+        
+        // Registrar movimiento de fin de operación
+        $this->createMovement(
+            $machine,
+            'operation_stop',
+            'active',
+            $request->notes ?? 'Fin de operación'
+        );
+        
         return response()->json($machine);
     }
 
@@ -251,5 +417,66 @@ class MachineController extends Controller implements HasMiddleware
     {
         $machines = Machine::select('id', 'name', 'code')->orderBy('name')->get();
         return response()->json($machines);
+    }
+    
+    /**
+     * Get machine movement history.
+     */
+    public function movements(Machine $machine)
+    {
+        $movements = $machine->movements()
+            ->orderBy('start_time', 'desc')
+            ->get();
+        
+        return response()->json($movements);
+    }
+    
+    /**
+     * Get machine movement history with filters.
+     */
+    public function movementsReport(Request $request, Machine $machine)
+    {
+        $query = $machine->movements()->with(['production', 'operator']);
+        
+        // Filtro por tipo
+        if ($request->has('type') && $request->type) {
+            $query->where('type', $request->type);
+        }
+        
+        // Filtro por estado
+        if ($request->has('status') && $request->status) {
+            $query->where('status', $request->status);
+        }
+        
+        // Filtro por rango de fechas
+        if ($request->has('start_date') && $request->start_date) {
+            $query->where('start_time', '>=', $request->start_date);
+        }
+        
+        if ($request->has('end_date') && $request->end_date) {
+            $query->where('start_time', '<=', $request->end_date . ' 23:59:59');
+        }
+        
+        $movements = $query->orderBy('start_time', 'desc')->get();
+        
+        // Calcular estadísticas
+        $stats = [
+            'total_movements' => $movements->count(),
+            'active_movements' => $movements->where('status', 'active')->count(),
+            'completed_movements' => $movements->where('status', 'completed')->count(),
+            'total_operational_minutes' => $movements
+                ->where('status', 'completed')
+                ->sum(function ($m) {
+                    if ($m->end_time && $m->start_time) {
+                        return $m->start_time->diffInMinutes($m->end_time);
+                    }
+                    return 0;
+                }),
+        ];
+        
+        return response()->json([
+            'movements' => $movements,
+            'stats' => $stats,
+        ]);
     }
 }

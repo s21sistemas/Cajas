@@ -725,6 +725,38 @@ export default function ConfigurationPage() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  Seguridad de Eliminación
+                </CardTitle>
+                <CardDescription>Código PIN requerido para eliminar máquinas</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-foreground">PIN para Eliminar Máquinas</Label>
+                  <Input
+                    type="password"
+                    value={settings.production?.machinesDeletePin || ""}
+                    onChange={(e) => handleSettingChange("production", "machinesDeletePin", e.target.value)}
+                    placeholder="Ingrese un PIN de 4-6 dígitos"
+                    maxLength={6}
+                    className="bg-secondary border-border"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Deje vacío para permitir eliminación sin PIN. Si configura un PIN, se requerirá para eliminar cualquier máquina.
+                  </p>
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={() => handleSave("production")} disabled={saving} className="gap-2">
+                    {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    Guardar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Notificaciones Tab */}

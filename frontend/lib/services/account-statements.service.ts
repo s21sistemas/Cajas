@@ -26,6 +26,15 @@ export interface AccountStatement {
     id: number;
     code: string;
   };
+  payments?: Array<{
+    id: number;
+    code?: string;
+    amount: number;
+    payment_method: string;
+    reference?: string;
+    payment_date: string;
+    status: string;
+  }>;
 }
 
 export interface CreateAccountStatementDto {
@@ -59,6 +68,7 @@ export interface AccountStatementFilters {
   status?: 'pending' | 'paid' | 'overdue' | 'partial';
   date_from?: string;
   date_to?: string;
+  per_page?: number;
 }
 
 export interface AccountStatementStats {

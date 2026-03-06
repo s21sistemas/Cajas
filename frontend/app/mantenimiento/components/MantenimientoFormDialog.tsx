@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -37,32 +38,45 @@ export function MantenimientoFormDialog({
   onSubmit,
   loading,
 }: MantenimientoFormDialogProps) {
-  const getInitialData = (): CreateMaintenanceOrderDto => {
-    if (editingItem) {
-      return {
-        machineId: editingItem.machineId,
-        type: editingItem.type,
-        priority: editingItem.priority,
-        description: editingItem.description,
-        scheduledDate: editingItem.scheduledDate || "",
-        technician: editingItem.technician || "",
-        estimatedHours: editingItem.estimatedHours || 0,
-        estimatedCost: editingItem.estimatedCost || 0,
-      };
-    }
-    return {
-      machineId: 0,
-      type: "preventive",
-      priority: "medium",
-      description: "",
-      scheduledDate: new Date().toISOString().split("T")[0],
-      technician: "",
-      estimatedHours: 0,
-      estimatedCost: 0,
-    };
-  };
+  const [formData, setFormData] = useState<CreateMaintenanceOrderDto>({
+    machineId: 0,
+    type: "preventive",
+    priority: "medium",
+    description: "",
+    scheduledDate: new Date().toISOString().split("T")[0],
+    technician: "",
+    estimatedHours: 0,
+    estimatedCost: 0,
+  });
 
-  const formData = getInitialData();
+  // Actualizar el formulario cuando editingItem cambie
+  useEffect(() => {
+    if (open) {
+      if (editingItem) {
+        setFormData({
+          machineId: editingItem.machineId,
+          type: editingItem.type,
+          priority: editingItem.priority,
+          description: editingItem.description || "",
+          scheduledDate: editingItem.scheduledDate ? editingItem.scheduledDate.split("T")[0] : "",
+          technician: editingItem.technician || "",
+          estimatedHours: editingItem.estimatedHours || 0,
+          estimatedCost: editingItem.estimatedCost || 0,
+        });
+      } else {
+        setFormData({
+          machineId: 0,
+          type: "preventive",
+          priority: "medium",
+          description: "",
+          scheduledDate: new Date().toISOString().split("T")[0],
+          technician: "",
+          estimatedHours: 0,
+          estimatedCost: 0,
+        });
+      }
+    }
+  }, [open, editingItem]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -93,7 +107,7 @@ export function MantenimientoFormDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="machineId">Maquina</Label>
-                <Select name="machineId" defaultValue={String(formData.machineId)}>
+                <Select name="machineId" value={String(formData.machineId)} onValueChange={(v) => setFormData({ ...formData, machineId: parseInt(v) })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar maquina" />
                   </SelectTrigger>
@@ -111,7 +125,8 @@ export function MantenimientoFormDialog({
                 <Input
                   id="technician"
                   name="technician"
-                  defaultValue={formData.technician}
+                  value={formData.technician}
+                  onChange={(e) => setFormData({ ...formData, technician: e.target.value })}
                   placeholder="Nombre del tecnico"
                 />
               </div>
@@ -120,7 +135,7 @@ export function MantenimientoFormDialog({
             <div className="grid grid-cols-3 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="type">Tipo</Label>
-                <Select name="type" defaultValue={formData.type}>
+                <Select name="type" value={formData.type} onValueChange={(v: any) => setFormData({ ...formData, type: v })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -133,7 +148,7 @@ export function MantenimientoFormDialog({
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="priority">Prioridad</Label>
-                <Select name="priority" defaultValue={formData.priority}>
+                <Select name="priority" value={formData.priority} onValueChange={(v: any) => setFormData({ ...formData, priority: v })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -151,7 +166,8 @@ export function MantenimientoFormDialog({
                   id="scheduledDate"
                   name="scheduledDate"
                   type="date"
-                  defaultValue={formData.scheduledDate}
+                  value={formData.scheduledDate}
+                  onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
                 />
               </div>
             </div>
@@ -161,7 +177,8 @@ export function MantenimientoFormDialog({
               <Textarea
                 id="description"
                 name="description"
-                defaultValue={formData.description}
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={3}
               />
             </div>
@@ -173,7 +190,8 @@ export function MantenimientoFormDialog({
                   id="estimatedHours"
                   name="estimatedHours"
                   type="number"
-                  defaultValue={formData.estimatedHours}
+                  value={formData.estimatedHours}
+                  onChange={(e) => setFormData({ ...formData, estimatedHours: parseFloat(e.target.value) || 0 })}
                 />
               </div>
               <div className="grid gap-2">
@@ -182,7 +200,8 @@ export function MantenimientoFormDialog({
                   id="estimatedCost"
                   name="estimatedCost"
                   type="number"
-                  defaultValue={formData.estimatedCost}
+                  value={formData.estimatedCost}
+                  onChange={(e) => setFormData({ ...formData, estimatedCost: parseFloat(e.target.value) || 0 })}
                 />
               </div>
             </div>

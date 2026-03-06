@@ -8,7 +8,8 @@ export interface Material {
   cost: number | null;
   unit: string | null;
   stock: number;
-  minStock: number;
+  min_stock?: number;  // Campo del backend (snake_case)
+  minStock?: number;   // Campo del frontend (camelCase)
   createdAt: string;
   updatedAt: string;
 }

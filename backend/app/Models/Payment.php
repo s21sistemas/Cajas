@@ -10,6 +10,9 @@ class Payment extends Model
     protected $fillable = [
         'code',
         'sale_id',
+        'purchase_order_id',
+        'supplier_statement_id',
+        'account_statement_id',
         'bank_account_id',
         'amount',
         'payment_method',
@@ -17,6 +20,7 @@ class Payment extends Model
         'notes',
         'payment_date',
         'status',
+        'type',
     ];
 
     protected $casts = [
@@ -44,6 +48,16 @@ class Payment extends Model
     public function bankAccount(): BelongsTo
     {
         return $this->belongsTo(BankAccount::class);
+    }
+
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class);
+    }
+
+    public function supplierStatement()
+    {
+        return $this->belongsTo(SupplierStatement::class);
     }
 
     public function movement()

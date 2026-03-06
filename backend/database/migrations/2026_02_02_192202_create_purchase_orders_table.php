@@ -1,0 +1,61 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('purchase_orders', function (Blueprint $table) {
+            $table->id();
+            $table->string('code')->unique()->index();
+
+            $table->foreignId('supplier_id')->constrained('suppliers');
+            $table->string('supplier_name');
+
+            // número total de ítems (no el detalle)
+            $table->integer('items')->default(0);
+
+            $table->decimal('subtotal', 14, 2)->default(0)->comment('Subtotal sin IVA');
+            $table->decimal('iva_percentage', 5, 2)->default(16)->comment('Porcentaje de IVA');
+            $table->decimal('iva', 14, 2)->default(0)->comment('Monto del IVA');
+            $table->decimal('total', 14, 2)->default(0);
+
+            $table->enum('status', [
+                'draft',
+                'pending',
+                'approved',
+                'ordered',
+                'partial',
+                'received',
+                'cancelled'
+            ])->default('draft')->index();
+
+            $table->enum('priority', [
+                'low',
+                'medium',
+                'high',
+                'urgent'
+            ])->default('medium');
+
+            $table->string('requested_by');
+            $table->string('approved_by')->nullable();
+
+            $table->date('expected_date')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('purchase_orders');
+    }
+};

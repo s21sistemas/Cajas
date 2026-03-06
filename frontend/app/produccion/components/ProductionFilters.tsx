@@ -15,13 +15,16 @@ interface ProductionFiltersProps {
   filterStatus: string;
   onFilterStatusChange: (status: string) => void;
   onCreateClick: () => void;
-  // Nuevos filtros
+  // Filtros: Cliente, Venta, Orden de Trabajo
   clients?: { id: number; name: string }[];
   selectedClient?: string;
   onClientChange?: (clientId: string) => void;
-  sales?: { id: number; invoice: string }[];
+  sales?: { id: number; code: string }[];
   selectedSale?: string;
   onSaleChange?: (saleId: string) => void;
+  workOrders?: { id: number; code: string }[];
+  selectedWorkOrder?: string;
+  onWorkOrderChange?: (workOrderId: string) => void;
 }
 
 export function ProductionFilters({
@@ -36,6 +39,9 @@ export function ProductionFilters({
   sales = [],
   selectedSale,
   onSaleChange,
+  workOrders = [],
+  selectedWorkOrder,
+  onWorkOrderChange,
 }: ProductionFiltersProps) {
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -49,8 +55,24 @@ export function ProductionFilters({
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {/* Filtro por Orden de Trabajo */}
+        {onWorkOrderChange && (
+          <Select value={selectedWorkOrder} onValueChange={onWorkOrderChange}>
+            <SelectTrigger className="w-40 bg-secondary border-border">
+              <SelectValue placeholder="Todas las OT" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las OT</SelectItem>
+              {workOrders.map((wo) => (
+                <SelectItem key={wo.id} value={wo.id.toString()}>
+                  {wo.code}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {/* Filtro por Cliente */}
-        {clients.length > 0 && onClientChange && (
+        {onClientChange && (
           <Select value={selectedClient} onValueChange={onClientChange}>
             <SelectTrigger className="w-40 bg-secondary border-border">
               <SelectValue placeholder="Todos los clientes" />
@@ -66,7 +88,7 @@ export function ProductionFilters({
           </Select>
         )}
         {/* Filtro por Venta */}
-        {sales.length > 0 && onSaleChange && (
+        {onSaleChange && (
           <Select value={selectedSale} onValueChange={onSaleChange}>
             <SelectTrigger className="w-40 bg-secondary border-border">
               <SelectValue placeholder="Todas las ventas" />

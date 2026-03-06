@@ -40,12 +40,15 @@ export const maintenanceService = {
 
   // Start maintenance
   start: (id: number): Promise<MaintenanceOrder> => {
-    return api.post<MaintenanceOrder>(`/maintenance-orders/${id}/start`);
+    return api.patch<MaintenanceOrder>(`/maintenance-orders/${id}/start`);
   },
 
   // Complete maintenance
-  complete: (id: number, actualHours: number, actualCost?: number): Promise<MaintenanceOrder> => {
-    return api.post<MaintenanceOrder>(`/maintenance-orders/${id}/complete`, { actualHours, actualCost });
+  complete: (id: number, actualHours?: number, actualCost?: number): Promise<MaintenanceOrder> => {
+    const data: { actualHours?: number; actualCost?: number } = {};
+    if (actualHours !== undefined) data.actualHours = actualHours;
+    if (actualCost !== undefined) data.actualCost = actualCost;
+    return api.patch<MaintenanceOrder>(`/maintenance-orders/${id}/complete`, data);
   },
 
   // Get maintenance statistics
@@ -54,16 +57,18 @@ export const maintenanceService = {
     pending: number;
     inProgress: number;
     completed: number;
+    overdue: number;
     totalCost: number;
   }> => {
-    const response = await api.get<{ data: {
+    const response = await api.get<{
       total: number;
       pending: number;
       inProgress: number;
       completed: number;
+      overdue: number;
       totalCost: number;
-    } }>('/maintenance-orders/stats');
-    return response.data;
+    }>('/maintenance-orders/stats');
+    return response;
   },
 
   // Get upcoming maintenance

@@ -41,13 +41,22 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // 5. Crear cotizaciones en borrador
-        $this->call([
-            QuoteSeeder::class,
-        ]);
+        // $this->call([
+        //     QuoteSeeder::class,
+        // ]);
 
         // // 4. Crear órdenes de trabajo (después de catálogos)
         // $this->call([
         //     WorkOrderSeeder::class,
-        // ]);
+        // ]); solo administrador puede borrar maquinas, operador
+
+        //select empleado o persona
+        //reporte de gastos y costes lo que tengo por cobrar por cliente de tal fecha a tal fecha
+        //almacenista pasar a almacen de logistica
+        //proovedor ageno a la empresa usuario y contraseña para modulo recojo tal dia entrego al dia
+        //campo para subir archivos adjuntos pruebas chofer me manda foto evidencia de entrega
+        //envio correo envio pendiente
+        //cotizacion a ventas
+        //viaticos
     }
 }

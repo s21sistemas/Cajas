@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowDownToLine, ArrowUpFromLine, Package, ShoppingCart } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import type { InventoryItem } from "@/lib/types";
 
 const movimientoSchema = z.object({
   quantity: z.number().min(1, "La cantidad debe ser al menos 1"),
   reference: z.string().optional().default(""),
   notes: z.string().optional().default(""),
+  performed_by: z.string().optional().default(""),
 });
 
 type MovimientoFormValues = z.infer<typeof movimientoSchema>;
@@ -24,7 +24,12 @@ interface ProductoTerminadoMovimientoDialogProps {
   onOpenChange: (open: boolean) => void;
   item: InventoryItem | null;
   type: "production" | "sale";
-  onSubmit: (data: { quantity: number; reference?: string; notes?: string }) => Promise<void>;
+  onSubmit: (data: { 
+    quantity: number; 
+    reference?: string; 
+    notes?: string; 
+    performed_by?: string;
+  }) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -42,6 +47,7 @@ export function ProductoTerminadoMovimientoDialog({
       quantity: 1,
       reference: "",
       notes: "",
+      performed_by: "",
     },
   });
 
@@ -50,6 +56,7 @@ export function ProductoTerminadoMovimientoDialog({
       quantity: data.quantity,
       reference: data.reference || undefined,
       notes: data.notes || undefined,
+      performed_by: data.performed_by || undefined,
     });
     form.reset();
   };
@@ -74,7 +81,7 @@ export function ProductoTerminadoMovimientoDialog({
             ) : (
               <ArrowUpFromLine className="h-5 w-5 text-red-500" />
             )}
-            {isProduction ? "Registrar Producción" : "Registrar Venta"}
+            {isProduction ? "Registrar Produccion" : "Registrar Venta"}
           </DialogTitle>
         </DialogHeader>
         
@@ -82,7 +89,8 @@ export function ProductoTerminadoMovimientoDialog({
           <div className="bg-muted/50 rounded-lg p-3 mb-4">
             <p className="font-medium text-foreground">{item.name}</p>
             <p className="text-sm text-muted-foreground">
-              Código: {item.code} | Stock actual: {currentQty}
+              Codigo: {item.code} | Stock actual: {currentQty}
+              {item.location && <span> | Ubicacion: {item.location}</span>}
             </p>
           </div>
         )}
@@ -94,7 +102,7 @@ export function ProductoTerminadoMovimientoDialog({
               name="quantity"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Cantidad {isProduction ? "producida" : "vendida"} *</FormLabel>
+                  <FormLabel>Cantidad {isProduction ? "producida" : "vendidad"} *</FormLabel>
                   <FormControl>
                     <Input 
                       type="number" 
@@ -108,7 +116,7 @@ export function ProductoTerminadoMovimientoDialog({
                   <FormMessage />
                   {!isProduction && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Máximo disponible: {currentQty}
+                      Maximo disponible: {currentQty}
                     </p>
                   )}
                 </FormItem>
@@ -123,9 +131,23 @@ export function ProductoTerminadoMovimientoDialog({
                   <FormLabel>Referencia (opcional)</FormLabel>
                   <FormControl>
                     <Input 
-                      placeholder={isProduction ? "Orden de producción" : "Número de venta"} 
+                      placeholder={isProduction ? "Orden de produccion" : "Numero de venta"} 
                       {...field} 
                     />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="performed_by"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Realizado por (opcional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Nombre de quien registra" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -155,7 +177,7 @@ export function ProductoTerminadoMovimientoDialog({
                 disabled={isLoading}
                 variant={isProduction ? "default" : "destructive"}
               >
-                {isLoading ? "Procesando..." : isProduction ? "Registrar Producción" : "Registrar Venta"}
+                {isLoading ? "Procesando..." : isProduction ? "Registrar Produccion" : "Registrar Venta"}
               </Button>
             </div>
           </form>

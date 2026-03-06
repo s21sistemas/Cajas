@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
@@ -15,6 +16,7 @@ const movimientoSchema = z.object({
   quantity: z.number().min(1, "La cantidad debe ser al menos 1"),
   reference: z.string().optional().default(""),
   notes: z.string().optional().default(""),
+  performed_by: z.string().optional().default(""),
 });
 
 type MovimientoFormValues = z.infer<typeof movimientoSchema>;
@@ -24,7 +26,12 @@ interface MaterialesMovimientoDialogProps {
   onOpenChange: (open: boolean) => void;
   item: InventoryItem | null;
   type: "entry" | "exit";
-  onSubmit: (data: { quantity: number; reference?: string; notes?: string }) => Promise<void>;
+  onSubmit: (data: { 
+    quantity: number; 
+    reference?: string; 
+    notes?: string; 
+    performed_by?: string;
+  }) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -42,6 +49,7 @@ export function MaterialesMovimientoDialog({
       quantity: 1,
       reference: "",
       notes: "",
+      performed_by: "",
     },
   });
 
@@ -50,6 +58,7 @@ export function MaterialesMovimientoDialog({
       quantity: data.quantity,
       reference: data.reference || undefined,
       notes: data.notes || undefined,
+      performed_by: data.performed_by || undefined,
     });
     form.reset();
   };
@@ -82,7 +91,8 @@ export function MaterialesMovimientoDialog({
           <div className="bg-muted/50 rounded-lg p-3 mb-4">
             <p className="font-medium text-foreground">{item.name}</p>
             <p className="text-sm text-muted-foreground">
-              Código: {item.code} | Stock actual: {currentQty}
+              Codigo: {item.code} | Stock actual: {currentQty}
+              {item.location && <span> | Ubicacion: {item.location}</span>}
             </p>
           </div>
         )}
@@ -108,7 +118,7 @@ export function MaterialesMovimientoDialog({
                   <FormMessage />
                   {!isEntry && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Máximo disponible: {currentQty}
+                      Maximo disponible: {currentQty}
                     </p>
                   )}
                 </FormItem>
@@ -122,7 +132,21 @@ export function MaterialesMovimientoDialog({
                 <FormItem>
                   <FormLabel>Referencia (opcional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="Número de factura, orden, etc." {...field} />
+                    <Input placeholder="Numero de factura, orden, etc." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="performed_by"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Realizado por (opcional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Nombre de quien registra" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

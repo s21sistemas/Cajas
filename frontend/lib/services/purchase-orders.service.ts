@@ -33,4 +33,12 @@ export const purchaseOrdersService = {
   getStats: async () => {
     return api.get<any>('/purchase-orders/stats');
   },
+
+  recordPayment: async (id: number, data: { amount: number; payment_method: string; bank_account_id: number; reference?: string; payment_date: string }) => {
+    return api.post<any>(`/purchase-orders/${id}/payment`, data);
+  },
+
+  getPayments: async (orderId: number) => {
+    return api.get<any[]>(`/purchase-orders/${orderId}/payments`);
+  },
 };

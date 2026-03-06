@@ -2,37 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ERPLayout } from "@/components/erp/erp-layout";
-import { api } from "@/lib/api";
+import { inventoryService } from "@/lib/services/inventory.service";
 import { useToast } from "@/components/erp/action-toast";
+import type { WarehouseMovement, WarehouseMovementStats } from "@/lib/types";
 
 import { MovimientosStatsCards } from "./components/MovimientosStatsCards";
 import { MovimientosTable } from "./components/MovimientosTable";
-
-interface WarehouseMovement {
-  id: number;
-  inventory_item_id: number;
-  movement_type: "income" | "expense" | "adjustment" | "transfer";
-  quantity: number;
-  warehouse_location_id: number | null;
-  warehouse_location_to_id: number | null;
-  reference_type: string | null;
-  reference_id: number | null;
-  notes: string | null;
-  performed_by: string | null;
-  status: "pending" | "completed" | "cancelled";
-  created_at: string;
-  inventoryItem?: {
-    id: number;
-    code: string;
-    name: string;
-    unit: string;
-  };
-  warehouseLocation?: {
-    id: number;
-    name: string;
-    zone: string;
-  };
-}
 
 export default function MovimientosAlmacenPage() {
   const { showToast } = useToast();
@@ -64,32 +39,33 @@ export default function MovimientosAlmacenPage() {
   const fetchMovements = useCallback(async (page: number = 1) => {
     setLoading(true);
     try {
-      const params: any = { page, per_page: 15 };
+      const filters: any = { page, per_page: 15 };
       if (search && search.trim()) {
-        params.search = search.trim();
+        filters.search = search.trim();
       }
       if (typeFilter && typeFilter !== "all") {
-        params.movement_type = typeFilter;
+        filters.movement_type = typeFilter;
       }
       if (statusFilter && statusFilter !== "all") {
-        params.status = statusFilter;
+        filters.status = statusFilter;
       }
       
-      const response = await api.get<any>("/warehouse-movements", params);
-      const data = response?.data?.data || response?.data || [];
+      const response = await inventoryService.getMovements(filters);
+      // Laravel devuelve la paginación en formato snake_case
+      const data = response?.data || [];
       setMovements(data);
-      setCurrentPage(response?.data?.current_page || page);
-      setLastPage(response?.data?.last_page || 1);
-      setTotalMovements(response?.data?.total || 0);
+      setCurrentPage((response as any)?.currentPage || (response as any)?.current_page || page);
+      setLastPage((response as any)?.lastPage || (response as any)?.last_page || 1);
+      setTotalMovements((response as any)?.total || 0);
       
-      // Calculate stats from all data
-      const allMovements = response?.data?.data || [];
-      const totalIn = allMovements.filter((m: WarehouseMovement) => m.movement_type === "income").length;
-      const totalOut = allMovements.filter((m: WarehouseMovement) => m.movement_type === "expense").length;
-      const transfers = allMovements.filter((m: WarehouseMovement) => m.movement_type === "transfer").length;
-      const pending = allMovements.filter((m: WarehouseMovement) => m.status === "pending").length;
-      
-      setStats({ totalIn, totalOut, transfers, pending });
+      // Fetch stats
+      const statsData = await inventoryService.getMovementStats();
+      setStats({
+        totalIn: statsData.total_income || 0,
+        totalOut: statsData.total_expense || 0,
+        transfers: statsData.total_adjustments || 0,
+        pending: statsData.pending_movements || 0,
+      });
     } catch (error: any) {
       console.error("Error fetching movements:", error);
       showToast("error", "Error", "No se pudieron cargar los movimientos");

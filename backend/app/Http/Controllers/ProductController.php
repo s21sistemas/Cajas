@@ -84,7 +84,7 @@ class ProductController extends Controller
     }
 
     public function selectListProducts(){
-        return response()->json(Product::select('id', 'code', 'name', 'description', 'category', 'price', 'cost', 'unit', 'status', 'created_at', 'updated_at')->where('status', 'active')->orderBy('name')->get());
+        return response()->json(Product::select('id', 'code', 'name', 'description', 'category', 'price', 'cost', 'unit', 'stock', 'min_stock', 'status', 'created_at', 'updated_at')->where('status', 'active')->orderBy('name')->get());
     }
 
     /**

@@ -44,10 +44,18 @@ export interface ProductionOrder {
   processName: string;
   processType: string;
   requiresMachine: boolean;
+  processId?: number;
+  process?: { id: number; name: string };
   machineId: number | null;
   machineName: string | null;
+  machine?: { id: number; name: string };
   operatorId: number | null;
   operatorName: string;
+  operator?: { id: number; name: string };
+  workOrderId?: number;
+  workOrder?: { id: number; code: string; client?: { id: number; name: string }; sale?: { id: number; code: string } };
+  client?: { id: number; name: string };
+  sale?: { id: number; code: string };
   status: ProductionStatus;
   pauseReason?: string;
   targetParts: number;
@@ -59,8 +67,8 @@ export interface ProductionOrder {
   qualityStatus?: 'PENDING' | 'APPROVED' | 'SCRAP' | 'REWORK';
   // Nuevos campos para mostrar en cards
   productName?: string;
-  clientName?: string | null;
-  saleCode?: string | null;
+  clientName?: string;
+  saleCode?: string;
 }
 
 // Configuración de estados

@@ -520,7 +520,10 @@ class QuoteController extends Controller implements HasMiddleware
             $company[$setting->key] = $setting->value;
         }
         
-        $pdf = Pdf::loadView('pdf.quote', compact('quote', 'company'));
+        // URL del logo
+        $logoUrl = asset('villazco_logo.jpeg');
+        
+        $pdf = Pdf::loadView('pdf.quote', compact('quote', 'company', 'logoUrl'));
         
         // Configurar PDF horizontal (landscape) con márgenes adecuados
         $pdf->setPaper('a4', 'landscape')->setOption('margin-top', 15)->setOption('margin-bottom', 15)->setOption('margin-left', 15)->setOption('margin-right', 15);

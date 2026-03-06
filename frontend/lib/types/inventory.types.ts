@@ -5,12 +5,12 @@ export interface InventoryItem extends BaseEntity {
   name: string;
   category: InventoryCategory;
   warehouse: WarehouseType | null;
+  warehouse_location_id: number | null;
   quantity: number;
   minStock: number;
   maxStock: number | null;
   unitCost: number;
   unit: string | null;
-  location: string | null;
   lastMovement: string | null;
 }
 
@@ -19,12 +19,12 @@ export interface CreateInventoryItemDto {
   name: string;
   category: InventoryCategory;
   warehouse?: WarehouseType;
+  warehouse_location_id?: number;
   quantity?: number;
   minStock?: number;
   maxStock?: number;
   unitCost: number;
   unit?: string;
-  location?: string;
   lastMovement?: string;
 }
 
@@ -35,7 +35,7 @@ export interface InventoryFilters extends BaseFilters {
   warehouse?: WarehouseType;
   minStock?: number;
   maxStock?: number;
-  location?: string;
+  warehouse_location_id?: number;
 }
 
 export interface WarehouseLocation extends BaseEntity {
@@ -55,3 +55,65 @@ export interface CreateWarehouseLocationDto {
 }
 
 export interface UpdateWarehouseLocationDto extends Partial<CreateWarehouseLocationDto> {}
+
+export interface WarehouseMovement {
+  id: number;
+  inventory_item_id: number;
+  movement_type: "income" | "expense" | "adjustment" | "transfer";
+  quantity: number;
+  warehouse_location_id: number | null;
+  warehouse_location_to_id: number | null;
+  reference_type: string | null;
+  reference_id: number | null;
+  notes: string | null;
+  performed_by: string | null;
+  status: "pending" | "completed" | "cancelled";
+  created_at: string;
+  updated_at: string;
+  inventoryItem?: {
+    id: number;
+    code: string;
+    name: string;
+    unit: string;
+  };
+  warehouseLocation?: {
+    id: number;
+    name: string;
+    zone: string;
+  };
+  warehouseLocationTo?: {
+    id: number;
+    name: string;
+    zone: string;
+  };
+}
+
+export interface CreateWarehouseMovementDto {
+  inventory_item_id: number;
+  movement_type: "income" | "expense" | "adjustment" | "transfer";
+  quantity: number;
+  warehouse_location_id?: number;
+  warehouse_location_to_id?: number;
+  reference_type?: string;
+  reference_id?: number;
+  notes?: string;
+  performed_by?: string;
+  status?: "pending" | "completed" | "cancelled";
+}
+
+export interface WarehouseMovementFilters {
+  movement_type?: string;
+  inventory_item_id?: number;
+  status?: string;
+  search?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+export interface WarehouseMovementStats {
+  total_income: number;
+  total_expense: number;
+  net_movement: number;
+  total_adjustments: number;
+  pending_movements: number;
+}

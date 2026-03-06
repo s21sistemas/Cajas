@@ -22,32 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
-
-interface WarehouseMovement {
-  id: number;
-  inventory_item_id: number;
-  movement_type: "income" | "expense" | "adjustment" | "transfer";
-  quantity: number;
-  warehouse_location_id: number | null;
-  warehouse_location_to_id: number | null;
-  reference_type: string | null;
-  reference_id: number | null;
-  notes: string | null;
-  performed_by: string | null;
-  status: "pending" | "completed" | "cancelled";
-  created_at: string;
-  inventoryItem?: {
-    id: number;
-    code: string;
-    name: string;
-    unit: string;
-  };
-  warehouseLocation?: {
-    id: number;
-    name: string;
-    zone: string;
-  };
-}
+import type { WarehouseMovement } from "@/lib/types";
 
 interface MovimientosTableProps {
   movements: WarehouseMovement[];
@@ -89,8 +64,10 @@ export function MovimientosTable({
   onPageChange,
   loading = false 
 }: MovimientosTableProps) {
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr: string | undefined | null) => {
+    if (!dateStr) return "-";
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "-";
     return new Intl.DateTimeFormat("es-MX", {
       day: "2-digit",
       month: "2-digit",
@@ -203,7 +180,7 @@ export function MovimientosTable({
                         {movement.warehouseLocation?.name || "-"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {movement.warehouse_location_to_id ? "Transferencia" : "-"}
+                        {movement.warehouseLocationTo?.name || (movement.warehouse_location_to_id ? "Transferencia" : "-")}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {movement.reference_type || "-"}

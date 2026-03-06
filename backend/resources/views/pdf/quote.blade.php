@@ -9,6 +9,9 @@
         html, body { width: 100%; font-family: Arial, sans-serif; font-size: 11px; color: #333; }
         .container { width: 100%; max-width: 95%; margin: 0 auto; padding: 10px; }
         .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 2px solid #333; padding-bottom: 12px; }
+        .logo-container { width: 150px; }
+        .logo-container img { max-width: 100%; height: auto; }
+        .company-info { flex: 1; margin-left: 15px; }
         .company-info h1 { font-size: 20px; color: #2c3e50; margin-bottom: 4px; }
         .company-info p { font-size: 10px; margin: 2px 0; }
         .quote-info { text-align: right; }
@@ -39,6 +42,11 @@
 <body>
     <div class="container">
         <div class="header">
+            <div class="logo-container">
+                @if(!empty($logoUrl))
+                <img src="{{ $logoUrl }}" alt="Logo">
+                @endif
+            </div>
             <div class="company-info">
                 <h1>{{ $company['name'] ?? 'EMPRESA' }}</h1>
                 <p>RFC: {{ $company['rfc'] ?? 'XXX000000XXX' }}</p>

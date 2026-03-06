@@ -20,6 +20,7 @@ export { settingsService } from './settings.service';
 export { usersService, rolesService, permissionsService } from './users.service';
 export { vehiclesService } from './vehicles.service';
 export { deliveriesService } from './deliveries.service';
+export { orderPedidoService } from './order-pedido.service';
 export { productionService } from './production.service';
 export { quotesService, type QuoteStats } from './quotes.service';
 export { salesService } from './sales.service';

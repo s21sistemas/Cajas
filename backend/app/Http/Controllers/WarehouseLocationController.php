@@ -56,6 +56,17 @@ class WarehouseLocationController extends Controller implements HasMiddleware
         return response()->json($query->paginate($perPage));
     }
 
+    public function selectList(Request $request)
+    {
+        $query = WarehouseLocation::orderBy('name');
+
+        if ($request->has('search') && $request->search) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+
+        return response()->json($query->get());
+    }
+
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [

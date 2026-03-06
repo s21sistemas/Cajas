@@ -21,4 +21,9 @@ class WarehouseLocation extends Model
         'capacity' => 'decimal:2',
         'occupancy' => 'decimal:2',
     ];
+
+    public function location()
+    {
+        return $this->belongsTo(WarehouseLocation::class, 'warehouse_location_id');
+    }
 }

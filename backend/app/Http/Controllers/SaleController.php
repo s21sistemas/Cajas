@@ -135,47 +135,7 @@ class SaleController extends Controller implements HasMiddleware
             'status' => 'pending',
             'concept' => 'Venta #' . $sale->code,
         ]);
-
-        // // Si el tipo de pago es contado (cash), crear el payment y actualizar banco y movements
-        // if (!$isCredit) {
-        //     // Buscar cuenta bancaria asignada (opcionalmente puedes requerirla si es contado)
-        //     if (!empty($data['bank_account_id'])) {
-        //         // $bankAccount = \App\Models\BankAccount::find($data['bank_account_id']);
-        //         // if ($bankAccount) {
-        //             // Crear payment
-        //             $paymentCode = 'PAG-' . date('Ymd') . '-' . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT);
-        //             $payment = \App\Models\Payment::create([
-        //                 'code' => $paymentCode,
-        //                 'sale_id' => $sale->id,
-        //                 'amount' => $sale->total,
-        //                 'payment_method' => $data['payment_method'] ?? 'Efectivo',
-        //                 'reference' => $data['reference'] ?? null,
-        //                 'notes' => $data['notes'] ?? null,
-        //                 'payment_date' => now()->toDateString(),
-        //                 'status' => 'completed',
-        //             ]);
-
-        //             // // Incrementar saldo de cuenta bancaria
-        //             // $bankAccount->increment('balance', $sale->total);
-        //             // $bankAccount->refresh();
-
-        //             // // Crear movimiento vinculado al pago
-        //             // \App\Models\Movement::create([
-        //             //     'type' => 'income',
-        //             //     'bank_account_id' => $bankAccount->id,
-        //             //     'balance' => $bankAccount->balance,
-        //             //     'amount' => $sale->total,
-        //             //     'description' => 'Pago de venta contado #' . $sale->code . ' - Pago #' . $paymentCode,
-        //             //     'reference' => $paymentCode,
-        //             //     'date' => now()->toDateString(),
-        //             //     'status' => 'completed',
-        //             //     'movementable_type' => \App\Models\Payment::class,
-        //             //     'movementable_id' => $payment->id,
-        //             // ]);
-        //         // }
-        //     }
-        // }
-
+        
         return response()->json($sale->load('saleItems'), 201);
     }
 
@@ -198,7 +158,10 @@ class SaleController extends Controller implements HasMiddleware
             $company[$setting->key] = $setting->value;
         }
         
-        $pdf = Pdf::loadView('pdf.sale', compact('sale', 'company'));
+        // URL del logo
+        $logoUrl = asset('villazco_logo.jpeg');
+        
+        $pdf = Pdf::loadView('pdf.sale', compact('sale', 'company', 'logoUrl'));
         
         // Configurar PDF horizontal (landscape) con márgenes adecuados
         $pdf->setPaper('a4', 'landscape')->setOption('margin-top', 15)->setOption('margin-bottom', 15)->setOption('margin-left', 15)->setOption('margin-right', 15);
@@ -294,38 +257,15 @@ class SaleController extends Controller implements HasMiddleware
             }
         }
         
-        // Si el status cambia a 'paid', registrar el movimiento financiero
-        // if ($newStatus === 'paid' && $oldStatus !== 'paid') {
-            // if ($newPaymentType === 'cash' || $oldPaymentType === 'cash') {
-            //     // Venta de contado: crear Movement
-            //     $bankAccountId = $data['bank_account_id'] ?? null;
-                
-            //     if ($bankAccountId) {
-            //         $balance = 
-            //         Movement::create([
-            //             'type' => 'income',
-            //             'balance' => $balance,
-            //             'bank_account_id' => $bankAccountId,
-            //             'amount' => $sale->total,
-            //             'description' => 'Pago de venta #' . $sale->code,
-            //             'reference' => $sale->code,
-            //             'date' => now()->toDateString(),
-            //             'status' => 'completed',
-            //         ]);
-            //     }
-            // }
-            
-            // Actualizar AccountStatement
-            // $accountStatement = $sale->accountStatement;
-            // if ($accountStatement) {
-            //     $accountStatement->update([
-            //         'paid' => $sale->total,
-            //         'balance' => 0,
-            //         'status' => 'paid',
-            //         'payment_date' => now()->toDateString(),
-            //     ]);
-            // }
-        // // }
+       $accountStatement = $sale->accountStatement;
+        if ($accountStatement) {
+            $accountStatement->update([
+                'paid' => $sale->total,
+                'balance' => 0,
+                'status' => 'paid',
+                'due_date' => now()->toDateString(),
+            ]);
+        }
         
         return response()->json($sale->load(['client', 'quote', 'saleItems']));
     }
@@ -354,10 +294,14 @@ class SaleController extends Controller implements HasMiddleware
         // Generar código único para el pago
         $code = 'PAG-' . date('Ymd') . '-' . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT);
 
-        // Crear el pago
+        // Obtener la cuenta por cobrar relacionada
+        $accountStatement = $sale->accountStatement;
+
+        // Crear el pago vinculado al account_statement
         $payment = Payment::create([
             'code' => $code,
             'sale_id' => $sale->id,
+            'account_statement_id' => $accountStatement?->id,
             'bank_account_id' => $data['bank_account_id'],
             'amount' => $data['amount'],
             'payment_method' => $data['payment_method'],
@@ -365,6 +309,7 @@ class SaleController extends Controller implements HasMiddleware
             'notes' => $data['notes'] ?? null,
             'payment_date' => $data['payment_date'],
             'status' => 'completed',
+            'type' => 'receivable',
         ]);
 
         // $bankAccount = BankAccount::find($data['bank_account_id'])->increment('balance', $data['amount']);

@@ -6,6 +6,8 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { productionService } from "@/lib/services/production.service";
+import { clientsService } from "@/lib/services/clients.service";
+import { salesService } from "@/lib/services/sales.service";
 import type { ProductionOrder } from "@/lib/types/production.types";
 import {
   ProductionStats,
@@ -60,6 +62,14 @@ export default function ProduccionPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterClient, setFilterClient] = useState<string>("all");
+  const [filterSale, setFilterSale] = useState<string>("all");
+  const [filterWorkOrder, setFilterWorkOrder] = useState<string>("all");
+  const [filterProcess, setFilterProcess] = useState<string>("all");
+  const [filterMachine, setFilterMachine] = useState<string>("all");
+  const [filterOperator, setFilterOperator] = useState<string>("all");
+  const [clients, setClients] = useState<{ id: number; name: string }[]>([]);
+  const [sales, setSales] = useState<{ id: number; code: string }[]>([]);
   
   // Dialogs state
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -82,13 +92,15 @@ export default function ProduccionPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [productionsData, processesData, machinesData, operatorsData, workOrdersData, productsData] = await Promise.all([
+        const [productionsData, processesData, machinesData, operatorsData, workOrdersData, productsData, clientsData, salesData] = await Promise.all([
           productionService.getAll().catch(() => []),
           productionService.getProcesses().catch(() => DEFAULT_PROCESSES as any),
           productionService.getMachines().catch(() => DEFAULT_MACHINES as any),
           productionService.getOperators().catch(() => DEFAULT_OPERATORS as any),
           productionService.getWorkOrders().catch(() => []),
           productionService.getProducts().catch(() => []),
+          clientsService.getAll().catch(() => []),
+          salesService.getAll().catch(() => []),
         ]);
         
         setProductions(productionsData || []);
@@ -97,6 +109,12 @@ export default function ProduccionPage() {
         setOperators(operatorsData || DEFAULT_OPERATORS);
         setWorkOrders(workOrdersData || []);
         setProducts(productsData || []);
+        
+        // Extraer clientes y ventas de los datos paginados
+        const clientsList = clientsData?.data || clientsData || [];
+        const salesList = salesData?.data || salesData || [];
+        setClients(clientsList.map((c: any) => ({ id: c.id, name: c.name })));
+        setSales(salesList.map((s: any) => ({ id: s.id, code: s.code || s.invoice || `Venta-${s.id}` })));
       } catch (error) {
         console.error("Error cargando datos:", error);
       } finally {
@@ -112,7 +130,10 @@ export default function ProduccionPage() {
       p.processName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.code?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = filterStatus === "all" || p.status === filterStatus;
-    return matchSearch && matchStatus;
+    const matchClient = filterClient === "all" || Number(p.client?.id) === Number(filterClient) || Number(p.workOrder?.client?.id) === Number(filterClient);
+    const matchSale = filterSale === "all" || Number(p.sale?.id) === Number(filterSale) || Number(p.workOrder?.sale?.id) === Number(filterSale);
+    const matchWorkOrder = filterWorkOrder === "all" || Number(p.workOrderId) === Number(filterWorkOrder) || (p.workOrder?.id !== undefined && Number(p.workOrder.id) === Number(filterWorkOrder));
+    return matchSearch && matchStatus && matchClient && matchSale && matchWorkOrder;
   });
 
   // Handlers de acciones
@@ -138,7 +159,7 @@ export default function ProduccionPage() {
         targetParts: form.targetParts,
         notes: form.notes || undefined,
         startTime: new Date().toISOString(),
-        workOrderId: form.workOrderId ? parseInt(form.workOrderId) : null,
+        workOrderId: form.workOrderId ? parseInt(form.workOrderId) : undefined,
         parentProductionId: form.parentProductionId ? parseInt(form.parentProductionId) : null,
       });
       
@@ -386,6 +407,15 @@ export default function ProduccionPage() {
             filterStatus={filterStatus}
             onFilterStatusChange={setFilterStatus}
             onCreateClick={() => setShowCreateDialog(true)}
+            clients={clients}
+            selectedClient={filterClient}
+            onClientChange={setFilterClient}
+            sales={sales}
+            selectedSale={filterSale}
+            onSaleChange={setFilterSale}
+            workOrders={workOrders.map((wo: any) => ({ id: wo.id, code: wo.code }))}
+            selectedWorkOrder={filterWorkOrder}
+            onWorkOrderChange={setFilterWorkOrder}
           />
 
           {/* Production Cards */}

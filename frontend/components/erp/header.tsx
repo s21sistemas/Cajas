@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { notificationsService, type AppNotification } from "@/lib/services/notifications.service";
 
 interface HeaderProps {
-  title: string;
+  title?: string;
   subtitle?: string;
 }
 

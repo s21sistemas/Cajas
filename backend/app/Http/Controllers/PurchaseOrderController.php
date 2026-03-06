@@ -107,8 +107,15 @@ class PurchaseOrderController extends Controller
         $data['priority'] = $data['priority'] ?? 'medium';
         $data['requested_by'] = $data['requested_by'] ?? 'Sistema';
 
-        $item = PurchaseOrder::create($data)->load('supplier');
-        return response()->json($item, 201);
+        $purchaseOrder = PurchaseOrder::create($data)->load('supplier');
+        
+        // Crear registro en el estado de cuenta del proveedor al crear la orden
+        // Solo si el estado es diferente de draft (draft es pendiente de aprobación)
+        if ($purchaseOrder->status !== 'draft') {
+            $this->createSupplierStatementFromOrder($purchaseOrder);
+        }
+        
+        return response()->json($purchaseOrder->load('supplier'), 201);
     }
 
     public function show(PurchaseOrder $purchaseOrder)
@@ -215,6 +222,7 @@ class PurchaseOrderController extends Controller
         // Crear registro en el estado de cuenta
         SupplierStatement::create([
             'invoice_number' => $order->code,
+            'purchase_order_id' => $order->id,
             'supplier_id' => $order->supplier_id,
             'supplier_name' => $order->supplier_name,
             'date' => now()->toDateString(),
@@ -229,6 +237,89 @@ class PurchaseOrderController extends Controller
         // Actualizar el saldo del proveedor
         $supplier->balance = ($supplier->balance ?? 0) + $order->total;
         $supplier->save();
+    }
+
+    /**
+     * Registra un pago a proveedor (cuenta por pagar)
+     */
+    public function recordPayment(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        $validator = Validator::make($request->all(), [
+            'bank_account_id' => 'required|exists:bank_accounts,id',
+            'amount' => 'required|numeric|min:0.01',
+            'payment_method' => 'required|string|max:255',
+            'reference' => 'nullable|string|max:255',
+            'notes' => 'nullable|string',
+            'payment_date' => 'required|date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $data = $validator->validated();
+
+        // Generar código único para el pago
+        $code = 'PAG-PROV-' . date('Ymd') . '-' . str_pad(random_int(1, 9999), 4, '0', STR_PAD_LEFT);
+
+        // Obtener el supplier statement relacionado
+        $supplierStatement = $purchaseOrder->supplierStatement;
+
+        // Crear el pago vinculado al supplier_statement
+        $payment = \App\Models\Payment::create([
+            'code' => $code,
+            'purchase_order_id' => $purchaseOrder->id,
+            'supplier_statement_id' => $supplierStatement?->id,
+            'bank_account_id' => $data['bank_account_id'],
+            'amount' => $data['amount'],
+            'payment_method' => $data['payment_method'],
+            'reference' => $data['reference'] ?? null,
+            'notes' => $data['notes'] ?? null,
+            'payment_date' => $data['payment_date'],
+            'status' => 'completed',
+            'type' => 'payable',
+        ]);
+
+        // Crear el movimiento en finanzas (egreso)
+        // Movement::create([
+        //     'type' => 'expense',
+        //     'bank_account_id' => $data['bank_account_id'],
+        //     'amount' => $data['amount'],
+        //     'description' => 'Pago a proveedor - Orden #' . $purchaseOrder->code . ' - Pago #' . $code,
+        //     'reference' => $code,
+        //     'date' => $data['payment_date'],
+        //     'status' => 'completed',
+        //     'movementable_type' => \App\Models\Payment::class,
+        //     'movementable_id' => $payment->id,
+        // ]);
+
+        // Actualizar la cuenta por pagar si existe
+        if ($supplierStatement) {
+            $newPaid = $supplierStatement->paid + $data['amount'];
+            $newBalance = max(0, $supplierStatement->amount - $newPaid);
+            
+            $supplierStatement->update([
+                'paid' => $newPaid,
+                'balance' => $newBalance,
+                'status' => $newBalance <= 0 ? 'paid' : 'pending',
+            ]);
+        }
+
+        // Verificar si la orden está completamente pagada
+        $totalPaid = $purchaseOrder->payments()->sum('amount');
+        if ($totalPaid >= $purchaseOrder->total) {
+            $purchaseOrder->update(['status' => 'paid']);
+        }
+
+        return response()->json($payment->load(['purchaseOrder', 'bankAccount']), 201);
+    }
+
+    /**
+     * Obtener los pagos de una orden de compra
+     */
+    public function getPayments(PurchaseOrder $purchaseOrder)
+    {
+        return response()->json($purchaseOrder->load(['payments', 'payments.bankAccount']));
     }
 
     public function destroy(PurchaseOrder $purchaseOrder)

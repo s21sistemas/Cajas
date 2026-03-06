@@ -130,21 +130,10 @@ export function MaterialForm({ material, onSuccess, onCancel }: MaterialFormProp
           name="category"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Categoría</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar categoría" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="raw_material">Materia Prima</SelectItem>
-                  <SelectItem value="component">Componente</SelectItem>
-                  <SelectItem value=" consumable">Consumible</SelectItem>
-                  <SelectItem value="packing">Empaque</SelectItem>
-                  <SelectItem value="other">Otro</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormLabel>Categoria *</FormLabel>
+              <FormControl>
+                <Input placeholder="Materia Prima" {...field} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -196,23 +185,9 @@ export function MaterialForm({ material, onSuccess, onCancel }: MaterialFormProp
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Unidad</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="pza">Pieza</SelectItem>
-                    <SelectItem value="kg">Kilogramo</SelectItem>
-                    <SelectItem value="ton">Tonelada</SelectItem>
-                    <SelectItem value="metro">Metro</SelectItem>
-                    <SelectItem value="roll">Rollo</SelectItem>
-                    <SelectItem value="hoja">Hoja</SelectItem>
-                    <SelectItem value="par">Par</SelectItem>
-                    <SelectItem value="litro">Litro</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <Input placeholder="Pza" {...field} />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}

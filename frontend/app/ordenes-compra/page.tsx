@@ -65,7 +65,7 @@ function OrdenesCompraPageInner() {
 
   // Fetch suppliers and materials for the form (prefetch once)
   const { data: suppliersData, loading: suppliersLoading } = useApiQuery(
-    () => suppliersService.getAll({ perPage: 1000 }),
+    () => suppliersService.selectList(),
     { enabled: true }
   );
   const { data: materialsData, loading: materialsLoading } = useApiQuery(
@@ -73,7 +73,7 @@ function OrdenesCompraPageInner() {
     { enabled: true }
   );
 
-  const suppliers = suppliersData?.data || [];
+  const suppliers = suppliersData || [];
   const materials = materialsData || [];
 
   const orders = ordersResponse?.data || [];

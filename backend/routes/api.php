@@ -50,6 +50,7 @@ use App\Http\Controllers\QualityController;
 use App\Http\Controllers\EmployeeAccountController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\DeliveryController;
+use App\Http\Controllers\OrderPedidoController;
 use App\Http\Controllers\NotificationController;
 
 // Route::get('/user', function (Request $request) {
@@ -111,6 +112,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/machines/{machine}/maintenance/complete', [MachineController::class, 'completeMaintenance']);
     Route::get('/machines/utilization', [MachineController::class, 'utilization']);    
     Route::apiResource('machines', MachineController::class);
+    Route::get('/machines/{machine}/movements', [MachineController::class, 'movements']);
+    Route::get('/machines/{machine}/movements/report', [MachineController::class, 'movementsReport']);
 
     // Machine Movements - Tracking de uso de máquinas
     // IMPORTANTE: Rutas específicas deben estar ANTES del apiResource
@@ -138,7 +141,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Producciones
     Route::post('/productions/{production}/complete-to-inventory', [ProductionController::class, 'completeToInventory']);
-    Route::apiResource('productions', ProductionController::class);
+    Route::apiResource('productions', ProductionController::class)->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
 
     // Rutas MES para producciones
     Route::post('/productions/{production}/complete', [ProductionController::class, 'complete']);
@@ -190,6 +193,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Warehouse - Almacén
     Route::get('/warehouse-locations/stats', [WarehouseLocationController::class, 'stats']);
+    Route::get('/warehouse-locations/select-list', [WarehouseLocationController::class, 'selectList']);
     Route::get('/warehouse-locations/available', [WarehouseLocationController::class, 'available']);
     Route::get('/warehouse-locations/{warehouseLocation}/occupancy', [WarehouseLocationController::class, 'occupancy']);
     Route::apiResource('warehouse-locations', WarehouseLocationController::class);
@@ -212,10 +216,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Suppliers / purchasing    
     Route::get('/suppliers/stats', [SupplierController::class, 'stats']);
+    Route::get('/suppliers/select-list', [SupplierController::class, 'selectListSuppliers']);
     Route::apiResource('suppliers', SupplierController::class);
     Route::apiResource('supplier-statements', SupplierStatementController::class);
     Route::apiResource('purchase-orders', PurchaseOrderController::class);
     Route::get('/purchase-orders/stats', [PurchaseOrderController::class, 'stats']);
+    Route::post('/purchase-orders/{purchase_order}/payment', [PurchaseOrderController::class, 'recordPayment']);
+    Route::get('/purchase-orders/{purchase_order}/payments', [PurchaseOrderController::class, 'getPayments']);
 
     // Finance
     Route::apiResource('bank-accounts', BankAccountController::class);
@@ -253,19 +260,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('employee-accounts', EmployeeAccountController::class);
 
     // Maintenance / Production planning
-    Route::apiResource('maintenance-orders', MaintenanceOrderController::class);
     Route::patch('/maintenance-orders/{maintenanceOrder}/start', [MaintenanceOrderController::class, 'start']);
     Route::patch('/maintenance-orders/{maintenanceOrder}/complete', [MaintenanceOrderController::class, 'complete']);
     Route::get('/maintenance-orders/stats', [MaintenanceOrderController::class, 'stats']);
     Route::get('/maintenance-orders/upcoming', [MaintenanceOrderController::class, 'upcoming']);
     Route::get('/maintenance-orders/machine/{machine}', [MaintenanceOrderController::class, 'byMachine']);
+    Route::apiResource('maintenance-orders', MaintenanceOrderController::class);
     
     // Work Orders - custom routes first (before apiResource to avoid conflicts)
     Route::get('/work-orders/available-products', [WorkOrderController::class, 'getAvailableProducts']);
-    Route::get('/work-orders/select-list', [WorkOrderController::class, 'selectListWorkOrders']);
+    Route::get('/work-orders/select-list', [WorkOrderController::class, 'selectListWorkOrders'])
+        ->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
     Route::get('/work-orders/{workOrder}/pipeline-status', [WorkOrderController::class, 'getPipelineStatus']);
     Route::get('/work-orders/stats', [WorkOrderController::class, 'stats']);
-    Route::apiResource('work-orders', WorkOrderController::class);
+    Route::apiResource('work-orders', WorkOrderController::class)->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
     
     // Quality Evaluations - MES
     Route::get('/quality/pending', [QualityController::class, 'pendingEvaluations']);
@@ -281,6 +289,15 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Deliveries
     Route::apiResource('deliveries', DeliveryController::class);
+
+    // Órdenes de Pedido
+    Route::get('/order-pedidos/stats', [OrderPedidoController::class, 'stats']);
+    Route::get('/order-pedidos/available', [OrderPedidoController::class, 'available']);
+    Route::get('/order-pedidos/my-orders', [OrderPedidoController::class, 'myOrders']);
+    Route::post('/order-pedidos/{id}/assign', [OrderPedidoController::class, 'assign']);
+    Route::post('/order-pedidos/{id}/pick-up', [OrderPedidoController::class, 'pickUp']);
+    Route::post('/order-pedidos/{id}/deliver', [OrderPedidoController::class, 'deliver']);
+    Route::apiResource('order-pedidos', OrderPedidoController::class);
 
     // Notifications
     Route::get('/notifications', [NotificationController::class, 'index']);

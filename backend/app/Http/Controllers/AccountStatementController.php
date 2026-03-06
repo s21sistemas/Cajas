@@ -39,9 +39,9 @@ class AccountStatementController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $perPage = $request->integer('per_page', 1);
+        $perPage = $request->integer('per_page', 100);
         
-        $query = AccountStatement::with('client', 'sale');
+        $query = AccountStatement::with(['client', 'sale', 'payments']);
         
         // Filtros
         if ($request->filled('search')) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +54,15 @@ const statusLabels: Record<string, { label: string; class: string }> = {
 
 const formatDate = (date: string | null) => {
   if (!date) return "-";
-  return date;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
 };
 
 interface MantenimientoTableProps {
@@ -87,6 +96,29 @@ export function MantenimientoTable({
   onCancel,
   loading = false,
 }: MantenimientoTableProps) {
+  // Estado para actualizar el tiempo cada segundo
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Actualizar el tiempo cada segundo si hay mantenimientos en progreso
+  useEffect(() => {
+    const hasInProgress = items.some(item => item.status === "in-progress");
+    if (!hasInProgress) return;
+
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [items]);
+
+  // Función para calcular las horas transcurridas en tiempo real
+  const calculateElapsedHours = (startDate: string | null): number => {
+    if (!startDate) return 0;
+    const start = new Date(startDate);
+    const diffMs = currentTime.getTime() - start.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    return Math.round(diffHours * 100) / 100; // 2 decimales
+  };
   const getTypeBadge = (type: string) => {
     const config = typeLabels[type] || { label: type, class: "bg-gray-500/20 text-gray-400" };
     return <Badge className={config.class}>{config.label}</Badge>;
@@ -202,18 +234,43 @@ export function MantenimientoTable({
                           <Progress
                             value={
                               item.estimatedHours
-                                ? ((item.actualHours || 0) / item.estimatedHours) * 100
+                                ? Math.min(((calculateElapsedHours(item.startDate) || 0) / item.estimatedHours) * 100, 100)
                                 : 0
                             }
-                            className="h-2"
+                            className={`h-2 ${(calculateElapsedHours(item.startDate) || 0) > item.estimatedHours ? 'bg-red-500' : ''}`}
                           />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {item.actualHours || 0}/{item.estimatedHours}h
+                          <p className={`text-xs mt-1 ${(calculateElapsedHours(item.startDate) || 0) > item.estimatedHours ? 'text-red-400' : 'text-muted-foreground'}`}>
+                            {calculateElapsedHours(item.startDate) || 0}h / {item.estimatedHours}h
+                            {(calculateElapsedHours(item.startDate) || 0) > item.estimatedHours && (
+                              <span className="ml-1">⚠️</span>
+                            )}
                           </p>
                         </div>
                       )}
                       {item.status === "completed" && (
-                        <span className="text-green-400 text-sm">100%</span>
+                        <div className="w-24">
+                          {item.estimatedHours ? (
+                            <Progress
+                              value={Math.min(((Number(item.actualHours) || 0) / item.estimatedHours) * 100, 100)}
+                              className={`h-2 ${(Number(item.actualHours) || 0) > item.estimatedHours ? 'bg-red-500' : ''}`}
+                            />
+                          ) : (
+                            <Progress value={0} className="h-2" />
+                          )}
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className={(Number(item.actualHours) || 0) > (item.estimatedHours || 0) ? "text-red-400 text-xs" : "text-green-400 text-xs"}>
+                              {item.actualHours != null ? Number(item.actualHours).toFixed(2) + 'h' : '-'}
+                            </span>
+                            {item.estimatedHours && (
+                              <span className="text-muted-foreground text-xs">/ {item.estimatedHours}h</span>
+                            )}
+                            {(Number(item.actualHours) || 0) > (item.estimatedHours || 0) && (
+                              <span className="text-xs text-red-400" title={`Excedido por ${(Number(item.actualHours) || 0) - (item.estimatedHours || 0)}h`}>
+                                ⚠️
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       )}
                       {(item.status === "scheduled" || item.status === "cancelled") && (
                         <span className="text-muted-foreground text-sm">-</span>

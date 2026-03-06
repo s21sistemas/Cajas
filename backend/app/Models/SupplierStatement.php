@@ -34,4 +34,14 @@ class SupplierStatement extends Model
     {
         return $this->belongsTo(Supplier::class);
     }
+
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
 }

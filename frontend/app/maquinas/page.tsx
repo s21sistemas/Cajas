@@ -46,7 +46,7 @@ import {
   MapPin,
   Tag,
 } from "lucide-react";
-import { machinesService } from "@/lib/services";
+import { machinesService, settingsService } from "@/lib/services";
 import type { Machine, CreateMachineDto } from "@/lib/types/machine.types";
 import { cn } from "@/lib/utils";
 
@@ -106,6 +106,7 @@ export default function MaquinasPage() {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
+  const [machinesDeletePin, setMachinesDeletePin] = useState<string | null>(null);
 
   const [newForm, setNewForm] = useState({ code: "", name: "", type: "", brand: "", model: "", location: "", notes: "" });
   const [configForm, setConfigForm] = useState({ name: "", type: "", brand: "", model: "", location: "", notes: "" });
@@ -113,6 +114,28 @@ export default function MaquinasPage() {
 
   // Refs for search debounce
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load settings for PIN
+  const loadSettings = async () => {
+    try {
+      console.log("[Settings] Loading production settings...");
+      const response = await settingsService.getByModule("production") as any;
+      console.log("[Settings] Raw response:", response);
+      
+      if (response && response.settings) {
+        const pinValue = response.settings.machinesDeletePin;
+        console.log("[Settings] PIN value from settings:", pinValue);
+        setMachinesDeletePin(pinValue || null);
+        console.log("[Settings] State updated to:", pinValue || null);
+      } else {
+        console.log("[Settings] No settings found, setting PIN to null");
+        setMachinesDeletePin(null);
+      }
+    } catch (error) {
+      console.error("[Settings] Error loading settings:", error);
+      setMachinesDeletePin(null);
+    }
+  };
 
   // Fetch machines
   const fetchMachines = async (search: string = "") => {
@@ -150,6 +173,7 @@ export default function MaquinasPage() {
   useEffect(() => {
     fetchMachines();
     fetchStats();
+    loadSettings();
   }, []);
 
   // Search debounce
@@ -333,11 +357,11 @@ export default function MaquinasPage() {
     setConfirmDeleteOpen(true);
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = async (pin?: string) => {
     if (!selectedMachine) return;
     setActionLoading(selectedMachine.id);
     try {
-      await machinesService.delete(selectedMachine.id);
+      await machinesService.delete(selectedMachine.id, pin);
       showToast("success", "Máquina eliminada", selectedMachine.code);
       setSelectedMachine(null);
       setConfirmDeleteOpen(false);
@@ -713,7 +737,10 @@ export default function MaquinasPage() {
         description={`¿Estás seguro de eliminar "${selectedMachine?.code}"? Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
         variant="destructive"
-        onConfirm={confirmDelete}
+        showPinInput={!!machinesDeletePin}
+        pinPlaceholder="Ingrese PIN de confirmación"
+        onConfirmWithPin={(pin) => confirmDelete(pin)}
+        onConfirm={() => confirmDelete()}
       />
     </ERPLayout>
   );

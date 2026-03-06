@@ -56,10 +56,23 @@ function transformProductionToOrder(production: Production): ProductionOrder {
     processName: production.process?.name || 'Proceso',
     processType: production.process?.processType || production.process?.name || 'Proceso',
     requiresMachine: production.process?.requiresMachine ?? true,
+    processId: production.process_id,
+    process: production.process ? { id: production.process.id, name: production.process.name } : undefined,
     machineId: production.machine_id ?? null,
     machineName: production.machine?.name || null,
+    machine: production.machine ? { id: production.machine.id, name: production.machine.name } : undefined,
     operatorId: production.operator_id ?? null,
     operatorName: production.operator?.name || 'Sin operador',
+    operator: production.operator ? { id: production.operator.id, name: production.operator.name } : undefined,
+    workOrderId: production.work_order_id || undefined,
+    workOrder: production.work_order ? {
+      id: production.work_order.id,
+      code: production.work_order.code || '',
+      client: production.work_order.client ? { id: production.work_order.client.id, name: production.work_order.client.name } : undefined,
+      sale: production.work_order.sale ? { id: production.work_order.sale.id, code: production.work_order.sale.code || '' } : undefined,
+    } : undefined,
+    client: production.client ? { id: production.client.id, name: production.client.name } : (production.work_order?.client ? { id: production.work_order.client.id, name: production.work_order.client.name } : undefined),
+    sale: production.sale ? { id: production.sale.id, code: production.sale.code || '' } : (production.work_order?.sale ? { id: production.work_order.sale.id, code: production.work_order.sale.code || '' } : undefined),
     status: production.status || 'pending',
     pauseReason: production.pause_reason || undefined,
     targetParts: production.target_parts || 0,
@@ -70,9 +83,9 @@ function transformProductionToOrder(production: Production): ProductionOrder {
     parentProductionId: production.parent_production_id || null,
     qualityStatus: production.quality_status || 'PENDING',
     // Nuevos campos
-    productName: production.work_order?.product?.name || production.work_order?.product_name || '',
-    clientName: production.work_order?.client?.name || production.work_order?.client_name || null,
-    saleCode: production.work_order?.sale?.invoice || null,
+    productName: production.product?.name || production.work_order?.product?.name || production.work_order?.product_name || '',
+    clientName: production.client?.name || production.work_order?.client?.name || production.work_order?.client_name || '',
+    saleCode: production.sale?.code || production.work_order?.sale?.invoice || '',
   };
 }
 

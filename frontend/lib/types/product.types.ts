@@ -9,6 +9,9 @@ export interface Product extends BaseEntity {
   price: number | null;
   cost: number | null;
   unit: string | null;
+  stock?: number;        // Campo del catálogo de productos
+  min_stock?: number;    // Campo del catálogo de productos (snake_case)
+  minStock?: number;    // Campo del catálogo de productos (camelCase)
   status: ProductStatus;
   materials?: ProductMaterial[];
   processes?: ProductProcess[];

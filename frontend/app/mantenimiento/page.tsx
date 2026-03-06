@@ -157,7 +157,7 @@ export default function MantenimientoPage() {
 
   const handleComplete = async (item: MaintenanceOrder) => {
     try {
-      await maintenanceService.complete(item.id, 0);
+      await maintenanceService.complete(item.id);
       showToast("success", "Mantenimiento completado", item.code);
       fetchItems();
       fetchStats();

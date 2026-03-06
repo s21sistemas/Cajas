@@ -20,6 +20,15 @@ export interface SupplierStatement {
   balance: number;
   status: 'paid' | 'pending' | 'overdue' | 'partial';
   concept: string;
+  payments?: Array<{
+    id: number;
+    code?: string;
+    amount: number;
+    payment_method: string;
+    reference?: string;
+    payment_date: string;
+    status: string;
+  }>;
 }
 
 export interface CreateSupplierStatementDto {
@@ -38,6 +47,11 @@ export const suppliersService = {
   // Get all suppliers with pagination and filters
   getAll: (filters?: SupplierFilters): Promise<PaginatedResponse<Supplier>> => {
     return api.get<PaginatedResponse<Supplier>>('/suppliers', filters);
+  },
+
+  // Get suppliers for select list
+  selectList: (): Promise<Supplier[]> => {
+    return api.get<Supplier[]>('/suppliers/select-list');
   },
 
   // Get supplier by ID
@@ -86,7 +100,7 @@ export const suppliersService = {
   },
 
   // Get supplier statements (estado de cuenta)
-  getStatements: (filters?: { supplier_id?: number; status?: string }): Promise<PaginatedResponse<SupplierStatement>> => {
+  getStatements: (filters?: { supplier_id?: number; status?: string; per_page?: number }): Promise<PaginatedResponse<SupplierStatement>> => {
     return api.get<PaginatedResponse<SupplierStatement>>('/supplier-statements', filters);
   },
 

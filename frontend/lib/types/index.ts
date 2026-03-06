@@ -15,3 +15,4 @@ export * from './purchase-order.types';
 export * from './service-order.types';
 export * from './maintenance.types';
 export * from './quote.types';
+export * from './order-pedido.types';

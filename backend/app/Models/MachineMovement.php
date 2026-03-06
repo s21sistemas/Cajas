@@ -12,6 +12,7 @@ class MachineMovement extends Model
 
     protected $fillable = [
         'machine_id',
+        'type',
         'production_id',
         'operator_id',
         'start_time',

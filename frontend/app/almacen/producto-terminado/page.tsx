@@ -13,6 +13,7 @@ import { ProductoTerminadoStatsCards } from "./components/ProductoTerminadoStats
 import { ProductoTerminadoTable } from "./components/ProductoTerminadoTable";
 import { ProductoTerminadoFormDialog } from "./components/ProductoTerminadoFormDialog";
 import { ProductoTerminadoMovimientoDialog } from "./components/ProductoTerminadoMovimientoDialog";
+import { TransferenciaDialog } from "./components/TransferenciaDialog";
 
 export default function ProductoTerminadoPage() {
   const { showToast } = useToast();
@@ -33,6 +34,10 @@ export default function ProductoTerminadoPage() {
   const [movementItem, setMovementItem] = useState<InventoryItem | null>(null);
   const [movementType, setMovementType] = useState<"production" | "sale">("production");
   
+  // Transfer dialog
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferItem, setTransferItem] = useState<InventoryItem | null>(null);
+  
   // Stats
   const [stats, setStats] = useState({
     totalItems: 0,
@@ -49,7 +54,7 @@ export default function ProductoTerminadoPage() {
   const fetchItems = useCallback(async (searchValue: string = "") => {
     setLoading(true);
     try {
-      const params: any = { per_page: 100, category: "finished_product" };
+      const params: any = { per_page: 100, warehouse: "finished_product" };
       if (searchValue && searchValue.trim()) {
         params.search = searchValue.trim();
       }
@@ -148,16 +153,32 @@ export default function ProductoTerminadoPage() {
     }
   };
 
-  const handleMovement = async (data: { quantity: number; reference?: string; notes?: string }) => {
+  const handleMovement = async (data: { 
+    quantity: number; 
+    reference?: string; 
+    notes?: string; 
+    performed_by?: string;
+  }) => {
     if (!movementItem) return;
     setSubmitting(true);
     try {
-      await inventoryService.recordMovement(Number(movementItem.id), {
-        type: movementType === "production" ? "in" : "out",
-        quantity: data.quantity,
-        reason: data.notes || data.reference || (movementType === "production" ? "Producción" : "Venta"),
-        reference: data.reference,
-      });
+      if (movementType === "production") {
+        await inventoryService.registerIncome({
+          inventory_item_id: Number(movementItem.id),
+          quantity: data.quantity,
+          reference_type: data.reference ? "production" : undefined,
+          notes: data.notes,
+          performed_by: data.performed_by,
+        });
+      } else {
+        await inventoryService.registerExpense({
+          inventory_item_id: Number(movementItem.id),
+          quantity: data.quantity,
+          reference_type: data.reference ? "sale" : undefined,
+          notes: data.notes,
+          performed_by: data.performed_by,
+        });
+      }
       showToast("success", 
         movementType === "production" ? "Producción registrada" : "Venta registrada", 
         ""
@@ -191,6 +212,44 @@ export default function ProductoTerminadoPage() {
     setMovementOpen(true);
   };
 
+  const openTransferModal = (item: InventoryItem) => {
+    setTransferItem(item);
+    setTransferOpen(true);
+  };
+
+  const handleTransfer = async (data: { 
+    quantity: number; 
+    warehouse_location_id: number;
+    warehouse_location_to_id: number;
+    reference?: string; 
+    notes?: string; 
+    performed_by?: string;
+  }) => {
+    if (!transferItem) return;
+    setSubmitting(true);
+    try {
+      await inventoryService.registerTransfer({
+        inventory_item_id: Number(transferItem.id),
+        quantity: data.quantity,
+        warehouse_location_id: data.warehouse_location_id,
+        warehouse_location_to_id: data.warehouse_location_to_id,
+        reference_type: data.reference ? "transfer" : undefined,
+        notes: data.notes,
+        performed_by: data.performed_by,
+      });
+      showToast("success", "Transferencia registrada", "");
+      setTransferOpen(false);
+      setTransferItem(null);
+      fetchItems(search);
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <ERPLayout title="Almacén de Productos Terminados" subtitle="Gestión de inventario de productos terminados">
       <div className="space-y-6">
@@ -222,6 +281,7 @@ export default function ProductoTerminadoPage() {
           onDelete={setDeletingItem}
           onEntry={openProductionModal}
           onExit={openSaleModal}
+          onTransfer={openTransferModal}
           loading={loading}
         />
 
@@ -250,6 +310,14 @@ export default function ProductoTerminadoPage() {
           description={`¿Estás seguro de que deseas eliminar "${deletingItem?.name}"? Esta acción no se puede deshacer.`}
           confirmText="Eliminar"
           variant="destructive"
+        />
+
+        <TransferenciaDialog
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
+          item={transferItem}
+          onSubmit={handleTransfer}
+          isLoading={submitting}
         />
       </div>
     </ERPLayout>

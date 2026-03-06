@@ -17,7 +17,7 @@ const productSchema = z.object({
   category: z.string().optional().default(''),
   price: z.number().min(0, 'El precio debe ser positivo').default(0),
   cost: z.number().min(0, 'El costo debe ser positivo').default(0),
-  status: z.enum(['diseño', 'en_producción', 'completado', 'active', 'inactive', 'discontinued']).default('diseño'),
+  status: z.enum(['active', 'inactive', 'discontinued']).default('active'),
   unit: z.string().optional().default(''),
 });
 
@@ -39,7 +39,7 @@ export function ProductForm({ defaultValues, onSubmit, isLoading }: ProductFormP
       category: defaultValues?.category || '',
       price: defaultValues?.price || 0,
       cost: defaultValues?.cost || 0,
-      status: (defaultValues?.status as ProductFormValues['status']) || 'diseño',
+      status: (defaultValues?.status as ProductFormValues['status']) || 'active',
       unit: defaultValues?.unit || '',
     },
   });
@@ -52,7 +52,7 @@ export function ProductForm({ defaultValues, onSubmit, isLoading }: ProductFormP
       category: data.category || undefined,
       price: data.price || undefined,
       cost: data.cost || undefined,
-      status: data.status || 'diseño',
+      status: data.status || 'active',
       unit: data.unit || undefined,
     };
     await onSubmit(submitData);
@@ -173,9 +173,6 @@ export function ProductForm({ defaultValues, onSubmit, isLoading }: ProductFormP
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="diseño">Diseño</SelectItem>
-                    <SelectItem value="en_producción">En Producción</SelectItem>
-                    <SelectItem value="completado">Completado</SelectItem>
                     <SelectItem value="active">Activo</SelectItem>
                     <SelectItem value="inactive">Inactivo</SelectItem>
                     <SelectItem value="discontinued">Descontinuado</SelectItem>
@@ -191,23 +188,9 @@ export function ProductForm({ defaultValues, onSubmit, isLoading }: ProductFormP
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Unidad</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="pza">Pieza</SelectItem>
-                    <SelectItem value="kg">Kilogramo</SelectItem>
-                    <SelectItem value="ton">Tonelada</SelectItem>
-                    <SelectItem value="metro">Metro</SelectItem>
-                    <SelectItem value="roll">Rollo</SelectItem>
-                    <SelectItem value="hoja">Hoja</SelectItem>
-                    <SelectItem value="par">Par</SelectItem>
-                    <SelectItem value="litro">Litro</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <Input placeholder="Pza" {...field} />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}

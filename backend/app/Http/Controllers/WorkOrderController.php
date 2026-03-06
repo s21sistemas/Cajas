@@ -159,16 +159,16 @@ class WorkOrderController extends Controller implements HasMiddleware
 
         $data = $validator->validated();
 
-         // Generar código si no se proporciona
+        // Generar código si no se proporciona
         if (empty($data['code'])) {
             $data['code'] = 'WO-' . str_pad(\App\Models\WorkOrder::max('id') + 1, 5, '0', STR_PAD_LEFT);
         }
-        
+
         // Si se proporciona sale_id, obtener información del cliente y venta
         $sale = null;
-        $saleItems = [];
         $isFromSale = !empty($data['sale_id']);
-        
+        $isFromProduct = !empty($data['product_id']);
+
         if ($isFromSale) {
             $sale = \App\Models\Sale::find($data['sale_id']);
             if ($sale) {
@@ -176,96 +176,32 @@ class WorkOrderController extends Controller implements HasMiddleware
                 if (empty($data['client_id'])) {
                     $data['client_id'] = $sale->client_id;
                 }
-                // Obtener todos los items de la venta
-                $saleItems = $sale->saleItems()->whereNotNull('product_id')->get();
             }
         }
-        
-        // Si viene de una venta y tiene productos, crear un WorkOrder por cada producto
-        if ($isFromSale && $saleItems->isNotEmpty()) {
-            $workOrders = [];
-            $allProductions = [];
-            
-            foreach ($saleItems as $saleItem) {
-                $product = \App\Models\Product::find($saleItem->product_id);
-                
-                $woData = [
-                    'code' => 'WO-' . str_pad(WorkOrder::max('id') + 1 + count($workOrders), 5, '0', STR_PAD_LEFT),
-                    'client_id' => $data['client_id'],
-                    'sale_id' => $data['sale_id'],
-                    'product_id' => $saleItem->product_id,
-                    'product_name' => $product?->name ?? 'Producto ' . $saleItem->product_id,
-                    'quantity' => $saleItem->quantity, // Usar cantidad del item de venta
-                    'status' => 'pending',
-                    'priority' => $data['priority'] ?? 'medium',
-                    'completed' => 0,
-                    'progress' => 0,
-                ];
-                
-                // Obtener nombre del cliente
-                if (!empty($woData['client_id'])) {
-                    $client = \App\Models\Client::find($woData['client_id']);
-                    $woData['client_name'] = $client->name ?? '';
-                }
-                
-                $workOrder = WorkOrder::create($woData);
-                $workOrders[] = $workOrder;
-                
-                // Crear productions para cada proceso del producto
-                $productProcesses = ProductProcess::where('product_id', $saleItem->product_id)
-                    ->orderBy('sequence')
-                    ->get();
-                
-                $previousProductionId = null;
-                foreach ($productProcesses as $pp) {
-                    $production = Production::create([
-                        'work_order_id' => $workOrder->id,
-                        'product_id' => $saleItem->product_id,
-                        'process_id' => $pp->process_id,
-                        'parent_production_id' => $previousProductionId,
-                        'target_parts' => $saleItem->quantity,
-                        'status' => 'pending',
-                        'start_time' => now(),
-                        'sale_id' => $data['sale_id'],
-                        'client_id' => $data['client_id'],
-                    ]);
-                    $allProductions[] = $production;
-                    $previousProductionId = $production->id;
-                }
-            }
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Órdenes de trabajo creadas correctamente (' . count($workOrders) . ' productos)',
-                'data' => WorkOrder::whereIn('id', collect($workOrders)->pluck('id'))->with('productions.process')->get(),
-                'workorders_count' => count($workOrders),
-                'productions_count' => count($allProductions),
-            ], 201);
-        }
-        
-        // Flujo normal: un solo producto
+
+        // Siempre crea SOLO para el product_id enviado:
         if (!empty($data['product_id'])) {
             $product = \App\Models\Product::find($data['product_id']);
             $data['product_name'] = $product?->name ?? 'Producto sin nombre';
         } else {
             $data['product_name'] = 'Sin producto';
         }
-        
+
         // Obtener el nombre del cliente si se proporciona
         if (!empty($data['client_id'])) {
             $client = \App\Models\Client::find($data['client_id']);
             $data['client_name'] = $client->name ?? '';
         }
-        
+
         // Valores por defecto
         $data['status'] = 'pending';
         $data['priority'] = $data['priority'] ?? 'medium';
         $data['completed'] = 0;
         $data['progress'] = 0;
 
-        // Crear la orden de trabajo
+        // Crear la orden de trabajo SOLO para el product_id proporcionado
         $workOrder = WorkOrder::create($data);
-        
+
         // Obtener los procesos del producto en orden de secuencia
         $productions = [];
         $previousProductionId = null;
@@ -273,7 +209,7 @@ class WorkOrderController extends Controller implements HasMiddleware
             $productProcesses = ProductProcess::where('product_id', $data['product_id'])
                 ->orderBy('sequence')
                 ->get();
-            
+
             // Crear una producción por cada proceso del producto
             foreach ($productProcesses as $pp) {
                 $production = Production::create([
@@ -292,10 +228,10 @@ class WorkOrderController extends Controller implements HasMiddleware
                 $previousProductionId = $production->id;
             }
         }
-        
+
         // Cargar las producciones creadas
         $productionsLoaded = Production::where('work_order_id', $workOrder->id)->get();
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Orden de trabajo creada correctamente',

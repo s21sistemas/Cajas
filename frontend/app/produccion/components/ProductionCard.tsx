@@ -75,6 +75,9 @@ export function ProductionCard({
               )}
             </div>
             <CardTitle className="text-lg mt-1">{production.processName}</CardTitle>
+            {production.workOrder?.code && (
+              <p className="text-sm text-muted-foreground">OT: {production.workOrder.code}</p>
+            )}
             {(production as any).productName && (
               <p className="text-sm text-muted-foreground">Producto: {(production as any).productName}</p>
             )}

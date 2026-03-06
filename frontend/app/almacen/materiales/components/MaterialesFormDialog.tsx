@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,17 +12,19 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { InventoryItem, CreateInventoryItemDto } from "@/lib/types";
 import { inventoryService } from "@/lib/services/inventory.service";
+import { materialsService } from "@/lib/services/materials.service";
+import type { Material } from "@/lib/types";
 
 const materialSchema = z.object({
-  code: z.string().min(1, "El código es requerido").max(255),
+  code: z.string().min(1, "El codigo es requerido").max(255),
   name: z.string().min(1, "El nombre es requerido").max(255),
-  category: z.string().min(1, "La categoría es requerida"),
-  quantity: z.number().min(0, "La cantidad debe ser positiva").default(0),
-  minStock: z.number().min(0, "El stock mínimo debe ser positivo").default(0),
-  maxStock: z.number().optional(),
-  unitCost: z.number().min(0, "El costo debe ser positivo").default(0),
+  category: z.string().min(1, "La categoria es requerida"),
+  quantity: z.coerce.number().min(0, "La cantidad debe ser positiva").default(0),
+  minStock: z.coerce.number().min(0, "El stock minimo debe ser positivo").default(0),
+  maxStock: z.coerce.number().optional(),
+  unitCost: z.coerce.number().min(0, "El costo debe ser positivo").default(0),
   unit: z.string().optional().default(""),
-  location: z.string().optional().default(""),
+  warehouse_location_id: z.string().optional().default(""),
 });
 
 type MaterialFormValues = z.infer<typeof materialSchema>;
@@ -35,28 +37,6 @@ interface MaterialesFormDialogProps {
   isLoading?: boolean;
 }
 
-const categoryOptions = [
-  { value: "raw_material", label: "Materia Prima" },
-  { value: "component", label: "Componente" },
-  { value: "tool", label: "Herramienta" },
-  { value: "consumable", label: "Consumible" },
-];
-
-const unitOptions = [
-  { value: "pza", label: "Pieza" },
-  { value: "kg", label: "Kilogramo" },
-  { value: "g", label: "Gramo" },
-  { value: "ton", label: "Tonelada" },
-  { value: "metro", label: "Metro" },
-  { value: "cm", label: "Centímetro" },
-  { value: "litro", label: "Litro" },
-  { value: "ml", label: "Mililitro" },
-  { value: "rollo", label: "Rollo" },
-  { value: "hoja", label: "Hoja" },
-  { value: "par", label: "Par" },
-  { value: "juego", label: "Juego" },
-];
-
 export function MaterialesFormDialog({ 
   open, 
   onOpenChange, 
@@ -65,49 +45,111 @@ export function MaterialesFormDialog({
   isLoading 
 }: MaterialesFormDialogProps) {
   const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
-  const [materialOptions, setMaterialOptions] = useState<InventoryItem[]>([]);
-  
-  // Cargar ubicaciones y materiales
-  useEffect(() => {
-    if (open) {
-      inventoryService.selectListLocations()
-        .then(setLocationOptions)
-        .catch(() => setLocationOptions([]));
-      
-      inventoryService.selectListMaterials()
-        .then(setMaterialOptions)
-        .catch(() => setMaterialOptions([]));
-    }
-  }, [open]);
+  const [materialOptions, setMaterialOptions] = useState<Material[]>([]);
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>("");
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  // Memoize the default values for useEffect dependencies
+  const defaultValuesId = defaultValues?.id;
+  const defaultValuesCode = defaultValues?.code;
+  const defaultValuesName = defaultValues?.name;
 
   const form = useForm<MaterialFormValues>({
     resolver: zodResolver(materialSchema),
     defaultValues: {
-      code: defaultValues?.code || "",
-      name: defaultValues?.name || "",
-      category: defaultValues?.category || "raw_material",
-      quantity: defaultValues?.quantity || 0,
-      minStock: defaultValues?.minStock || 0,
-      maxStock: defaultValues?.maxStock || undefined,
-      unitCost: defaultValues?.unitCost || 0,
-      unit: defaultValues?.unit || "",
-      location: defaultValues?.location || "",
+      code: "",
+      name: "",
+      category: "raw_material",
+      quantity: 0,
+      minStock: 0,
+      maxStock: undefined,
+      unitCost: 0,
+      unit: "",
+      warehouse_location_id: "",
     },
   });
 
-  // Manejar selección de material existente
+  // Cargar ubicaciones y materiales del catalogo
+  useEffect(() => {
+    if (open) {
+      setIsDataLoaded(false);
+      inventoryService.selectListLocations()
+        .then(setLocationOptions)
+        .catch(() => setLocationOptions([]));
+       
+      materialsService.selectList()
+        .then((materials) => {
+          setMaterialOptions(materials);
+          setIsDataLoaded(true);
+        })
+        .catch(() => {
+          setMaterialOptions([]);
+          setIsDataLoaded(true);
+        });
+       
+      // Reset selected material when opening
+      setSelectedMaterialId("");
+    }
+  }, [open]);
+
+  // Buscar material coincidente cuando se edita y hay opciones disponibles
+  useEffect(() => {
+    if (isDataLoaded && defaultValuesId && materialOptions.length > 0) {
+      // Buscar si hay un material en el catalogo que coincida con los datos actuales
+      const matchingMaterial = materialOptions.find(m => 
+        m.code === defaultValuesCode || m.name === defaultValuesName
+      );
+      if (matchingMaterial) {
+        setSelectedMaterialId(matchingMaterial.id.toString());
+      }
+    }
+  }, [isDataLoaded, defaultValuesId, materialOptions, defaultValuesCode, defaultValuesName]);
+
+  // Sincronizar defaultValues cuando cambian (para edicion)
+  useEffect(() => {
+    if (open && defaultValues) {
+      form.reset({
+        code: defaultValues.code || "",
+        name: defaultValues.name || "",
+        category: defaultValues.category || "raw_material",
+        quantity: defaultValues.quantity || 0,
+        minStock: defaultValues.minStock || 0,
+        maxStock: defaultValues.maxStock || undefined,
+        unitCost: defaultValues.unitCost || 0,
+        unit: defaultValues.unit || "",
+        warehouse_location_id: defaultValues.warehouse_location_id?.toString() || "",
+      });
+    } else if (open && !defaultValues) {
+      // Nuevo material - limpiar formulario
+      form.reset({
+        code: "",
+        name: "",
+        category: "raw_material",
+        quantity: 0,
+        minStock: 0,
+        maxStock: undefined,
+        unitCost: 0,
+        unit: "",
+        warehouse_location_id: "",
+      });
+    }
+  }, [open, defaultValues, form]);
+
+  // Manejar seleccion de material existente del catalogo
   const handleMaterialSelect = (materialId: string) => {
-    if (!materialId) return;
+    if (!materialId) {
+      setSelectedMaterialId("");
+      return;
+    }
     const material = materialOptions.find(m => m.id.toString() === materialId);
     if (material) {
       form.setValue("code", material.code);
       form.setValue("name", material.name);
       if (material.category) form.setValue("category", material.category);
       if (material.unit) form.setValue("unit", material.unit);
-      if (material.unitCost) form.setValue("unitCost", material.unitCost);
-      if (material.minStock) form.setValue("minStock", material.minStock);
-      if (material.maxStock) form.setValue("maxStock", material.maxStock);
-      if (material.location) form.setValue("location", material.location);
+      if (material.cost != null) form.setValue("unitCost", Number(material.cost) || 0);
+      if (material.stock != null) form.setValue("quantity", Number(material.stock) || 0);
+      if (material.minStock != null) form.setValue("minStock", Number(material.minStock) || 0);
     }
   };
 
@@ -121,15 +163,17 @@ export function MaterialesFormDialog({
       maxStock: data.maxStock,
       unitCost: data.unitCost,
       unit: data.unit || undefined,
-      location: data.location || undefined,
+      warehouse_location_id: data.warehouse_location_id ? parseInt(data.warehouse_location_id) : undefined,
     };
     await onSubmit(submitData);
     form.reset();
+    setSelectedMaterialId("");
   };
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       form.reset();
+      setSelectedMaterialId("");
     }
     onOpenChange(newOpen);
   };
@@ -151,7 +195,13 @@ export function MaterialesFormDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Material existente (opcional)</FormLabel>
-                  <Select onValueChange={handleMaterialSelect} defaultValue="">
+                  <Select 
+                    onValueChange={(value) => {
+                      setSelectedMaterialId(value);
+                      handleMaterialSelect(value);
+                    }} 
+                    value={selectedMaterialId}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar para autocompletar" />
@@ -160,7 +210,7 @@ export function MaterialesFormDialog({
                     <SelectContent>
                       {materialOptions.map((opt) => (
                         <SelectItem key={opt.id} value={opt.id.toString()}>
-                          {opt.code} - {opt.name}
+                          {opt.code} - {opt.name} - {opt.category}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -176,7 +226,7 @@ export function MaterialesFormDialog({
                 name="code"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Código *</FormLabel>
+                    <FormLabel>Codigo *</FormLabel>
                     <FormControl>
                       <Input placeholder="MAT-001" {...field} />
                     </FormControl>
@@ -191,7 +241,7 @@ export function MaterialesFormDialog({
                   <FormItem>
                     <FormLabel>Nombre *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Cartón corrugado" {...field} />
+                      <Input placeholder="Carton corrugado" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -204,7 +254,7 @@ export function MaterialesFormDialog({
               name="category"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Categoría *</FormLabel>
+                  <FormLabel>Categoria *</FormLabel>
                   <FormControl>
                     <Input placeholder="Materia Prima" {...field} />
                   </FormControl>
@@ -237,7 +287,7 @@ export function MaterialesFormDialog({
                 name="minStock"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Stock mínimo</FormLabel>
+                    <FormLabel>Stock minimo</FormLabel>
                     <FormControl>
                       <Input 
                         type="number" 
@@ -258,11 +308,11 @@ export function MaterialesFormDialog({
                 name="maxStock"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Stock máximo (opcional)</FormLabel>
+                    <FormLabel>Stock maximo (opcional)</FormLabel>
                     <FormControl>
                       <Input 
                         type="number" 
-                        placeholder="Sin límite"
+                        placeholder="Sin limite"
                         value={field.value || ""}
                         onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
                       />
@@ -298,31 +348,20 @@ export function MaterialesFormDialog({
                 name="unit"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Unidad</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {unitOptions.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Unidad *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Pza" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
               <FormField
                 control={form.control}
-                name="location"
+                name="warehouse_location_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Ubicación</FormLabel>
+                    <FormLabel>Ubicacion</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
                       <FormControl>
                         <SelectTrigger>
@@ -342,6 +381,8 @@ export function MaterialesFormDialog({
                 )}
               />
             </div>
+
+
 
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>

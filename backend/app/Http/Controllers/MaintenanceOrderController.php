@@ -139,15 +139,23 @@ class MaintenanceOrderController extends Controller implements HasMiddleware
      */
     public function start(Request $request, MaintenanceOrder $maintenanceOrder)
     {
+        $startDate = now();
         $maintenanceOrder->update([
             'status' => 'in-progress',
-            'start_date' => now(),
+            'start_date' => $startDate,
+        ]);
+
+        \Log::info('Iniciando mantenimiento', [
+            'maintenance_id' => $maintenanceOrder->id,
+            'start_date' => $startDate,
+            'start_date_type' => gettype($startDate)
         ]);
 
         // Actualizar estado de la máquina
         $machine = $maintenanceOrder->machine;
         $machine->update(['status' => 'maintenance']);
 
+        $maintenanceOrder->refresh();
         return response()->json($maintenanceOrder->load('machine'));
     }
 
@@ -158,19 +166,56 @@ class MaintenanceOrderController extends Controller implements HasMiddleware
     {
         $data = $request->validate([
             'actual_hours' => 'sometimes|numeric|min:0',
+            'actualHours' => 'sometimes|numeric|min:0', // Soporte para camelCase
             'actual_cost' => 'sometimes|numeric|min:0',
+            'actualCost' => 'sometimes|numeric|min:0', // Soporte para camelCase
             'notes' => 'nullable|string',
         ]);
+
+        // Normalizar a snake_case
+        if (isset($data['actualHours'])) {
+            $data['actual_hours'] = $data['actualHours'];
+            unset($data['actualHours']);
+        }
+        if (isset($data['actualCost'])) {
+            $data['actual_cost'] = $data['actualCost'];
+            unset($data['actualCost']);
+        }
+
+        // Calcular horas reales automáticamente si no se proporcionan
+        if (!isset($data['actual_hours']) && $maintenanceOrder->start_date) {
+            $start = \Carbon\Carbon::parse($maintenanceOrder->start_date);
+            $end = now();
+            $diffMinutes = $start->diffInMinutes($end);
+            $data['actual_hours'] = round($diffMinutes / 60, 2);
+            \Log::info('Calculando horas reales', [
+                'maintenance_id' => $maintenanceOrder->id,
+                'start_date' => $maintenanceOrder->start_date,
+                'end_date' => $end,
+                'diff_minutes' => $diffMinutes,
+                'actual_hours' => $data['actual_hours']
+            ]);
+        } elseif (!$maintenanceOrder->start_date) {
+            \Log::warning('Mantenimiento sin start_date', ['maintenance_id' => $maintenanceOrder->id]);
+        }
 
         $maintenanceOrder->update(array_merge($data, [
             'status' => 'completed',
             'end_date' => now(),
         ]));
 
+        \Log::info('Mantenimiento actualizado', [
+            'maintenance_id' => $maintenanceOrder->id,
+            'data_sent' => $data,
+            'actual_hours_saved' => $maintenanceOrder->actual_hours,
+            'actual_cost_saved' => $maintenanceOrder->actual_cost
+        ]);
+
         // Actualizar estado de la máquina
         $machine = $maintenanceOrder->machine;
         $machine->update(['status' => 'available']);
 
+        $maintenanceOrder->refresh();
         return response()->json($maintenanceOrder->load('machine'));
     }
 

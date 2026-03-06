@@ -7,7 +7,11 @@ import type {
   WarehouseLocation,
   CreateWarehouseLocationDto,
   UpdateWarehouseLocationDto,
-  PaginatedResponse
+  PaginatedResponse,
+  WarehouseMovement,
+  CreateWarehouseMovementDto,
+  WarehouseMovementFilters,
+  WarehouseMovementStats
 } from '../types';
 
 export const inventoryService = {
@@ -187,10 +191,90 @@ export const inventoryService = {
 
   // Get warehouse locations as select list
   selectListLocations: async (): Promise<{ value: string; label: string }[]> => {
-    const response = await api.get<WarehouseLocation[]>('/warehouse-locations');
+    const response = await api.get<WarehouseLocation[]>('/warehouse-locations/select-list');
     return (response || []).map(location => ({
       value: location.id.toString(),
       label: `${location.name} (${location.zone})`
     }));
+  },
+
+  // Warehouse Movements
+
+  // Get all warehouse movements with pagination and filters
+  getMovements: (filters?: WarehouseMovementFilters & { page?: number; per_page?: number }): Promise<PaginatedResponse<WarehouseMovement>> => {
+    return api.get<PaginatedResponse<WarehouseMovement>>('/warehouse-movements', filters);
+  },
+
+  // Get warehouse movement by ID
+  getMovementById: (id: number): Promise<WarehouseMovement> => {
+    return api.get<WarehouseMovement>(`/warehouse-movements/${id}`);
+  },
+
+  // Create new warehouse movement
+  createMovement: (data: CreateWarehouseMovementDto): Promise<WarehouseMovement> => {
+    return api.post<WarehouseMovement>('/warehouse-movements', data);
+  },
+
+  // Update warehouse movement
+  updateMovement: (id: number, data: Partial<CreateWarehouseMovementDto>): Promise<WarehouseMovement> => {
+    return api.put<WarehouseMovement>(`/warehouse-movements/${id}`, data);
+  },
+
+  // Delete warehouse movement
+  deleteMovement: (id: number): Promise<void> => {
+    return api.delete(`/warehouse-movements/${id}`);
+  },
+
+  // Register income (entrada)
+  registerIncome: (data: {
+    inventory_item_id: number;
+    quantity: number;
+    warehouse_location_id?: number;
+    reference_type?: string;
+    reference_id?: number;
+    notes?: string;
+    performed_by?: string;
+  }): Promise<WarehouseMovement> => {
+    return api.post<WarehouseMovement>('/warehouse-movements/income', data);
+  },
+
+  // Register expense (salida)
+  registerExpense: (data: {
+    inventory_item_id: number;
+    quantity: number;
+    warehouse_location_id?: number;
+    reference_type?: string;
+    reference_id?: number;
+    notes?: string;
+    performed_by?: string;
+  }): Promise<WarehouseMovement> => {
+    return api.post<WarehouseMovement>('/warehouse-movements/expense', data);
+  },
+
+  // Register transfer (transferencia entre ubicaciones)
+  registerTransfer: (data: {
+    inventory_item_id: number;
+    quantity: number;
+    warehouse_location_id: number;
+    warehouse_location_to_id: number;
+    reference_type?: string;
+    reference_id?: number;
+    notes?: string;
+    performed_by?: string;
+  }): Promise<WarehouseMovement> => {
+    return api.post<WarehouseMovement>('/warehouse-movements', {
+      ...data,
+      movement_type: 'transfer'
+    });
+  },
+
+  // Get movements by inventory item
+  getMovementsByInventoryItem: (inventoryItemId: number, filters?: { page?: number; per_page?: number }): Promise<PaginatedResponse<WarehouseMovement>> => {
+    return api.get<PaginatedResponse<WarehouseMovement>>(`/warehouse-movements/item/${inventoryItemId}`, filters);
+  },
+
+  // Get warehouse movement statistics
+  getMovementStats: (): Promise<WarehouseMovementStats> => {
+    return api.get<WarehouseMovementStats>('/warehouse-movements/stats');
   }
 };

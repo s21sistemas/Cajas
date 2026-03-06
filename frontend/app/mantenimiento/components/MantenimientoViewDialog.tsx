@@ -34,7 +34,15 @@ const statusLabels: Record<string, { label: string; class: string }> = {
 
 const formatDate = (date: string | null) => {
   if (!date) return "-";
-  return date;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
 };
 
 interface MantenimientoViewDialogProps {
@@ -115,16 +123,31 @@ export function MantenimientoViewDialog({
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-3 rounded-lg bg-secondary">
-              <p className="text-sm text-muted-foreground">Horas</p>
-              <p className="text-lg font-bold">
-                {item.actualHours || 0} / {item.estimatedHours || 0}h
+            <div className={`p-3 rounded-lg ${(item.actualHours || 0) > (item.estimatedHours || 0) ? 'bg-red-500/20 border border-red-500/30' : 'bg-secondary'}`}>
+              <p className="text-sm text-muted-foreground">Horas Estimadas</p>
+              <p className="text-lg font-bold">{item.estimatedHours || 0}h</p>
+            </div>
+            <div className={`p-3 rounded-lg ${(item.actualHours || 0) > (item.estimatedHours || 0) ? 'bg-red-500/20 border border-red-500/30' : 'bg-secondary'}`}>
+              <p className="text-sm text-muted-foreground">Horas Reales</p>
+              <p className={`text-lg font-bold ${(item.actualHours || 0) > (item.estimatedHours || 0) ? 'text-red-400' : 'text-green-400'}`}>
+                {item.actualHours || 0}h
+                {(item.actualHours || 0) > (item.estimatedHours || 0) && (
+                  <span className="text-xs ml-2 text-red-400">
+                    (+{(item.actualHours || 0) - (item.estimatedHours || 0)}h excedidas)
+                  </span>
+                )}
               </p>
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div className="p-3 rounded-lg bg-secondary">
-              <p className="text-sm text-muted-foreground">Costo</p>
-              <p className="text-lg font-bold">
-                ${((item.actualCost || item.estimatedCost) || 0).toLocaleString()}
+              <p className="text-sm text-muted-foreground">Costo Estimado</p>
+              <p className="text-lg font-bold">${((item.estimatedCost) || 0).toLocaleString()}</p>
+            </div>
+            <div className={`p-3 rounded-lg ${(item.actualCost || 0) > (item.estimatedCost || 0) ? 'bg-red-500/20 border border-red-500/30' : 'bg-secondary'}`}>
+              <p className="text-sm text-muted-foreground">Costo Real</p>
+              <p className={`text-lg font-bold ${(item.actualCost || 0) > (item.estimatedCost || 0) ? 'text-red-400' : 'text-green-400'}`}>
+                ${((item.actualCost) || 0).toLocaleString()}
               </p>
             </div>
           </div>

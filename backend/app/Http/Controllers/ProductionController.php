@@ -53,6 +53,7 @@ class ProductionController extends Controller implements HasMiddleware
             'workOrder',
             'workOrder.client',
             'workOrder.sale',
+            'workOrder.product',
             'product',
             'client',
             'sale'

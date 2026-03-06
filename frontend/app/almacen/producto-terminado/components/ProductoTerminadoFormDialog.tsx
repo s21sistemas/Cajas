@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { InventoryItem, CreateInventoryItemDto } from "@/lib/types";
 import { inventoryService } from "@/lib/services/inventory.service";
+import { productsService } from "@/lib/services/products.service";
+import type { Product } from "@/lib/types";
 
 const productoSchema = z.object({
   code: z.string().min(1, "El código es requerido").max(255),
@@ -21,7 +23,7 @@ const productoSchema = z.object({
   unitCost: z.number().min(0, "El costo debe ser positivo").default(0),
   unit: z.string().optional().default(""),
   warehouse: z.string().optional().default(""),
-  location: z.string().optional().default(""),
+  warehouse_location_id: z.string().optional().default(""),
 });
 
 type ProductoFormValues = z.infer<typeof productoSchema>;
@@ -60,16 +62,16 @@ export function ProductoTerminadoFormDialog({
   isLoading 
 }: ProductoTerminadoFormDialogProps) {
   const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
-  const [productOptions, setProductOptions] = useState<InventoryItem[]>([]);
+  const [productOptions, setProductOptions] = useState<Product[]>([]);
   
-  // Cargar ubicaciones y productos existentes
+  // Cargar ubicaciones y productos del catálogo
   useEffect(() => {
     if (open) {
       inventoryService.selectListLocations()
         .then(setLocationOptions)
         .catch(() => setLocationOptions([]));
-      
-      inventoryService.selectListFinishedProducts()
+       
+      productsService.selectList()
         .then(setProductOptions)
         .catch(() => setProductOptions([]));
     }
@@ -78,19 +80,49 @@ export function ProductoTerminadoFormDialog({
   const form = useForm<ProductoFormValues>({
     resolver: zodResolver(productoSchema),
     defaultValues: {
-      code: defaultValues?.code || "",
-      name: defaultValues?.name || "",
-      quantity: defaultValues?.quantity || 0,
-      minStock: defaultValues?.minStock || 0,
-      maxStock: defaultValues?.maxStock || undefined,
-      unitCost: defaultValues?.unitCost || 0,
-      unit: defaultValues?.unit || "",
-      warehouse: defaultValues?.warehouse || "",
-      location: defaultValues?.location || "",
+      code: "",
+      name: "",
+      quantity: 0,
+      minStock: 0,
+      maxStock: undefined,
+      unitCost: 0,
+      unit: "",
+      warehouse: "",
+      warehouse_location_id: "",
     },
   });
 
-  // Manejar selección de producto existente
+  // Sincronizar defaultValues cuando cambian (para edición)
+  useEffect(() => {
+    if (open && defaultValues) {
+      form.reset({
+        code: defaultValues.code || "",
+        name: defaultValues.name || "",
+        quantity: defaultValues.quantity || 0,
+        minStock: defaultValues.minStock || 0,
+        maxStock: defaultValues.maxStock || undefined,
+        unitCost: defaultValues.unitCost || 0,
+        unit: defaultValues.unit || "",
+        warehouse: defaultValues.warehouse || "",
+        warehouse_location_id: defaultValues.warehouse_location_id?.toString() || "",
+      });
+    } else if (open && !defaultValues) {
+      // Nuevo producto - limpiar formulario
+      form.reset({
+        code: "",
+        name: "",
+        quantity: 0,
+        minStock: 0,
+        maxStock: undefined,
+        unitCost: 0,
+        unit: "",
+        warehouse: "",
+        warehouse_location_id: "",
+      });
+    }
+  }, [open, defaultValues, form]);
+
+  // Manejar selección de producto existente del catálogo
   const handleProductSelect = (productId: string) => {
     if (!productId) return;
     const product = productOptions.find(p => p.id.toString() === productId);
@@ -98,10 +130,10 @@ export function ProductoTerminadoFormDialog({
       form.setValue("code", product.code);
       form.setValue("name", product.name);
       if (product.unit) form.setValue("unit", product.unit);
-      if (product.unitCost) form.setValue("unitCost", product.unitCost);
-      if (product.minStock) form.setValue("minStock", product.minStock);
-      if (product.maxStock) form.setValue("maxStock", product.maxStock);
-      if (product.location) form.setValue("location", product.location);
+      if (product.cost != null) form.setValue("unitCost", Number(product.cost) || 0);
+      if (product.stock != null) form.setValue("quantity", Number(product.stock) || 0);
+      if (product.minStock != null) form.setValue("minStock", Number(product.minStock) || 0);
+      if (product.category) form.setValue("category" as any, product.category);
     }
   };
 
@@ -115,7 +147,7 @@ export function ProductoTerminadoFormDialog({
       maxStock: data.maxStock,
       unitCost: data.unitCost,
       unit: data.unit || undefined,
-      location: data.location || undefined,
+      warehouse_location_id: data.warehouse_location_id ? parseInt(data.warehouse_location_id) : undefined,
     };
     await onSubmit(submitData);
     form.reset();
@@ -279,38 +311,27 @@ export function ProductoTerminadoFormDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Unidad</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {unitOptions.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Input placeholder="Pza" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
               <FormField
                 control={form.control}
-                name="warehouse"
+                name="warehouse_location_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Almacén</FormLabel>
+                    <FormLabel>Ubicación específica</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar" />
+                          <SelectValue placeholder="Seleccionar ubicación" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {warehouseOptions.map((opt) => (
+                        {locationOptions.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </SelectItem>
@@ -320,33 +341,10 @@ export function ProductoTerminadoFormDialog({
                     <FormMessage />
                   </FormItem>
                 )}
-              />
+              />      
             </div>
 
-            <FormField
-              control={form.control}
-              name="location"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Ubicación específica</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar ubicación" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {locationOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+
 
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>

@@ -12,10 +12,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const purchaseOrderSchema = z.object({
   supplier_id: z.number().min(1, 'El proveedor es requerido'),
-  material_id: z.number().min(1, 'El material es requerido'),
+  material_id: z.coerce.number().min(1, 'El material es requerido'),
   material_name: z.string().optional(),
   quantity: z.number().min(1, 'La cantidad debe ser mayor a 0'),
-  unit_price: z.number().min(0, 'El precio debe ser mayor o igual a 0').default(0),
+  unit_price: z.coerce.number().min(0, 'El precio debe ser mayor o igual a 0').default(0),
   subtotal: z.number().min(0).default(0),
   iva_percentage: z.number().min(0).max(100).default(16),
   iva: z.number().min(0).default(0),
@@ -136,8 +136,50 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        {/* Proveedor y Producto */}
+        {/* Material y Proveedor */}
         <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="material_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Material *</FormLabel>
+                {isMaterialsLoading ? (
+                  <Skeleton className="h-10" />
+                ) : (
+                  <Select 
+                    onValueChange={(value) => {
+                      const materialId = value;
+                      field.onChange(materialId);
+                      const material = materials.find((m: any) => m.id.toString() === value);
+                      if (material) {
+                        form.setValue('material_name', material.name);
+                        if (material.cost) {
+                          form.setValue('unit_price', material.cost);
+                          calculateTotals();
+                        }
+                      }
+                    }} 
+                    defaultValue={field.value ? String(field.value) : undefined}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar material" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {materials.map((material: any) => (
+                        <SelectItem key={material.id} value={material.id.toString()}>
+                          {material.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           <FormField
             control={form.control}
             name="supplier_id"
@@ -160,48 +202,6 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
                       {suppliers.map((supplier: any) => (
                         <SelectItem key={supplier.id} value={supplier.id.toString()}>
                           {supplier.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="material_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Material *</FormLabel>
-                {isMaterialsLoading ? (
-                  <Skeleton className="h-10" />
-                ) : (
-                  <Select 
-                    onValueChange={(value) => {
-                      const materialId = value;
-                      field.onChange(materialId);
-                      const material = materials.find((m: any) => m.id === materialId);
-                      if (material) {
-                        form.setValue('material_name', material.name);
-                        if (material.cost) {
-                          form.setValue('unit_price', material.cost);
-                          calculateTotals();
-                        }
-                      }
-                    }} 
-                    defaultValue={field.value ? String(field.value) : undefined}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar material" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {materials.map((material: any) => (
-                        <SelectItem key={material.id} value={material.id}>
-                          {material.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
