@@ -520,10 +520,30 @@ class QuoteController extends Controller implements HasMiddleware
             $company[$setting->key] = $setting->value;
         }
         
-        // URL del logo
-        $logoUrl = asset('villazco_logo.jpeg');
+        // URL del logo - primero buscar en settings, luego usar default
+        $logoSetting = \App\Models\Setting::where('module', 'company')->where('key', 'logo')->first();
+        $logoData = null;
         
-        $pdf = Pdf::loadView('pdf.quote', compact('quote', 'company', 'logoUrl'));
+        $logoPath = null;
+        if ($logoSetting && $logoSetting->value) {
+            // Si es una URL relativa del storage, convertir a ruta absoluta
+            if (strpos($logoSetting->value, '/storage/') !== false) {
+                $logoPath = public_path($logoSetting->value);
+            }
+        }
+        
+        // Si no hay logo en settings, usar el default
+        if (!$logoPath || !file_exists($logoPath)) {
+            $logoPath = public_path('villazco_logo.jpeg');
+        }
+        
+        // Codificar imagen en base64 para el PDF
+        if (file_exists($logoPath)) {
+            $mimeType = mime_content_type($logoPath);
+            $logoData = 'data:' . $mimeType . ';base64,' . base64_encode(file_get_contents($logoPath));
+        }
+        
+        $pdf = Pdf::loadView('pdf.quote', compact('quote', 'company', 'logoData'));
         
         // Configurar PDF horizontal (landscape) con márgenes adecuados
         $pdf->setPaper('a4', 'landscape')->setOption('margin-top', 15)->setOption('margin-bottom', 15)->setOption('margin-left', 15)->setOption('margin-right', 15);

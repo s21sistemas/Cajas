@@ -43,8 +43,8 @@
     <div class="container">
         <div class="header">
             <div class="logo-container">
-                @if(!empty($logoUrl))
-                <img src="{{ $logoUrl }}" alt="Logo">
+                @if(!empty($logoData))
+                <img src="{{ $logoData }}" alt="Logo">
                 @endif
             </div>
             <div class="company-info">

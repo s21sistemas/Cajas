@@ -4,18 +4,19 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Play, Pause, Check, XCircle, Filter, PackagePlus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ProductionOrder, ProductionStatus } from '../types';
+import type { ProductionStatus } from '../types';
+import type { Production } from "@/lib/types/production.types";
 
 interface ProductionCardProps {
-  production: ProductionOrder;
-  onStart: (p: ProductionOrder) => void;
-  onPause: (p: ProductionOrder) => void;
-  onComplete: (p: ProductionOrder) => void;
-  onResume: (p: ProductionOrder) => void;
-  onCancel: (p: ProductionOrder) => void;
-  onRegisterParts: (p: ProductionOrder) => void;
-  onEdit: (p: ProductionOrder) => void;
-  onDelete: (p: ProductionOrder) => void;
+  production: Production;
+  onStart: (p: Production) => void;
+  onPause: (p: Production) => void;
+  onComplete: (p: Production) => void;
+  onResume: (p: Production) => void;
+  onCancel: (p: Production) => void;
+  onRegisterParts: (p: Production) => void;
+  onEdit: (p: Production) => void;
+  onDelete: (p: Production) => void;
   loadingAction?: string | null;
 }
 
@@ -74,22 +75,22 @@ export function ProductionCard({
                 </Button>
               )}
             </div>
-            <CardTitle className="text-lg mt-1">{production.processName}</CardTitle>
-            {production.workOrder?.code && (
-              <p className="text-sm text-muted-foreground">OT: {production.workOrder.code}</p>
+            <CardTitle className="text-lg mt-1">{production.process?.name}</CardTitle>
+            {(production.workOrder?.code || production.workOrderId) && (
+              <p className="text-sm text-muted-foreground">OT: {production.workOrder?.code || production.workOrderId}</p>
             )}
             {(production as any).productName && (
-              <p className="text-sm text-muted-foreground">Producto: {(production as any).productName}</p>
+              <p className="text-sm text-muted-foreground">Producto: {production.product?.name}</p>
             )}
             {(production as any).clientName && (
-              <p className="text-sm text-muted-foreground">Cliente: {(production as any).clientName}</p>
+              <p className="text-sm text-muted-foreground">Cliente: {production.client?.name}</p>
             )}
-            {(production as any).saleCode && (
-              <p className="text-sm text-muted-foreground">Venta: {(production as any).saleCode}</p>
+            {(production as any).sale && (
+              <p className="text-sm text-muted-foreground">Venta: {(production as any).sale?.code}</p>
             )}
           </div>
-          <Badge className={cn('text-xs', STATUS_CONFIG[production.status]?.color || 'bg-muted text-muted-foreground')}>
-            {STATUS_CONFIG[production.status]?.label || production.status}
+          <Badge className={cn('text-xs', STATUS_CONFIG[production.status || 'pending']?.color || 'bg-muted text-muted-foreground')}>
+            {STATUS_CONFIG[production.status || 'pending']?.label || production.status}
           </Badge>
         </div>
       </CardHeader>
@@ -115,9 +116,9 @@ export function ProductionCard({
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Filter className="h-3 w-3" />
-          <span>{production.requiresMachine ? production.machineName || 'Sin asignar' : 'Manual'}</span>
+          <span>{production.process?.requiresMachine ? production.machine?.name || 'Sin asignar' : 'Manual'}</span>
           <span className="mx-1">•</span>
-          <span>{production.operatorName || 'Sin operador'}</span>
+          <span>{production.operator?.name || 'Sin operador'}</span>
         </div>
         
         {/* Estado de Calidad */}

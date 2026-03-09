@@ -1,7 +1,6 @@
 import { api } from '../api';
 import type {
   Production,
-  ProductionOrder,
   CreateProductionDTO,
   UpdateProductionDTO,
   Process,
@@ -46,47 +45,6 @@ interface PaginatedResponse<T> {
   next_page_url: string | null;
   prev_page_url: string | null;
   links: Array<{ url: string | null; label: string; active: boolean }>;
-}
-
-// Transformación de API → UI (Backend usa snake_case)
-function transformProductionToOrder(production: Production): ProductionOrder {
-  return {
-    id: String(production.id),
-    code: production.code || `OP-${String(production.id).padStart(4, '0')}`,
-    processName: production.process?.name || 'Proceso',
-    processType: production.process?.processType || production.process?.name || 'Proceso',
-    requiresMachine: production.process?.requiresMachine ?? true,
-    processId: production.process_id,
-    process: production.process ? { id: production.process.id, name: production.process.name } : undefined,
-    machineId: production.machine_id ?? null,
-    machineName: production.machine?.name || null,
-    machine: production.machine ? { id: production.machine.id, name: production.machine.name } : undefined,
-    operatorId: production.operator_id ?? null,
-    operatorName: production.operator?.name || 'Sin operador',
-    operator: production.operator ? { id: production.operator.id, name: production.operator.name } : undefined,
-    workOrderId: production.work_order_id || undefined,
-    workOrder: production.work_order ? {
-      id: production.work_order.id,
-      code: production.work_order.code || '',
-      client: production.work_order.client ? { id: production.work_order.client.id, name: production.work_order.client.name } : undefined,
-      sale: production.work_order.sale ? { id: production.work_order.sale.id, code: production.work_order.sale.code || '' } : undefined,
-    } : undefined,
-    client: production.client ? { id: production.client.id, name: production.client.name } : (production.work_order?.client ? { id: production.work_order.client.id, name: production.work_order.client.name } : undefined),
-    sale: production.sale ? { id: production.sale.id, code: production.sale.code || '' } : (production.work_order?.sale ? { id: production.work_order.sale.id, code: production.work_order.sale.code || '' } : undefined),
-    status: production.status || 'pending',
-    pauseReason: production.pause_reason || undefined,
-    targetParts: production.target_parts || 0,
-    goodParts: production.good_parts || 0,
-    scrapParts: production.scrap_parts || 0,
-    startTime: production.start_time || '',
-    endTime: production.end_time || null,
-    parentProductionId: production.parent_production_id || null,
-    qualityStatus: production.quality_status || 'PENDING',
-    // Nuevos campos
-    productName: production.product?.name || production.work_order?.product?.name || production.work_order?.product_name || '',
-    clientName: production.client?.name || production.work_order?.client?.name || production.work_order?.client_name || '',
-    saleCode: production.sale?.code || production.work_order?.sale?.invoice || '',
-  };
 }
 
 // Convertir DTO camelCase a formato snake_case para el backend
@@ -137,7 +95,7 @@ function extractDataArray<T>(response: any): T[] {
 
 export const productionService = {
   // Obtener todas las producciones (paginado) con filtros
-  async getAll(filters?: { client_id?: number; sale_id?: number; status?: string }): Promise<ProductionOrder[]> {
+  async getAll(filters?: { client_id?: number; sale_id?: number; status?: string }): Promise<Production[]> {
     try {
       // Construir query params
       const params = new URLSearchParams();
@@ -149,7 +107,7 @@ export const productionService = {
       const url = queryString ? `/productions?${queryString}` : '/productions';
       
       const response = await api.get<PaginatedResponse<Production>>(url);
-       
+       console.log(response);
       // El paginator de Laravel tiene la estructura: { data: [...], current_page: 1, ... }
       let productions: Production[] = [];
       
@@ -158,8 +116,10 @@ export const productionService = {
       } else if (Array.isArray(response)) {
         productions = response;
       }
+
       
-      return productions.map(transformProductionToOrder);
+      
+      return productions;
     } catch (error: any) {
       console.warn('Error fetching productions, usando mock:', error?.message || error);
       return [];
@@ -167,11 +127,11 @@ export const productionService = {
   },
 
   // Obtener una producción por ID
-  async getById(id: number): Promise<ProductionOrder> {
+  async getById(id: number): Promise<Production> {
     try {
       const response = await api.get<any>(`/productions/${id}`);
       const production = extractData<Production>(response);
-      return transformProductionToOrder(production);
+      return production;
     } catch (error: any) {
       console.warn(`Error fetching production ${id}:`, error?.message || error);
       throw error;
@@ -179,12 +139,12 @@ export const productionService = {
   },
 
   // Crear nueva producción
-  async create(data: CreateProductionDTO): Promise<ProductionOrder> {
+  async create(data: CreateProductionDTO): Promise<Production> {
     try {
       const snakeData = toSnakeCase(data);
       const response = await api.post<any>('/productions', snakeData);
       const production = extractData<Production>(response);
-      return transformProductionToOrder(production);
+      return production;
     } catch (error: any) {
       console.error('Error creating production:', error?.message || error);
       throw error;
@@ -192,12 +152,12 @@ export const productionService = {
   },
 
   // Actualizar producción
-  async update(id: number, data: UpdateProductionDTO): Promise<ProductionOrder> {
+  async update(id: number, data: UpdateProductionDTO): Promise<Production> {
     try {
       const snakeData = toSnakeCase(data);
       const response = await api.put<any>(`/productions/${id}`, snakeData);
       const production = extractData<Production>(response);
-      return transformProductionToOrder(production);
+      return production;
     } catch (error: any) {
       // El error ya viene con el mensaje del servidor desde el interceptor de axios
       const errorMsg = error?.message || error?.response?.data?.message || 'Error al actualizar la producción';
@@ -216,27 +176,27 @@ export const productionService = {
   },
 
   // Iniciar producción
-  async start(id: number, data?: Record<string, any>): Promise<ProductionOrder> {
+  async start(id: number, data?: Record<string, any>): Promise<Production> {
     return this.updateStatus(id, 'in_progress', data);
   },
 
   // Cambiar estado de producción (interno)
-  async updateStatus(id: number, status: ProductionStatus, extra?: Record<string, any>): Promise<ProductionOrder> {
+  async updateStatus(id: number, status: ProductionStatus, extra?: Record<string, any>): Promise<Production> {
     return this.update(id, { status, ...extra } as UpdateProductionDTO);
   },
 
   // Pausar producción
-  async pause(id: number, reason: string): Promise<ProductionOrder> {
+  async pause(id: number, reason: string): Promise<Production> {
     return this.updateStatus(id, 'paused', { pauseReason: reason });
   },
 
   // Reanudar producción
-  async resume(id: number): Promise<ProductionOrder> {
+  async resume(id: number): Promise<Production> {
     return this.updateStatus(id, 'in_progress');
   },
 
   // Completar producción
-  async complete(id: number, goodParts: number, scrapParts: number = 0): Promise<ProductionOrder> {
+  async complete(id: number, goodParts: number, scrapParts: number = 0): Promise<Production> {
     return this.update(id, {
       goodParts,
       scrapParts,
@@ -246,7 +206,7 @@ export const productionService = {
   },
 
   // Cancelar producción
-  async cancel(id: number, reason?: string): Promise<ProductionOrder> {
+  async cancel(id: number, reason?: string): Promise<Production> {
     return this.update(id, {
       status: 'cancelled',
       endTime: new Date().toISOString(),
@@ -255,7 +215,7 @@ export const productionService = {
   },
 
   // Registrar partes
-  async registerParts(id: number, goodParts: number, scrapParts: number = 0): Promise<ProductionOrder> {
+  async registerParts(id: number, goodParts: number, scrapParts: number = 0): Promise<Production> {
     return this.update(id, { goodParts, scrapParts });
   },
 
@@ -304,23 +264,23 @@ export const productionService = {
   },
 
   // Filtrar por estado
-  async getByStatus(status: ProductionStatus): Promise<ProductionOrder[]> {
+  async getByStatus(status: ProductionStatus): Promise<Production[]> {
     const productions = await this.getAll();
     return productions.filter((p) => p.status === status);
   },
 
   // Obtener producciones en curso
-  async getInProgress(): Promise<ProductionOrder[]> {
+  async getInProgress(): Promise<Production[]> {
     return this.getByStatus('in_progress');
   },
 
   // Obtener producciones pendientes
-  async getPending(): Promise<ProductionOrder[]> {
+  async getPending(): Promise<Production[]> {
     return this.getByStatus('pending');
   },
 
   // Obtener producciones completadas
-  async getCompleted(): Promise<ProductionOrder[]> {
+  async getCompleted(): Promise<Production[]> {
     return this.getByStatus('completed');
   },
 
@@ -347,11 +307,11 @@ export const productionService = {
   },
 
   // Obtener productions de una work order
-  async getProductionsByWorkOrder(workOrderId: number): Promise<ProductionOrder[]> {
+  async getProductionsByWorkOrder(workOrderId: number): Promise<Production[]> {
     try {
       const response = await api.get<any>(`/work-orders/${workOrderId}/productions`);
       const productions = extractData<Production[]>(response);
-      return productions.map(transformProductionToOrder);
+      return productions;
     } catch (error: any) {
       console.warn(`Error fetching productions for work order ${workOrderId}:`, error?.message || error);
       return [];

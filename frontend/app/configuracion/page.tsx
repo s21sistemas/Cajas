@@ -42,6 +42,7 @@ import {
   Trash2,
   Check,
   X,
+  Upload,
 } from "lucide-react";
 import { useToast } from "@/components/erp/action-toast";
 import { settingsService, rolesService, permissionsService, usersService } from "@/lib/services";
@@ -267,6 +268,9 @@ export default function ConfigurationPage() {
   });
   const [submittingUser, setSubmittingUser] = useState(false);
 
+  // Logo upload state
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
   // Load settings
   const loadSettings = async () => {
     setLoading(true);
@@ -332,6 +336,64 @@ export default function ConfigurationPage() {
       showToast("error", "Error", "No se pudieron guardar las configuraciones");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Handle logo upload
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/svg+xml'];
+    if (!validTypes.includes(file.type)) {
+      showToast("error", "Error", "El archivo debe ser una imagen (jpg, png o svg)");
+      return;
+    }
+
+    // Validate file size (2MB max)
+    if (file.size > 2 * 1024 * 1024) {
+      showToast("error", "Error", "El archivo no debe superar los 2MB");
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const result = await settingsService.uploadLogo(file);
+      setSettings(prev => ({
+        ...prev,
+        company: {
+          ...prev.company,
+          logo: result.url
+        }
+      }));
+      showToast("success", "Éxito", "Logo subido correctamente");
+    } catch (error) {
+      console.error("Error uploading logo:", error);
+      showToast("error", "Error", "No se pudo subir el logo");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  // Handle logo delete
+  const handleLogoDelete = async () => {
+    setUploadingLogo(true);
+    try {
+      await settingsService.deleteLogo();
+      setSettings(prev => ({
+        ...prev,
+        company: {
+          ...prev.company,
+          logo: undefined
+        }
+      }));
+      showToast("success", "Éxito", "Logo eliminado correctamente");
+    } catch (error) {
+      console.error("Error deleting logo:", error);
+      showToast("error", "Error", "No se pudo eliminar el logo");
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -603,6 +665,59 @@ export default function ConfigurationPage() {
                       className="bg-secondary border-border"
                     />
                   </div>
+                </div>
+                {/* Logo Section */}
+                <div className="space-y-2 mt-4">
+                  <Label className="text-foreground">Logo de la Empresa</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Sube un logo para mostrar en cotizaciones y ventas (jpg, png, svg - máx 2MB)
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 flex items-center justify-center w-48 h-24">
+                      {settings.company?.logo ? (
+                        <img 
+                          src={settings.company.logo} 
+                          alt="Logo" 
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      ) : (
+                        <div className="text-center text-gray-400">
+                          <Building2 className="h-8 w-8 mx-auto mb-1" />
+                          <span className="text-xs">Sin logo</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/svg+xml"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                        id="logo-upload"
+                      />
+                      <Label 
+                        htmlFor="logo-upload" 
+                        className="cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Subir Logo
+                      </Label>
+                      {settings.company?.logo && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={handleLogoDelete}
+                          disabled={uploadingLogo}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Eliminar
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {uploadingLogo && (
+                    <p className="text-sm text-blue-500">Subiendo logo...</p>
+                  )}
                 </div>
                 <div className="flex justify-end">
                   <Button onClick={() => handleSave("company")} disabled={saving} className="gap-2">

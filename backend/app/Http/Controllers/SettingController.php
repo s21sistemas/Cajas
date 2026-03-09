@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Setting;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use \Spatie\Permission\Middleware\PermissionMiddleware;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -179,5 +180,93 @@ class SettingController extends Controller implements HasMiddleware
                 'key' => $key
             ], 404);
         }
+    }
+
+    /**
+     * Sube el logo de la empresa.
+     * POST /api/settings/company/logo
+     */
+    public function uploadLogo(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'logo' => 'required|image|mimes:jpeg,png,svg|max:2048'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'El archivo debe ser una imagen válida (jpg, png, svg) máximo 2MB',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $file = $request->file('logo');
+        
+        // Generar nombre único
+        $filename = 'logo-' . time() . '.' . $file->getClientOriginalExtension();
+        
+        // Crear directorio si no existe
+        $path = 'logos';
+        
+        // Guardar el archivo
+        $file->storeAs($path, $filename, 'public');
+        
+        // Generar URL pública
+        $url = asset('storage/' . $path . '/' . $filename);
+        
+        // Guardar o actualizar el setting
+        $setting = Setting::where('module', 'company')->where('key', 'logo')->first();
+        
+        if ($setting) {
+            // Eliminar archivo anterior si existe
+            if ($setting->value) {
+                $oldUrl = $setting->value;
+                $oldPath = str_replace(asset('storage') . '/', '', $oldUrl);
+                if (Storage::disk('public')->exists($oldPath)) {
+                    Storage::disk('public')->delete($oldPath);
+                }
+            }
+            $setting->value = $url;
+            $setting->save();
+        } else {
+            Setting::create([
+                'module' => 'company',
+                'key' => 'logo',
+                'value' => $url
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Logo subido correctamente.',
+            'url' => $url
+        ]);
+    }
+
+    /**
+     * Elimina el logo de la empresa.
+     * DELETE /api/settings/company/logo
+     */
+    public function deleteLogo()
+    {
+        $setting = Setting::where('module', 'company')->where('key', 'logo')->first();
+
+        if ($setting && $setting->value) {
+            // Eliminar archivo físico
+            $oldUrl = $setting->value;
+            $oldPath = str_replace(asset('storage') . '/', '', $oldUrl);
+            if (Storage::disk('public')->exists($oldPath)) {
+                Storage::disk('public')->delete($oldPath);
+            }
+            
+            // Eliminar setting
+            $setting->delete();
+            
+            return response()->json([
+                'message' => 'Logo eliminado correctamente.'
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'No hay logo para eliminar.'
+        ], 404);
     }
 }

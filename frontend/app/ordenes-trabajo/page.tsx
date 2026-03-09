@@ -8,7 +8,6 @@ import { workOrdersService } from "@/lib/services";
 import { productsService } from "@/lib/services";
 import type { WorkOrder } from "@/lib/types";
 import type { CreateWorkOrderDto } from "@/lib/types/work-order.types";
-import type { Client } from "@/lib/types/client.types";
 import {
   WorkOrderStats,
   WorkOrderFilters,
@@ -34,19 +33,14 @@ export default function OrdenesTrabajo() {
   const [pipelineOrder, setPipelineOrder] = useState<WorkOrder | null>(null);
   
   const [products, setProducts] = useState<{ id: number; name: string }[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
 
-  // Load products and clients
+  // Load products
   useEffect(() => {
     productsService.selectList()
       .then(res => setProducts(res || []))
-      .catch(() => {});
-    
-    workOrdersService.getClientsSelectList()
-      .then(res => setClients(res || []))
       .catch(() => {});
   }, []);
 
@@ -171,7 +165,6 @@ export default function OrdenesTrabajo() {
           workOrder={editingOrder}
           onSubmit={handleCreate}
           products={products}
-          clients={clients}
           isLoading={false}
         />
 

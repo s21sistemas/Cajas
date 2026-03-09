@@ -87,5 +87,10 @@ export const salesService = {
   // Get sales by client ID
   getByClient: async (clientId: number): Promise<{ data: any[]; success: boolean }> => {
     return api.get<{ data: any[]; success: boolean }>(`/sales/by-client/${clientId}`);
+  },
+
+  // Get all sales for select list (with client info)
+  getSelectList: async (): Promise<any[]> => {
+    return api.get<any[]>('/sales/select-list');
   }
 };

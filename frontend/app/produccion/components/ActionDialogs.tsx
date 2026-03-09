@@ -18,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { ProductionOrder, ProductionStatus } from '../types';
+import type { ProductionStatus } from '../types';
+import type { Production } from "@/lib/types/production.types";
 
 // Tipos de diálogos de acción
 export type ActionDialogType = 'pause' | 'resume' | 'complete' | 'cancel';
@@ -35,7 +36,7 @@ interface ActionDialogsProps {
   onCompleteDialogChange: (open: boolean) => void;
   onCancelDialogChange: (open: boolean) => void;
   // Producción seleccionada
-  selectedProduction: ProductionOrder | null;
+  selectedProduction: Production | null;
   // Razón de pausa
   pauseReason: string;
   onPauseReasonChange: (reason: string) => void;

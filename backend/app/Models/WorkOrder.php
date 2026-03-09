@@ -189,6 +189,7 @@ class WorkOrder extends Model
                 'name' => $prod->process?->name ?? 'Proceso',
                 'sequence' => $prod->process?->id ?? 1,
                 'status' => $prod->status,
+                'mes_status' => $prod->mes_status,
                 'quality_status' => $prod->quality_status,
                 'target_parts' => $prod->target_parts,
                 'good_parts' => $prod->good_parts,

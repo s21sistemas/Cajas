@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Loader2 } from "lucide-react";
 import { workOrdersService } from "@/lib/services";
 import type { WorkOrder } from "@/lib/types";
@@ -59,7 +60,7 @@ export function PipelineDialog({ open, onOpenChange, workOrder }: PipelineDialog
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh]">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             Pipeline de Producción - {workOrder?.code}
@@ -80,6 +81,22 @@ export function PipelineDialog({ open, onOpenChange, workOrder }: PipelineDialog
               <Badge variant="outline" className="bg-green-100">En Ejecución: {pipelineStatus.pipelineStatus?.running || 0}</Badge>
               <Badge variant="outline" className="bg-yellow-100">Pausados: {pipelineStatus.pipelineStatus?.paused || 0}</Badge>
               <Badge variant="outline" className="bg-emerald-100">Completados: {pipelineStatus.pipelineStatus?.completed || 0}</Badge>
+            </div>
+
+            {/* Barra de progreso general */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Progreso General</span>
+                <span>
+                  {pipelineStatus.pipelineStatus?.completed || 0} / {pipelineStatus.pipelineStatus?.totalProcesses || 0} procesos
+                </span>
+              </div>
+              <Progress 
+                value={pipelineStatus.pipelineStatus?.totalProcesses > 0 
+                  ? ((pipelineStatus.pipelineStatus?.completed || 0) / pipelineStatus.pipelineStatus?.totalProcesses) * 100 
+                  : 0} 
+                className="h-3"
+              />
             </div>
 
             {/* Lista de procesos */}

@@ -93,9 +93,95 @@ class WorkOrderController extends Controller implements HasMiddleware
     }
 
     /**
-     * Obtener productos disponibles de una venta para crear orden de trabajo
-     * Retorna solo los productos que NO tienen orden de trabajo relacionada
+     * Obtener órdenes de trabajo asignadas al operador
+     * Retorna las órdenes que tienen producciones pendientes o en proceso
      */
+    public function getAssigned()
+    {
+        // Obtener work orders que tienen producciones pendientes o en proceso
+        $workOrders = WorkOrder::select('id', 'code', 'product_id', 'client_id', 'product_name', 'client_name', 'quantity', 'completed', 'progress', 'status', 'priority')
+            ->with(['productions:id,work_order_id,status,process_id,product_id'])
+            ->whereHas('productions', function ($query) {
+                $query->whereIn('status', ['pending', 'in_progress', 'paused']);
+            })
+            ->orderByRaw("FIELD(priority, 'urgent', 'high', 'medium', 'low')")
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function ($wo) {
+                return [
+                    'id' => $wo->id,
+                    'code' => $wo->code,
+                    'product_name' => $wo->product_name,
+                    'client_name' => $wo->client_name,
+                    'quantity' => $wo->quantity,
+                    'completed' => $wo->completed,
+                    'progress' => $wo->progress,
+                    'status' => $wo->status,
+                    'priority' => $wo->priority,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $workOrders,
+        ]);
+    }
+
+    /**
+     * Obtener producciones de una orden de trabajo
+     */
+    public function getProductions(WorkOrder $workOrder)
+    {
+        // $productions = Production::where('work_order_id', $workOrder->id)
+        //     ->with(['process:id,name', 'machine:id,name', 'operator:id,name'])
+        //     ->orderBy('id')
+        //     ->get()
+        //     ->map(function ($prod) {
+        //         return [
+        //             'id' => $prod->id,
+        //             'code' => $prod->code,
+        //             'process_id' => $prod->process_id,
+        //             'process' => $prod->process,
+        //             'product_process_id' => $prod->product_process_id,
+        //             'work_order_id' => $prod->work_order_id,
+        //             'status' => $prod->status,
+        //             'quality_status' => $prod->quality_status,
+        //             'target_parts' => $prod->target_parts,
+        //             'good_parts' => $prod->good_parts,
+        //             'scrap_parts' => $prod->scrap_parts,
+        //             'start_time' => $prod->start_time,
+        //             'end_time' => $prod->end_time,
+        //             'pause_reason' => $prod->pause_reason,
+        //             'machine' => $prod->machine,
+        //             'operator' => $prod->operator,
+        //         ];
+        //     });
+
+            $operatorId = auth()->id();
+
+        $productions = Production::query()
+    ->where('productions.work_order_id', $workOrder->id)
+    ->where('productions.operator_id', $operatorId)
+    ->leftJoin('product_processes', function ($join) {
+        $join->on('product_processes.process_id', '=', 'productions.process_id')
+             ->on('product_processes.product_id', '=', 'productions.product_id');
+    })
+    ->select(
+        'productions.*',
+        'product_processes.sequence'
+    )
+    ->with([
+        'process:id,name',
+        'machine:id,name',
+        'operator:id,name',
+        'parentProcess:id,code,status,good_parts,scrap_parts'
+    ])
+    ->orderBy('sequence')
+    ->get();
+
+        return response()->json($productions);
+    }
+
     public function getAvailableProducts(Request $request)
     {
         $saleId = $request->query('sale_id');
@@ -121,18 +207,25 @@ class WorkOrderController extends Controller implements HasMiddleware
         });
         
         return response()->json([
-            'success' => true,
-            'data' => $availableItems->map(function ($item) {
+        'success' => true,
+        'data' => $availableItems
+            ->map(function ($item) {
                 $product = Product::find($item->product_id);
+
                 return [
                     'id' => $item->id,
+                    'saleItemId' => $item->id,
+                    'productId' => $item->product_id,
                     'product_id' => $item->product_id,
+                    'productName' => $product->name,
                     'product_name' => $product->name,
                     'quantity' => $item->quantity,
+                    'unitPrice' => $item->unit_price,
                     'unit_price' => $item->unit_price,
                     'subtotal' => $item->subtotal,
                 ];
-            }),
+            })
+            ->values() // ← esto arregla el JSON
         ]);
     }
 
@@ -307,8 +400,23 @@ class WorkOrderController extends Controller implements HasMiddleware
      */
     public function destroy(WorkOrder $workOrder)
     {
-        // Eliminar las producciones asociadas
-        $workOrder->productions()->delete();
+        // Obtener las producciones de esta orden
+        $productions = $workOrder->productions()->get();
+        $productionIds = $productions->pluck('id')->toArray();
+        
+        if (!empty($productionIds)) {
+            // Primero, desvincular todas las producciones que son hijos de otras en esta orden
+            // Esto elimina las referencias antes de borrar
+            \App\Models\Production::whereIn('id', $productionIds)
+                ->update(['parent_production_id' => null]);
+            
+            // También desvincular otras producciones que puedan tener parent_production_id apuntando a producciones de esta OT
+            \App\Models\Production::whereIn('parent_production_id', $productionIds)
+                ->update(['parent_production_id' => null]);
+            
+            // Ahora eliminar las producciones
+            $workOrder->productions()->delete();
+        }
         
         // Eliminar la orden
         $workOrder->delete();

@@ -9,6 +9,7 @@ export interface Settings {
     phone?: string;
     email?: string;
     website?: string;
+    logo?: string;
   };
   production?: {
     defaultShift?: string;
@@ -58,6 +59,29 @@ class SettingsService {
 
   async delete(module: string, key: string): Promise<void> {
     return await api.delete<void>(`${this.resource}/${module}/${key}`);
+  }
+
+  async uploadLogo(file: File): Promise<{ message: string; url: string }> {
+    const formData = new FormData();
+    formData.append('logo', file);
+    
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/settings/company/logo`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error('Error al subir el logo');
+    }
+    
+    return response.json();
+  }
+
+  async deleteLogo(): Promise<{ message: string }> {
+    return await api.delete<{ message: string }>('/settings/company/logo');
   }
 }
 

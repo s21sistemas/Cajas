@@ -37,40 +37,6 @@ export interface CreateProductionForm {
   parentProductionId: string;
 }
 
-// Tipo para la lista de producciones
-export interface ProductionOrder {
-  id: string;
-  code: string;
-  processName: string;
-  processType: string;
-  requiresMachine: boolean;
-  processId?: number;
-  process?: { id: number; name: string };
-  machineId: number | null;
-  machineName: string | null;
-  machine?: { id: number; name: string };
-  operatorId: number | null;
-  operatorName: string;
-  operator?: { id: number; name: string };
-  workOrderId?: number;
-  workOrder?: { id: number; code: string; client?: { id: number; name: string }; sale?: { id: number; code: string } };
-  client?: { id: number; name: string };
-  sale?: { id: number; code: string };
-  status: ProductionStatus;
-  pauseReason?: string;
-  targetParts: number;
-  goodParts: number;
-  scrapParts: number;
-  startTime: string;
-  endTime: string | null;
-  parentProductionId?: number | null;
-  qualityStatus?: 'PENDING' | 'APPROVED' | 'SCRAP' | 'REWORK';
-  // Nuevos campos para mostrar en cards
-  productName?: string;
-  clientName?: string;
-  saleCode?: string;
-}
-
 // Configuración de estados
 export const STATUS_CONFIG: Record<ProductionStatus, { label: string; color: string }> = {
   pending: { label: 'Pendiente', color: 'bg-muted text-muted-foreground' },

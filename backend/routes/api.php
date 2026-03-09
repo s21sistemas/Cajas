@@ -155,6 +155,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/settings/{module}', [SettingController::class, 'show']);
     Route::put('/settings/{module}/{key}', [SettingController::class, 'update']);
     Route::delete('/settings/{module}/{key}', [SettingController::class, 'destroy']);
+    // Rutas para logo
+    Route::post('/settings/company/logo', [SettingController::class, 'uploadLogo']);
+    Route::delete('/settings/company/logo', [SettingController::class, 'deleteLogo']);
 
     // CRM / Sales
     Route::get('/clients/stats', [ClientController::class, 'stats']);
@@ -189,6 +192,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/sales/{sale}/items/{item}', [SaleController::class, 'updateItem']);
     Route::delete('/sales/{sale}/items/{item}', [SaleController::class, 'deleteItem']);
     Route::get('/sales/stats', [SaleController::class, 'stats']);
+    Route::get('/sales/select-list', [SaleController::class, 'selectList']);
     Route::apiResource('sales', SaleController::class);
     
     // Warehouse - Almacén
@@ -269,6 +273,8 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Work Orders - custom routes first (before apiResource to avoid conflicts)
     Route::get('/work-orders/available-products', [WorkOrderController::class, 'getAvailableProducts']);
+    Route::get('/work-orders/assigned', [WorkOrderController::class, 'getAssigned']);
+    Route::get('/work-orders/{workOrder}/productions', [WorkOrderController::class, 'getProductions']);
     Route::get('/work-orders/select-list', [WorkOrderController::class, 'selectListWorkOrders'])
         ->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
     Route::get('/work-orders/{workOrder}/pipeline-status', [WorkOrderController::class, 'getPipelineStatus']);

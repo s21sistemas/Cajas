@@ -15,7 +15,6 @@ import {
 import { Loader2 } from "lucide-react";
 import type { CreateWorkOrderDto } from "@/lib/types/work-order.types";
 import type { WorkOrder } from "@/lib/types";
-import type { Client } from "@/lib/types/client.types";
 import { salesService } from "@/lib/services/sales.service";
 import { workOrdersService } from "@/lib/services/work-orders.service";
 
@@ -23,10 +22,23 @@ import { workOrdersService } from "@/lib/services/work-orders.service";
 interface Sale {
   id: number;
   code: string;
-  client_name: string;
+  clientId: number;
+  clientName: string;
   total: number;
   status: string;
   due_date: string;
+  invoice?: string;
+}
+
+// Tipo para los productos disponibles de una venta
+interface SaleProduct {
+  id: number;
+  saleItemId: number;
+  productId: number;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
 }
 
 interface WorkOrderDialogProps {
@@ -35,7 +47,6 @@ interface WorkOrderDialogProps {
   workOrder: WorkOrder | null;
   onSubmit: (data: CreateWorkOrderDto) => void;
   products: { id: number; name: string }[];
-  clients: Client[];
   isLoading: boolean;
 }
 
@@ -56,24 +67,24 @@ export function WorkOrderDialog({
   workOrder,
   onSubmit,
   products,
-  clients,
   isLoading,
 }: WorkOrderDialogProps) {
   const [formData, setFormData] = useState<CreateWorkOrderDto>(defaultFormData);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loadingSales, setLoadingSales] = useState(false);
-  const [saleProducts, setSaleProducts] = useState<any[]>([]);
+  const [saleProducts, setSaleProducts] = useState<SaleProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
-  // Cargar ventas cuando cambia el cliente
+  // Cargar todas las ventas al abrir el diálogo (para nueva orden)
   useEffect(() => {
-    async function fetchSales() {
-      if (formData.client_id) {
+    async function fetchAllSales() {
+      if (open && !workOrder) {
         setLoadingSales(true);
         try {
-          const response = await salesService.getByClient(formData.client_id);
-          if (response.success) {
-            setSales(response.data || []);
+          const response = await salesService.getSelectList();
+          // Verificar que response sea un array
+          if (Array.isArray(response)) {
+            setSales(response);
           } else {
             setSales([]);
           }
@@ -83,14 +94,10 @@ export function WorkOrderDialog({
         } finally {
           setLoadingSales(false);
         }
-      } else {
-        setSales([]);
-        setFormData(prev => ({ ...prev, sale_id: null, product_id: null }));
-        setSaleProducts([]);
       }
     }
-    fetchSales();
-  }, [formData.client_id]);
+    fetchAllSales();
+  }, [open, workOrder]);
 
   // Cargar productos de la venta cuando cambia la venta
   useEffect(() => {
@@ -99,25 +106,30 @@ export function WorkOrderDialog({
         setLoadingProducts(true);
         try {
           const response = await workOrdersService.getAvailableProducts(formData.sale_id);
-          if (response.success) {
-            setSaleProducts(response.data || []);
+          // Verificar que response sea un objeto con data como array
+          if (response && Array.isArray(response.data)) {
+            setSaleProducts(response.data);
+          } else if (Array.isArray(response)) {
+            // Si la respuesta es directamente un array
+            setSaleProducts(response);
           } else {
             setSaleProducts([]);
           }
         } catch (error) {
           console.error('Error fetching sale products:', error);
+          setSaleProducts([]);
         } finally {
           setLoadingProducts(false);
         }
       } else {
         setSaleProducts([]);
-        setFormData(prev => ({ ...prev, product_id: null }));
+        setFormData(prev => ({ ...prev, product_id: null, quantity: 1 }));
       }
     }
     fetchSaleProducts();
   }, [formData.sale_id]);
 
-  // Reset form when dialog opens for new order
+  // Reset form when dialog opens
   useEffect(() => {
     if (open) {
       if (workOrder) {
@@ -131,23 +143,35 @@ export function WorkOrderDialog({
           due_date: workOrder.dueDate || '',
           notes: workOrder.notes || '',
         });
-        // Cargar ventas si hay cliente
-        if (workOrder.clientId) {
-          salesService.getByClient(workOrder.clientId)
-            .then(response => {
-              if (response.success) {
-                setSales(response.data || []);
-              }
-            })
-            .catch(console.error);
-        }
       } else {
         setFormData(defaultFormData);
-        setSales([]);
         setSaleProducts([]);
       }
     }
   }, [open, workOrder]);
+
+  // Cuando se selecciona una venta, autocompletar el cliente
+  const handleSaleChange = (saleId: string) => {
+    const sale = sales.find(s => s.id === parseInt(saleId));
+    setFormData({ 
+      ...formData, 
+      sale_id: saleId ? parseInt(saleId) : null,
+      client_id: sale?.clientId ?? null,
+      product_id: null,
+      quantity: 1
+    });
+    setSaleProducts([]);
+  };
+
+  // Cuando se selecciona un producto, autocompletar la cantidad
+  const handleProductChange = (productId: string) => {
+    const product = saleProducts.find(p => p.productId === parseInt(productId));
+    setFormData({ 
+      ...formData, 
+      product_id: productId ? parseInt(productId) : null,
+      quantity: Number(product?.quantity) || 1
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,37 +189,22 @@ export function WorkOrderDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label>Cliente</Label>
-              <Select
-                value={formData.client_id?.toString() || ""}
-                onValueChange={(v) => setFormData({ ...formData, client_id: v ? parseInt(v) : null, sale_id: null, product_id: null })}
-              >
-                <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue placeholder="Seleccionar cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id.toString()}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
               <Label>Venta</Label>
               <Select
                 value={formData.sale_id?.toString() || ""}
-                onValueChange={(v) => setFormData({ ...formData, sale_id: v ? parseInt(v) : null, product_id: null })}
-                disabled={!formData.client_id || loadingSales}
+                onValueChange={handleSaleChange}
+                disabled={loadingSales}
               >
                 <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue placeholder={loadingSales ? "Cargando..." : formData.client_id ? "Seleccionar venta" : "Seleccione un cliente primero"} />
+                  <SelectValue className="truncate"
+                  placeholder={loadingSales ? "Cargando..." : "Seleccionar venta"} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-w-md">
                   {sales.map((s) => (
                     <SelectItem key={s.id} value={s.id.toString()}>
-                      {s.code} - ${s.total.toLocaleString()} ({s.status})
+                      <span>
+                        {s.code} - {s.clientName} - ${s.total.toLocaleString()}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -205,21 +214,14 @@ export function WorkOrderDialog({
               <Label>Producto</Label>
               <Select
                 value={formData.product_id?.toString() || ""}
-                onValueChange={(v) => {
-                  const product = saleProducts.find(p => p.product_id === parseInt(v));
-                  setFormData({ 
-                    ...formData, 
-                    product_id: v ? parseInt(v) : null,
-                    quantity: product?.quantity || 1
-                  });
-                }}
+                onValueChange={handleProductChange}
                 disabled={!formData.sale_id || loadingProducts}
               >
                 <SelectTrigger className="bg-secondary border-border">
                   <SelectValue placeholder={loadingProducts ? "Cargando..." : formData.sale_id ? (saleProducts.length === 0 ? "No hay productos disponibles" : "Seleccionar producto") : "Seleccione una venta primero"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {saleProducts.filter(p => p.productId).map((p) => (
+                  {saleProducts.map((p) => (
                     <SelectItem key={p.productId} value={p.productId.toString()}>
                       {p.productName} - Cant: {p.quantity}
                     </SelectItem>

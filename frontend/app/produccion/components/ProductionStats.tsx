@@ -1,10 +1,10 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Play, Pause, Check, XCircle, Package, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ProductionOrder } from '../types';
+import type { Production } from "@/lib/types/production.types";
 
 interface ProductionStatsProps {
-  productions: ProductionOrder[];
+  productions: Production[];
 }
 
 export function ProductionStats({ productions }: ProductionStatsProps) {

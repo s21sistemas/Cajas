@@ -75,22 +75,13 @@ class OperatorController extends Controller implements HasMiddleware
         ]);
     }
 
-    /**
-     * Login de operador por código de empleado
-     * Usado en el panel del operador
-     */
-    public function login(Request $request)
+   public function login(Request $request)
     {
-        $employeeCode = $request->input('employee_code');
-        
-        if (!$employeeCode) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Se requiere el código de empleado'
-            ], 400);
-        }
+        $request->validate([
+            'employee_code' => 'required|string'
+        ]);
 
-        $operator = Operator::where('employee_code', $employeeCode)
+        $operator = Operator::where('employee_code', $request->employee_code)
             ->where('active', true)
             ->first();
 
@@ -101,8 +92,11 @@ class OperatorController extends Controller implements HasMiddleware
             ], 401);
         }
 
-        // Generar token simple (en producción usar tokens de Sanctum)
-        $token = base64_encode($operator->id . ':' . now()->timestamp);
+        // eliminar tokens anteriores (opcional)
+        $operator->tokens()->delete();
+
+        // crear token real
+        $token = $operator->createToken('operator-panel')->plainTextToken;
 
         return response()->json([
             'success' => true,

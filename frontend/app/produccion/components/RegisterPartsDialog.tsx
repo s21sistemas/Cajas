@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
-import type { ProductionOrder } from '../types';
+import type { Production } from "@/lib/types/production.types";
 
 interface RegisterPartsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  production: ProductionOrder | null;
+  production: Production | null;
   onSave: (goodParts: number, scrapParts: number) => void;
   saving: boolean;
 }
@@ -99,10 +99,10 @@ export function RegisterPartsDialog({
               <span className="text-muted-foreground">Total registrado:</span>
               <span className="font-medium">{total} piezas</span>
             </div>
-            {production && total > production.targetParts && (
+            {production && total > (production.targetParts || 0) && (
               <div className="flex justify-between text-sm text-yellow-500">
                 <span className="text-muted-foreground">Exceso:</span>
-                <span className="font-medium">{total - production.targetParts} piezas</span>
+                <span className="font-medium">{total - (production.targetParts || 0)} piezas</span>
               </div>
             )}
           </div>

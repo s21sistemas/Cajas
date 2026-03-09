@@ -73,7 +73,7 @@ const navSections: NavSection[] = [
       { title: "Control de Calidad", href: "/produccion/calidad", icon: <CheckCircle className="h-5 w-5" />, permission: "quality.view" },
       { title: "Panel Operador", href: "/produccion/operador", icon: <UserCog className="h-5 w-5" />, permission: "productions.view" },
       { title: "Procesos", href: "/procesos", icon: <Cog className="h-5 w-5" />, permission: "processes.view" },
-      { title: "Tipo de proceso", href: "/procesos/tipo-proceso", icon: <Settings className="h-5 w-5" /> },
+      { title: "Tipo de proceso", href: "/procesos/tipo-proceso", icon: <Settings className="h-5 w-5" />, permission: "processes.view" },
       { title: "Ordenes de Trabajo", href: "/ordenes-trabajo", icon: <ClipboardList className="h-5 w-5" />, permission: "workorders.view" },
     ],
   },

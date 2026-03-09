@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { productionService } from "@/lib/services/production.service";
 import { clientsService } from "@/lib/services/clients.service";
 import { salesService } from "@/lib/services/sales.service";
-import type { ProductionOrder } from "@/lib/types/production.types";
+import type { Production } from "@/lib/types/production.types";
 import {
   ProductionStats,
   ProductionCard,
@@ -54,7 +54,7 @@ const DEFAULT_MACHINES: Machine[] = [
 
 export default function ProduccionPage() {
   const [loading, setLoading] = useState(true);
-  const [productions, setProductions] = useState<ProductionOrder[]>([]);
+  const [productions, setProductions] = useState<Production[]>([]);
   const [processes, setProcesses] = useState<Process[]>(DEFAULT_PROCESSES);
   const [machines, setMachines] = useState<Machine[]>(DEFAULT_MACHINES);
   const [operators, setOperators] = useState<Operator[]>(DEFAULT_OPERATORS);
@@ -81,7 +81,7 @@ export default function ProduccionPage() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showRegisterPartsDialog, setShowRegisterPartsDialog] = useState(false);
   
-  const [selectedProduction, setSelectedProduction] = useState<ProductionOrder | null>(null);
+  const [selectedProduction, setSelectedProduction] = useState<Production | null>(null);
   const [pauseReason, setPauseReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
@@ -99,8 +99,8 @@ export default function ProduccionPage() {
           productionService.getOperators().catch(() => DEFAULT_OPERATORS as any),
           productionService.getWorkOrders().catch(() => []),
           productionService.getProducts().catch(() => []),
-          clientsService.getAll().catch(() => []),
-          salesService.getAll().catch(() => []),
+          clientsService.selectList().catch(() => []),
+          salesService.getSelectList().catch(() => []),
         ]);
         
         setProductions(productionsData || []);
@@ -111,8 +111,8 @@ export default function ProduccionPage() {
         setProducts(productsData || []);
         
         // Extraer clientes y ventas de los datos paginados
-        const clientsList = clientsData?.data || clientsData || [];
-        const salesList = salesData?.data || salesData || [];
+        const clientsList = clientsData || [];
+        const salesList = salesData || [];
         setClients(clientsList.map((c: any) => ({ id: c.id, name: c.name })));
         setSales(salesList.map((s: any) => ({ id: s.id, code: s.code || s.invoice || `Venta-${s.id}` })));
       } catch (error) {
@@ -124,15 +124,44 @@ export default function ProduccionPage() {
     loadData();
   }, []);
 
+  // Recargar producciones cuando cambian los filtros
+  useEffect(() => {
+    async function loadProductions() {
+      try {
+        const filters: any = {};
+        if (filterStatus !== 'all') filters.status = filterStatus;
+        if (filterClient !== 'all') filters.client_id = Number(filterClient);
+        if (filterSale !== 'all') filters.sale_id = Number(filterSale);
+        if (filterWorkOrder !== 'all') filters.work_order_id = Number(filterWorkOrder);
+        
+        const productionsData = await productionService.getAll(filters).catch(() => []);
+        setProductions(productionsData || []);
+      } catch (error) {
+        console.error("Error recargando producciones:", error);
+      }
+    }
+    
+    // Solo recargar si ya se cargaron los datos iniciales
+    if (!loading) {
+      loadProductions();
+    }
+  }, [filterStatus, filterClient, filterSale, filterWorkOrder, loading]);
+
   // Filtrar producciones
   const filtered = productions.filter((p) => {
     const matchSearch =
-      p.processName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.workOrder?.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.code?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = filterStatus === "all" || p.status === filterStatus;
-    const matchClient = filterClient === "all" || Number(p.client?.id) === Number(filterClient) || Number(p.workOrder?.client?.id) === Number(filterClient);
-    const matchSale = filterSale === "all" || Number(p.sale?.id) === Number(filterSale) || Number(p.workOrder?.sale?.id) === Number(filterSale);
-    const matchWorkOrder = filterWorkOrder === "all" || Number(p.workOrderId) === Number(filterWorkOrder) || (p.workOrder?.id !== undefined && Number(p.workOrder.id) === Number(filterWorkOrder));
+    const matchClient = filterClient === "all" || 
+      (p.client?.id && Number(p.client.id) === Number(filterClient)) || 
+      (p.workOrder?.client?.id && Number(p.workOrder.client.id) === Number(filterClient));
+    const matchSale = filterSale === "all" || 
+      (p.sale?.id && Number(p.sale.id) === Number(filterSale)) || 
+      (p.workOrder?.sale?.id && Number(p.workOrder.sale.id) === Number(filterSale));
+    const matchWorkOrder = filterWorkOrder === "all" || 
+      (p.workOrderId && Number(p.workOrderId) === Number(filterWorkOrder)) || 
+      (p.workOrder?.id && Number(p.workOrder.id) === Number(filterWorkOrder));
     return matchSearch && matchStatus && matchClient && matchSale && matchWorkOrder;
   });
 
@@ -176,10 +205,10 @@ export default function ProduccionPage() {
     }
   }
 
-  async function handleStart(p: ProductionOrder) {
+  async function handleStart(p: Production) {
     setLoadingAction('start');
     try {
-      const updated = await productionService.start(parseInt(p.id));
+      const updated = await productionService.start(p.id);
       setProductions(productions.map((prod) => (prod.id === p.id ? updated : prod)));
       toast.success("Producción iniciada");
     } catch (error: any) {
@@ -194,7 +223,7 @@ export default function ProduccionPage() {
     if (!selectedProduction) return;
     setLoadingAction('pause');
     try {
-      const updated = await productionService.pause(parseInt(selectedProduction.id), pauseReason);
+      const updated = await productionService.pause(selectedProduction.id, pauseReason);
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
       setShowPauseDialog(false);
       setPauseReason("");
@@ -212,7 +241,7 @@ export default function ProduccionPage() {
     if (!selectedProduction) return;
     setLoadingAction('resume');
     try {
-      const updated = await productionService.resume(parseInt(selectedProduction.id));
+      const updated = await productionService.resume(selectedProduction.id);
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
       setShowResumeDialog(false);
       toast.success("Producción reanudada");
@@ -230,7 +259,7 @@ export default function ProduccionPage() {
     setLoadingAction('complete');
     try {
       const updated = await productionService.complete(
-        parseInt(selectedProduction.id),
+        selectedProduction.id,
         selectedProduction.goodParts || 0,
         selectedProduction.scrapParts || 0
       );
@@ -250,7 +279,7 @@ export default function ProduccionPage() {
     if (!selectedProduction) return;
     setLoadingAction('cancel');
     try {
-      const updated = await productionService.cancel(parseInt(selectedProduction.id), "Cancelado por usuario");
+      const updated = await productionService.cancel(selectedProduction.id, "Cancelado por usuario");
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
       setShowCancelDialog(false);
       toast.success("Producción cancelada");
@@ -264,7 +293,7 @@ export default function ProduccionPage() {
   }
 
   // Función para abrir diálogo de registrar piezas
-  function openRegisterPartsDialog(p: ProductionOrder) {
+  function openRegisterPartsDialog(p: Production) {
     setSelectedProduction(p);
     setShowRegisterPartsDialog(true);
   }
@@ -275,7 +304,7 @@ export default function ProduccionPage() {
     setLoadingAction('registerParts');
     try {
       const updated = await productionService.registerParts(
-        parseInt(selectedProduction.id),
+        selectedProduction.id,
         goodParts,
         scrapParts
       );
@@ -292,7 +321,7 @@ export default function ProduccionPage() {
   }
 
   // Funciones para abrir diálogos de edición y eliminación
-  function openEditDialog(p: ProductionOrder) {
+  function openEditDialog(p: Production) {
     setSelectedProduction(p);
     setForm({
       processId: '', // El proceso no se puede cambiar en edición
@@ -307,7 +336,7 @@ export default function ProduccionPage() {
     setShowEditDialog(true);
   }
 
-  function openDeleteDialog(p: ProductionOrder) {
+  function openDeleteDialog(p: Production) {
     setSelectedProduction(p);
     setShowDeleteDialog(true);
   }
@@ -317,7 +346,7 @@ export default function ProduccionPage() {
     if (!selectedProduction) return;
     setSaving(true);
     try {
-      const updated = await productionService.update(parseInt(selectedProduction.id), {
+      const updated = await productionService.update(selectedProduction.id, {
         machineId: form.machineId ? parseInt(form.machineId) : null,
         operatorId: form.operatorId ? parseInt(form.operatorId) : null,
         targetParts: form.targetParts,
@@ -341,7 +370,7 @@ export default function ProduccionPage() {
     if (!selectedProduction) return;
     setSaving(true);
     try {
-      await productionService.delete(parseInt(selectedProduction.id));
+      await productionService.delete(selectedProduction.id);
       setProductions(productions.filter((p) => p.id !== selectedProduction.id));
       setShowDeleteDialog(false);
       toast.success("Orden eliminada correctamente");
@@ -355,22 +384,22 @@ export default function ProduccionPage() {
   }
 
   // Funciones para abrir diálogos de acción
-  function openPauseDialog(p: ProductionOrder) {
+  function openPauseDialog(p: Production) {
     setSelectedProduction(p);
     setShowPauseDialog(true);
   }
 
-  function openResumeDialog(p: ProductionOrder) {
+  function openResumeDialog(p: Production) {
     setSelectedProduction(p);
     setShowResumeDialog(true);
   }
 
-  function openCompleteDialog(p: ProductionOrder) {
+  function openCompleteDialog(p: Production) {
     setSelectedProduction(p);
     setShowCompleteDialog(true);
   }
 
-  function openCancelDialog(p: ProductionOrder) {
+  function openCancelDialog(p: Production) {
     setSelectedProduction(p);
     setShowCancelDialog(true);
   }
@@ -488,7 +517,7 @@ export default function ProduccionPage() {
           onFormChange={setForm}
           machines={machines}
           operators={operators}
-          requiresMachine={selectedProduction?.requiresMachine ?? false}
+          requiresMachine={selectedProduction?.process?.requiresMachine ?? false}
           onSave={handleEdit}
           saving={saving}
         />

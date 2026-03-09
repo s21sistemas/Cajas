@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { ERPLayout } from "@/components/erp/erp-layout";
-import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { workOrdersService } from "@/lib/services/work-orders.service";
 import { productionService } from "@/lib/services/production.service";
+import { operatorAuthApi, OperatorUser } from "@/lib/api";
 import {
   Play,
   Pause,
@@ -36,14 +37,16 @@ import {
   Plus,
   RefreshCw,
   AlertCircle,
+  Loader2,
+  LogOut,
 } from "lucide-react";
 
 // WorkOrder del backend (snake_case)
 interface WorkOrder {
   id: number;
   code: string;
-  product_name: string;
-  client_name: string;
+  productName: string;
+  clientName: string;
   quantity: number;
   completed: number;
   progress: number;
@@ -87,7 +90,10 @@ interface Production {
 }
 
 export default function OperadorProduccionPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [validating, setValidating] = useState(true);
+  const [operator, setOperator] = useState<OperatorUser | null>(null);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrder | null>(null);
   const [productions, setProductions] = useState<Production[]>([]);
@@ -95,6 +101,47 @@ export default function OperadorProduccionPage() {
   const [registerOpen, setRegisterOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Validar token de operador al cargar
+  useEffect(() => {
+    const validateToken = async () => {
+      const token = localStorage.getItem('operator_token');
+      const userStr = localStorage.getItem('operator_user');
+
+      if (!token || !userStr) {
+        router.push('/operador/login');
+        return;
+      }
+
+      try {
+        const user = await operatorAuthApi.getCurrentOperator();
+        setOperator(user);
+        localStorage.setItem('operator_user', JSON.stringify(user));
+      } catch (error) {
+        localStorage.removeItem('operator_token');
+        localStorage.removeItem('operator_user');
+        router.push('/operador/login');
+      } finally {
+        setValidating(false);
+        setLoading(false);
+      }
+    };
+
+    validateToken();
+  }, [router]);
+
+  // Logout handler
+  const handleLogout = async () => {
+    try {
+      await operatorAuthApi.logout();
+    } catch {
+      // Ignore logout errors
+    } finally {
+      localStorage.removeItem('operator_token');
+      localStorage.removeItem('operator_user');
+      router.push('/operador/login');
+    }
+  };
 
   // Form state
   const [goodParts, setGoodParts] = useState("");
@@ -357,9 +404,11 @@ export default function OperadorProduccionPage() {
   };
 
   useEffect(() => {
-    fetchWorkOrders();
-    fetchData();
-  }, []);
+    if (!validating) {
+      fetchWorkOrders();
+      fetchData();
+    }
+  }, [validating]);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -416,32 +465,39 @@ export default function OperadorProduccionPage() {
     }
   };
 
-  if (loading) {
+  if (validating || loading) {
     return (
-      <ProtectedRoute>
-        <ERPLayout title="Producción" subtitle="Panel del Operador">
-          <div className="flex items-center justify-center h-96">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-          </div>
-        </ERPLayout>
-      </ProtectedRoute>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="mt-2 text-muted-foreground">Cargando...</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <ProtectedRoute>
-      <ERPLayout title="Producción" subtitle="Panel del Operador">
+    <ERPLayout title="Producción" subtitle="Panel del Operador">
       <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Mis Órdenes de Trabajo</h1>
             <p className="text-muted-foreground">Selecciona una orden para registrar producción</p>
+            {operator && (
+              <p className="text-sm text-muted-foreground mt-1">Operador: {operator.name}</p>
+            )}
           </div>
-          <Button onClick={fetchWorkOrders} variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Actualizar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={fetchWorkOrders} variant="outline">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Actualizar
+            </Button>
+            <Button onClick={handleLogout} variant="outline">
+              <LogOut className="h-4 w-4 mr-2" />
+              Cerrar Sesión
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -506,12 +562,12 @@ export default function OperadorProduccionPage() {
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{wo.product_name}</h3>
+                        <h3 className="font-semibold">{wo.productName}</h3>
                         <span className={`w-2 h-2 rounded-full ${getPriorityColor(wo.priority)}`} />
                         {getWorkOrderStatusBadge(wo.status)}
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Cliente: {wo.client_name} | Cantidad: {wo.quantity}
+                        Cliente: {wo.clientName} | Cantidad: {wo.quantity}
                       </p>
                       <div className="flex items-center gap-2 mt-2">
                         <Progress value={wo.progress} className="flex-1 h-2" />
@@ -544,7 +600,7 @@ export default function OperadorProduccionPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Package className="h-5 w-5" />
-                Producciones - {selectedWorkOrder.product_name}
+                Producciones - {selectedWorkOrder.productName}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -670,7 +726,7 @@ export default function OperadorProduccionPage() {
                 {selectedProduction?.status === 'completed' && "Producción Completada"}
               </DialogTitle>
               <DialogDescription>
-                {selectedWorkOrder?.product_name} - Proceso: {selectedProduction?.process?.name || 'N/A'}
+                {selectedWorkOrder?.productName} - Proceso: {selectedProduction?.process?.name || 'N/A'}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -895,6 +951,5 @@ export default function OperadorProduccionPage() {
         </Dialog>
       </div>
     </ERPLayout>
-    </ProtectedRoute>
   );
 }
