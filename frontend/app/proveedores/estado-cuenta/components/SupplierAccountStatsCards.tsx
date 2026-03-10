@@ -7,6 +7,7 @@ interface SupplierAccountStatsCardsProps {
   totalPayable: number;
   totalOverdue: number;
   totalPaid: number;
+  loading?: boolean;
 }
 
 export function SupplierAccountStatsCards({
@@ -14,6 +15,7 @@ export function SupplierAccountStatsCards({
   totalPayable,
   totalOverdue,
   totalPaid,
+  loading = false,
 }: SupplierAccountStatsCardsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -37,8 +39,8 @@ export function SupplierAccountStatsCards({
               </svg>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Total Facturas</p>
-              <p className="text-2xl font-bold text-foreground">{totalInvoices}</p>
+              <p className="text-sm text-muted-foreground">Total Órdenes de compra</p>
+              <p className="text-2xl font-bold text-foreground">{loading ? '-' : totalInvoices}</p>
             </div>
           </div>
         </CardContent>
@@ -64,7 +66,7 @@ export function SupplierAccountStatsCards({
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Por Pagar</p>
-              <p className="text-2xl font-bold text-foreground">${totalPayable.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-foreground">{loading ? '-' : `${totalPayable.toLocaleString()}`}</p>
             </div>
           </div>
         </CardContent>
@@ -90,7 +92,7 @@ export function SupplierAccountStatsCards({
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Vencido</p>
-              <p className="text-2xl font-bold text-red-400">${totalOverdue.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-red-400">{loading ? '-' : `${totalOverdue.toLocaleString()}`}</p>
             </div>
           </div>
         </CardContent>
@@ -116,7 +118,7 @@ export function SupplierAccountStatsCards({
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Pagado</p>
-              <p className="text-2xl font-bold text-green-400">${totalPaid.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-green-400">{loading ? '-' : `${totalPaid.toLocaleString()}`}</p>
             </div>
           </div>
         </CardContent>

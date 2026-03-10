@@ -14,6 +14,7 @@ return new class extends Migration
             $table->foreignId('sale_id')->constrained('sales')->onDelete('cascade');
             $table->foreignId('bank_account_id')->constrained('bank_accounts')->nullable();
             $table->foreignId('account_statement_id')->constrained('account_statements')->nullable();
+            $table->foreignId('supplier_statement_id')->constrained('supplier_statements')->nullable();
             $table->decimal('amount', 15, 2);
             $table->string('payment_method')->nullable(); // Transferencia, Cheque, Efectivo
             $table->string('reference')->nullable(); // Número de referencia del pago

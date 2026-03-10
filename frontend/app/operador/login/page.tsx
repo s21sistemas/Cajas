@@ -44,7 +44,7 @@ export default function OperatorLoginPage() {
       localStorage.setItem('operator_user', JSON.stringify(response.operator));
       
       showToast('success', 'Bienvenido', `Hola, ${response.operator.name}`);
-      router.push('/operador');
+      router.push('/produccion/operador');
     } catch (err: any) {
       const errorMessage = err?.message || err?.error || 'Código de empleado inválido';
       setError(errorMessage);

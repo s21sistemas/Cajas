@@ -19,40 +19,40 @@ interface Payment {
   code: string;
   type: 'receivable' | 'payable';
   amount: number;
-  payment_method: string;
+  paymentMethod: string;
   reference: string;
-  payment_date: string;
+  paymentDate: string;
   status: string;
-  client_name?: string;
-  supplier_name?: string;
-  sale_code?: string;
+  clientName?: string;
+  supplierName?: string;
+  saleCode?: string;
   purchase_order_code?: string;
 }
 
 interface Sale {
   id: number;
   code: string;
-  client_name: string;
+  clientName: string;
   total: number;
   paid?: number;
   balance?: number;
   status: string;
-  payment_type: string;
-  credit_days: number;
-  due_date: string | null;
+  paymentType: string;
+  creditDays: number;
+  dueDate: string | null;
 }
 
 interface PurchaseOrder {
   id: number;
   code: string;
-  supplier_name: string;
+  supplierName: string;
   total: number;
   paid?: number;
   balance?: number;
   status: string;
-  payment_type: string;
-  credit_days: number;
-  due_date: string | null;
+  paymentType: string;
+  creditDays: number;
+  dueDate: string | null;
 }
 
 interface BankAccount {
@@ -107,7 +107,7 @@ export default function PaymentsPage() {
         
         const salesData = salesRes?.data || [];
         const creditSales = salesData.filter((s: Sale) => 
-          s.payment_type === 'credit' || s.status === 'pending'
+          s.paymentType === 'credit' || s.status === 'pending'
         ).map((s: Sale) => ({
           ...s,
           balance: s.balance ?? (s.total - (s.paid ?? 0)),
@@ -116,7 +116,7 @@ export default function PaymentsPage() {
         
         const ordersData = ordersRes?.data || [];
         const creditOrders = ordersData.filter((o: PurchaseOrder) => 
-          o.payment_type === 'credit' || o.status === 'pending'
+          o.paymentType === 'credit' || o.status === 'pending'
         ).map((o: PurchaseOrder) => ({
           ...o,
           balance: o.balance ?? (o.total - (o.paid ?? 0)),
@@ -136,12 +136,12 @@ export default function PaymentsPage() {
                 code: p.code || `PAGO-${p.id}`,
                 type: 'receivable',
                 amount: p.amount,
-                payment_method: p.payment_method,
+                paymentMethod: p.paymentMethod,
                 reference: p.reference || '',
-                payment_date: p.payment_date,
+                paymentDate: p.paymentDate,
                 status: p.status || 'completed',
-                client_name: item.clientName || item.client_name,
-                sale_code: item.code,
+                clientName: item.clientName || item.client_name,
+                saleCode: item.code,
               });
             });
           }
@@ -155,11 +155,11 @@ export default function PaymentsPage() {
                 code: p.code || `PAGO-${p.id}`,
                 type: 'payable',
                 amount: p.amount,
-                payment_method: p.payment_method,
+                paymentMethod: p.paymentMethod,
                 reference: p.reference || '',
-                payment_date: p.payment_date,
+                paymentDate: p.paymentDate,
                 status: p.status || 'completed',
-                supplier_name: item.supplierName || item.supplier_name,
+                supplierName: item.supplierName || item.supplier_name,
                 purchase_order_code: item.invoiceNumber || item.invoice_number,
               });
             });
@@ -167,7 +167,7 @@ export default function PaymentsPage() {
         });
         
         allPayments.sort((a, b) => 
-          new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
+          new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime()
         );
         setPayments(allPayments);
         
@@ -273,10 +273,10 @@ export default function PaymentsPage() {
     }
   };
 
-  const totalReceivables = sales.reduce((sum, s) => sum + (s.balance || 0), 0);
-  const totalPayables = purchaseOrders.reduce((sum, o) => sum + (o.balance || 0), 0);
-  const totalReceived = payments.filter(p => p.type === 'receivable').reduce((sum, p) => sum + p.amount, 0);
-  const totalPaid = payments.filter(p => p.type === 'payable').reduce((sum, p) => sum + p.amount, 0);
+  const totalReceivables = sales.reduce((sum, s) => Number(sum) + (Number(s.balance) || 0), 0);
+  const totalPayables = purchaseOrders.reduce((sum, o) => Number(sum) + (Number(o.balance) || 0), 0);
+  const totalReceived = payments.filter(p => p.type === 'receivable').reduce((sum, p) => Number(sum) + Number(p.amount), 0);
+  const totalPaid = payments.filter(p => p.type === 'payable').reduce((sum, p) => Number(sum) + Number(p.amount), 0);
 
   return (
     <ERPLayout title="Pagos" subtitle="Gestión de cobros y pagos">
@@ -317,7 +317,7 @@ export default function PaymentsPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-green-500" />
+                <ArrowUpRight className="h-5 w-5 text-green-500" />
                 <span className="text-2xl font-bold text-green-500">{formatCurrency(totalReceived)}</span>
               </div>
             </CardContent>
@@ -328,7 +328,7 @@ export default function PaymentsPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-blue-500" />
+                <ArrowDownRight className="h-5 w-5 text-blue-500" />
                 <span className="text-2xl font-bold text-blue-500">{formatCurrency(totalPaid)}</span>
               </div>
             </CardContent>
@@ -381,15 +381,15 @@ export default function PaymentsPage() {
                     </TableHeader>
                     <TableBody>
                       {sales.map((sale: any) => {
-                        const daysUntil = getDaysUntilDue(sale.due_date);
+                        const daysUntil = getDaysUntilDue(sale.dueDate);
                         return (
                           <TableRow key={sale.id} className="border-border">
                             <TableCell className="font-medium">{sale.code}</TableCell>
-                            <TableCell>{sale.client_name}</TableCell>
+                            <TableCell>{sale.clientName}</TableCell>
                             <TableCell className="text-right">{formatCurrency(sale.total)}</TableCell>
                             <TableCell className="text-right text-green-400">{formatCurrency(sale.paid || 0)}</TableCell>
                             <TableCell className="text-right font-medium text-red-400">{formatCurrency(sale.balance)}</TableCell>
-                            <TableCell>{formatDate(sale.due_date)}</TableCell>
+                            <TableCell>{formatDate(sale.dueDate)}</TableCell>
                             <TableCell>
                               {daysUntil !== null && (
                                 <Badge className={daysUntil < 0 ? "bg-red-500/20 text-red-400" : daysUntil <= 7 ? "bg-yellow-500/20 text-yellow-400" : "bg-green-500/20 text-green-400"}>
@@ -442,15 +442,15 @@ export default function PaymentsPage() {
                     </TableHeader>
                     <TableBody>
                       {purchaseOrders.map((order: any) => {
-                        const daysUntil = getDaysUntilDue(order.due_date);
+                        const daysUntil = getDaysUntilDue(order.dueDate);
                         return (
                           <TableRow key={order.id} className="border-border">
                             <TableCell className="font-medium">{order.code}</TableCell>
-                            <TableCell>{order.supplier_name}</TableCell>
+                            <TableCell>{order.supplierName}</TableCell>
                             <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
                             <TableCell className="text-right text-green-400">{formatCurrency(order.paid || 0)}</TableCell>
                             <TableCell className="text-right font-medium text-red-400">{formatCurrency(order.balance)}</TableCell>
-                            <TableCell>{formatDate(order.due_date)}</TableCell>
+                            <TableCell>{formatDate(order.dueDate)}</TableCell>
                             <TableCell>
                               {daysUntil !== null && (
                                 <Badge className={daysUntil < 0 ? "bg-red-500/20 text-red-400" : daysUntil <= 7 ? "bg-yellow-500/20 text-yellow-400" : "bg-green-500/20 text-green-400"}>
@@ -509,12 +509,12 @@ export default function PaymentsPage() {
                               {payment.type === 'receivable' ? 'Cobro' : 'Pago'}
                             </Badge>
                           </TableCell>
-                          <TableCell>{payment.client_name || payment.supplier_name || '-'}</TableCell>
+                          <TableCell>{payment.clientName || payment.supplierName || '-'}</TableCell>
                           <TableCell className={`text-right font-medium ${payment.type === 'receivable' ? 'text-green-400' : 'text-blue-400'}`}>
                             {formatCurrency(payment.amount)}
                           </TableCell>
-                          <TableCell>{payment.payment_method}</TableCell>
-                          <TableCell>{formatDate(payment.payment_date)}</TableCell>
+                          <TableCell>{payment.paymentMethod}</TableCell>
+                          <TableCell>{formatDate(payment.paymentDate)}</TableCell>
                           <TableCell>{getStatusBadge(payment.status)}</TableCell>
                         </TableRow>
                       ))}

@@ -40,7 +40,7 @@ class SupplierStatementController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $perPage = $request->integer('per_page', 15);
-        $items = SupplierStatement::with(['supplier', 'payments'])->orderByDesc('date')->paginate($perPage);
+        $items = SupplierStatement::with(['supplier'])->orderByDesc('date')->paginate($perPage);
         return response()->json($items);
     }
 
@@ -48,7 +48,7 @@ class SupplierStatementController extends Controller implements HasMiddleware
     {
         $validator = Validator::make($request->all(), [
             'supplier_id' => 'required|exists:suppliers,id',
-            'invoice_number' => 'required|string|max:255',
+            'code' => 'required|string|max:255',
             'date' => 'required|date',
             'due_date' => 'required|date|after_or_equal:date',
             'amount' => 'required|numeric',
@@ -81,7 +81,7 @@ class SupplierStatementController extends Controller implements HasMiddleware
     public function update(Request $request, SupplierStatement $supplierStatement)
     {
         $validator = Validator::make($request->all(), [
-            'invoice_number' => 'sometimes|required|string|max:255',
+            'code' => 'sometimes|required|string|max:255',
             'date' => 'sometimes|date',
             'due_date' => 'sometimes|date|after_or_equal:date',
             'amount' => 'sometimes|numeric',
@@ -103,5 +103,16 @@ class SupplierStatementController extends Controller implements HasMiddleware
     {
         $supplierStatement->delete();
         return response()->json(null, 204);
+    }
+
+    public function stats()
+    {
+        $statements = SupplierStatement::all();
+        return response()->json([
+            'totalInvoices' => $statements->count(),
+            'totalPayable' => $statements->sum('balance'),
+            'totalOverdue' => $statements->where('status', 'overdue')->sum('balance'),
+            'totalPaid' => $statements->sum('paid'),
+        ]);
     }
 }

@@ -6,6 +6,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { suppliersService } from "@/lib/services/suppliers.service";
+import { useApiQuery } from "@/hooks/use-api-query";
 import { SupplierAccountStatsCards } from "./components/SupplierAccountStatsCards";
 import { SupplierAccountTable } from "./components/SupplierAccountTable";
 
@@ -30,75 +31,66 @@ interface SupplierStats {
   totalPaid: number;
 }
 
+interface StatementFilters {
+  supplier_id?: number;
+  status?: string;
+  per_page?: number;
+  page?: number;
+  search?: string;
+}
+
 export default function SupplierAccountPage() {
-  const [statements, setStatements] = useState<SupplierStatementResponse[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [supplierFilter, setSupplierFilter] = useState("all");
-
-  // Paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
-  // Stats
-  const [stats, setStats] = useState<SupplierStats>({
-    totalInvoices: 0,
-    totalPayable: 0,
-    totalOverdue: 0,
-    totalPaid: 0,
-  });
-
-  // Refs
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInitialMount = useRef(true);
 
-  // Función para obtener statements
-  const fetchStatements = async (searchValue: string, page: number = 1) => {
-    setLoading(true);
-    try {
-      const params: any = { page };
-      if (searchValue && searchValue.trim()) {
-        params.search = searchValue.trim();
-      }
-      const response = await suppliersService.getStatements(params);
-      const statementsData = response.data || response;
-      setStatements(statementsData);
-      setCurrentPage(response?.currentPage || 1);
-      setLastPage(response?.lastPage || 1);
-      setTotalItems(response?.total || 0);
-    } catch (error) {
-      console.error("Error fetching statements:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Fetch statements
+  const { data: statementsResponse, loading: statementsLoading, refetch: refetchStatements } = useApiQuery(
+    (): Promise<any> => {
+      const filters: StatementFilters = { page: currentPage };
+      if (search.trim()) filters.search = search.trim();
+      return suppliersService.getStatements(filters);
+    },
+    { enabled: true }
+  );
 
-  // Función para obtener estadísticas
-  const fetchStats = async () => {
-    try {
-      const allStatements = await suppliersService.getStatements({});
-      const data = allStatements.data || allStatements;
-      setStats({
-        totalInvoices: data.length,
-        totalPayable: data.reduce((sum: number, s: SupplierStatementResponse) => sum + s.balance, 0),
-        totalOverdue: data.filter((s: SupplierStatementResponse) => s.status === "overdue").reduce((sum: number, s: SupplierStatementResponse) => sum + s.balance, 0),
-        totalPaid: data.reduce((sum: number, s: SupplierStatementResponse) => sum + s.paid, 0),
-      });
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-    }
-  };
+  // Fetch stats from backend
+  const { data: statsResponse, loading: statsLoading } = useApiQuery(
+    () => suppliersService.getStatementsStats(),
+    { enabled: true }
+  );
 
-  // Carga inicial
+  const statements: SupplierStatementResponse[] = statementsResponse?.data || [];
+  const stats: SupplierStats | null = statsResponse ? {
+    totalInvoices: statsResponse.totalInvoices ?? 0,
+    totalPayable: statsResponse.totalPayable ?? 0,
+    totalOverdue: statsResponse.totalOverdue ?? 0,
+    totalPaid: statsResponse.totalPaid ?? 0,
+  } : null;
+
+  // Update pagination from response
   useEffect(() => {
-    fetchStatements("");
-    fetchStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (statementsResponse) {
+      setCurrentPage(statementsResponse.currentPage || 1);
+      setLastPage(statementsResponse.lastPage || 1);
+      setTotalItems(statementsResponse.total || 0);
+    }
+  }, [statementsResponse]);
 
-  // Búsqueda con debounce
+  // Refetch when page changes
+  useEffect(() => {
+    if (!isInitialMount.current) {
+      refetchStatements();
+    }
+  }, [currentPage]);
+
+  // Search with debounce
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -111,7 +103,7 @@ export default function SupplierAccountPage() {
 
     searchTimeoutRef.current = setTimeout(() => {
       setCurrentPage(1);
-      fetchStatements(search, 1);
+      refetchStatements();
     }, 300);
 
     return () => {
@@ -119,29 +111,30 @@ export default function SupplierAccountPage() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  // Cambio de página
+  // Page change handler
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= lastPage) {
-      fetchStatements(search, newPage);
+      setCurrentPage(newPage);
     }
   };
 
-  // Obtener proveedores únicos para el filtro
-  const suppliers = [...new Set(statements.map((s) => s.supplierName))];
+  // Get unique suppliers for filter
+  const suppliers: string[] = [...new Set(statements.map((s) => s.supplierName))];
 
-  // Filtrar datos localmente
+  // Filter locally
   const filtered = statements.filter((s) => {
     const matchesSearch =
-      s.invoiceNumber?.toLowerCase().includes(search.toLowerCase()) ||
+      s.code?.toLowerCase().includes(search.toLowerCase()) ||
       s.supplierName?.toLowerCase().includes(search.toLowerCase()) ||
       s.concept?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || s.status === statusFilter;
     const matchesSupplier = supplierFilter === "all" || s.supplierName === supplierFilter;
     return matchesSearch && matchesStatus && matchesSupplier;
   });
+
+  const loading = statementsLoading || statsLoading;
 
   return (
     <ProtectedRoute>
@@ -161,17 +154,18 @@ export default function SupplierAccountPage() {
           </div>
 
           <SupplierAccountStatsCards
-            totalInvoices={stats.totalInvoices}
-            totalPayable={stats.totalPayable}
-            totalOverdue={stats.totalOverdue}
-            totalPaid={stats.totalPaid}
+            totalInvoices={stats?.totalInvoices ?? 0}
+            totalPayable={stats?.totalPayable ?? 0}
+            totalOverdue={stats?.totalOverdue ?? 0}
+            totalPaid={stats?.totalPaid ?? 0}
+            loading={statsLoading}
           />
 
           <SupplierAccountTable
             items={filtered}
             search={search}
             onSearchChange={setSearch}
-            loading={loading}
+            loading={statementsLoading}
             currentPage={currentPage}
             lastPage={lastPage}
             totalItems={totalItems}

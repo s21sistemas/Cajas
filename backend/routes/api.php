@@ -131,8 +131,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/finance', [ReportController::class, 'finance']);
     Route::get('/reports/executive', [ReportController::class, 'executive']);
 
-    // Operadores
-    Route::post('/operators/login', [OperatorController::class, 'login']);
     // La ruta de login no debe tener middleware de autenticacion
     Route::get('/operators/my-productions', [OperatorController::class, 'myProductions'])->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
     Route::get('/operators/select-list', [OperatorController::class, 'selectList']);
@@ -141,14 +139,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Producciones
     Route::post('/productions/{production}/complete-to-inventory', [ProductionController::class, 'completeToInventory']);
-    Route::apiResource('productions', ProductionController::class)->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
-
     // Rutas MES para producciones
     Route::post('/productions/{production}/complete', [ProductionController::class, 'complete']);
     Route::post('/productions/{production}/pause', [ProductionController::class, 'pause']);
     Route::post('/productions/{production}/resume', [ProductionController::class, 'resume']);
     Route::get('/productions/{production}/movements', [ProductionController::class, 'movements']);
     Route::get('/productions/pending-quality', [ProductionController::class, 'pendingQuality']);
+    Route::apiResource('productions', ProductionController::class);
+
 
     // Settings - rutas personalizadas para key-value por módulo
     Route::get('/settings', [SettingController::class, 'index']);
@@ -222,11 +220,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/suppliers/stats', [SupplierController::class, 'stats']);
     Route::get('/suppliers/select-list', [SupplierController::class, 'selectListSuppliers']);
     Route::apiResource('suppliers', SupplierController::class);
-    Route::apiResource('supplier-statements', SupplierStatementController::class);
-    Route::apiResource('purchase-orders', PurchaseOrderController::class);
+    Route::get('/supplier-statements/stats', [SupplierStatementController::class, 'stats']);
+    Route::apiResource('supplier-statements', SupplierStatementController::class);    
     Route::get('/purchase-orders/stats', [PurchaseOrderController::class, 'stats']);
     Route::post('/purchase-orders/{purchase_order}/payment', [PurchaseOrderController::class, 'recordPayment']);
     Route::get('/purchase-orders/{purchase_order}/payments', [PurchaseOrderController::class, 'getPayments']);
+    Route::apiResource('purchase-orders', PurchaseOrderController::class);
 
     // Finance
     Route::apiResource('bank-accounts', BankAccountController::class);

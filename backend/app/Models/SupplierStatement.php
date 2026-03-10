@@ -10,7 +10,8 @@ class SupplierStatement extends Model
     use HasFactory;
 
     protected $fillable = [
-        'invoice_number',
+        'code',
+        'purchase_order_id',
         'supplier_id',
         'supplier_name',
         'date',

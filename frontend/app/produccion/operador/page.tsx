@@ -66,19 +66,19 @@ interface Production {
     name: string;
   };
   product_process_id: number;
-  product_process?: {
+  productProcess?: {
     id: number;
     sequence: number;
   };
   work_order_id: number;
   status: 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
   quality_status?: 'PENDING' | 'APPROVED' | 'SCRAP' | 'REWORK';
-  target_parts: number;
-  good_parts: number;
-  scrap_parts: number;
-  start_time?: string;
-  end_time?: string;
-  pause_reason?: string;
+  targetParts: number;
+  goodParts: number;
+  scrapParts: number;
+  startTime?: string;
+  endTime?: string;
+  pauseReason?: string;
   machine?: {
     id: number;
     name: string;
@@ -155,8 +155,8 @@ export default function OperadorProduccionPage() {
 
   // Timer para actualizar el tiempo transcurrido
   useEffect(() => {
-    if (selectedProduction?.status === 'in_progress' && selectedProduction?.start_time) {
-      const startTime = new Date(selectedProduction.start_time).getTime();
+    if (selectedProduction?.status === 'in_progress' && selectedProduction?.startTime) {
+      const startTime = new Date(selectedProduction.startTime).getTime();
       
       const updateTimer = () => {
         const now = Date.now();
@@ -173,7 +173,7 @@ export default function OperadorProduccionPage() {
     } else {
       setElapsedTime(0);
     }
-  }, [selectedProduction?.status, selectedProduction?.start_time]);
+  }, [selectedProduction?.status, selectedProduction?.startTime]);
 
   // Función para formatear tiempo
   const formatElapsedTime = (seconds: number): string => {
@@ -252,7 +252,7 @@ export default function OperadorProduccionPage() {
     // Find the first pending or in_progress production
     // But also check quality gate - previous must be approved
     const sortedProductions = [...productions].sort((a, b) => 
-      (a.product_process?.sequence || 0) - (b.product_process?.sequence || 0)
+      (a.productProcess?.sequence || 0) - (b.productProcess?.sequence || 0)
     );
     
     for (let i = 0; i < sortedProductions.length; i++) {
@@ -284,7 +284,7 @@ export default function OperadorProduccionPage() {
   // Check if production can be started (quality gate)
   const canStartProduction = (production: Production): { canStart: boolean; reason?: string } => {
     const sortedProductions = [...productions].sort((a, b) => 
-      (a.product_process?.sequence || 0) - (b.product_process?.sequence || 0)
+      (a.productProcess?.sequence || 0) - (b.productProcess?.sequence || 0)
     );
     
     const currentIndex = sortedProductions.findIndex(p => p.id === production.id);
@@ -606,7 +606,7 @@ export default function OperadorProduccionPage() {
             <CardContent>
               <div className="space-y-3">
                 {productions
-                  .sort((a, b) => (a.product_process?.sequence || 0) - (b.product_process?.sequence || 0))
+                  .sort((a, b) => (a.productProcess?.sequence || 0) - (b.productProcess?.sequence || 0))
                   .map((production, index) => {
                     const qualityCheck = canStartProduction(production);
                     const canWork = qualityCheck.canStart || production.status !== 'pending';
@@ -633,9 +633,9 @@ export default function OperadorProduccionPage() {
                               {production.quality_status && getQualityStatusBadge(production.quality_status)}
                             </div>
                             <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                              <span>Meta: {production.target_parts} piezas</span>
-                              <span>Buenos: {production.good_parts || 0}</span>
-                              <span>Scrap: {production.scrap_parts || 0}</span>
+                              <span>Meta: {production.targetParts} piezas</span>
+                              <span>Buenos: {production.goodParts || 0}</span>
+                              <span>Scrap: {production.scrapParts || 0}</span>
                             </div>
                             {!canWork && production.status === 'pending' && (
                               <div className="flex items-center gap-1 text-xs text-orange-500 mt-1">
@@ -734,7 +734,7 @@ export default function OperadorProduccionPage() {
               <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
                 <div>
                   <p className="text-xs text-muted-foreground">Secuencia</p>
-                  <p className="font-medium">{selectedProduction?.product_process?.sequence || 1}</p>
+                  <p className="font-medium">{selectedProduction?.productProcess?.sequence || 1}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Estado</p>
@@ -746,7 +746,7 @@ export default function OperadorProduccionPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Meta</p>
-                  <p className="font-medium">{selectedProduction?.target_parts || 0} piezas</p>
+                  <p className="font-medium">{selectedProduction?.targetParts || 0} piezas</p>
                 </div>
               </div>
 
@@ -829,7 +829,7 @@ export default function OperadorProduccionPage() {
                     />
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Piezas registradas: Buenos {selectedProduction?.good_parts || 0}, Scrap {selectedProduction?.scrap_parts || 0}
+                    Piezas registradas: Buenos {selectedProduction?.goodParts || 0}, Scrap {selectedProduction?.scrapParts || 0}
                   </div>
                 </div>
               )}
@@ -838,8 +838,8 @@ export default function OperadorProduccionPage() {
               {selectedProduction?.status === 'paused' && (
                 <div className="space-y-4">
                   <div className="text-sm text-muted-foreground">
-                    <p>Razón de pausa: {selectedProduction?.pause_reason || 'No especificada'}</p>
-                    <p className="mt-2">Piezas registradas: Buenos {selectedProduction?.good_parts || 0}, Scrap {selectedProduction?.scrap_parts || 0}</p>
+                    <p>Razón de pausa: {selectedProduction?.pauseReason || 'No especificada'}</p>
+                    <p className="mt-2">Piezas registradas: Buenos {selectedProduction?.goodParts || 0}, Scrap {selectedProduction?.scrapParts || 0}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -871,22 +871,22 @@ export default function OperadorProduccionPage() {
                 <div className="space-y-2 p-4 bg-muted rounded-lg">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Piezas Buenos:</span>
-                    <span className="font-medium text-green-500">{selectedProduction?.good_parts || 0}</span>
+                    <span className="font-medium text-green-500">{selectedProduction?.goodParts || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Scrap:</span>
-                    <span className="font-medium text-red-500">{selectedProduction?.scrap_parts || 0}</span>
+                    <span className="font-medium text-red-500">{selectedProduction?.scrapParts || 0}</span>
                   </div>
-                  {selectedProduction?.start_time && (
+                  {selectedProduction?.startTime && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Inició:</span>
-                      <span className="font-medium">{new Date(selectedProduction.start_time).toLocaleString()}</span>
+                      <span className="font-medium">{new Date(selectedProduction.startTime).toLocaleString()}</span>
                     </div>
                   )}
-                  {selectedProduction?.end_time && (
+                  {selectedProduction?.endTime && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Finalizó:</span>
-                      <span className="font-medium">{new Date(selectedProduction.end_time).toLocaleString()}</span>
+                      <span className="font-medium">{new Date(selectedProduction.endTime).toLocaleString()}</span>
                     </div>
                   )}
                 </div>

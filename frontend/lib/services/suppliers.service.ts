@@ -10,7 +10,7 @@ import type {
 // Tipos para estados de cuenta de proveedores
 export interface SupplierStatement {
   id: number;
-  invoiceNumber: string;
+  code: string;
   supplierId: number;
   supplierName: string;
   date: string;
@@ -33,7 +33,7 @@ export interface SupplierStatement {
 
 export interface CreateSupplierStatementDto {
   supplier_id: number;
-  invoice_number: string;
+  code: string;
   date: string;
   due_date: string;
   amount: number;
@@ -100,7 +100,7 @@ export const suppliersService = {
   },
 
   // Get supplier statements (estado de cuenta)
-  getStatements: (filters?: { supplier_id?: number; status?: string; per_page?: number }): Promise<PaginatedResponse<SupplierStatement>> => {
+  getStatements: (filters?: { supplier_id?: number; status?: string; per_page?: number; page?: number; search?: string }): Promise<PaginatedResponse<SupplierStatement>> => {
     return api.get<PaginatedResponse<SupplierStatement>>('/supplier-statements', filters);
   },
 
@@ -122,5 +122,21 @@ export const suppliersService = {
   // Delete supplier statement
   deleteStatement: (id: number): Promise<void> => {
     return api.delete(`/supplier-statements/${id}`);
+  },
+
+  // Get supplier statements stats (estado de cuenta)
+  getStatementsStats: async (): Promise<{
+    totalInvoices: number;
+    totalPayable: number;
+    totalOverdue: number;
+    totalPaid: number;
+  }> => {
+    const response = await api.get<{
+      totalInvoices: number;
+      totalPayable: number;
+      totalOverdue: number;
+      totalPaid: number;
+    }>('/supplier-statements/stats');
+    return response;
   },
 };

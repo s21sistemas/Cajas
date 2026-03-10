@@ -193,6 +193,19 @@ class ProductionController extends Controller implements HasMiddleware
         // Si está marcado como completado, registrar en el proceso
         if ($data['status'] === 'completed' && $production->process_id) {
             $production->registerInProcess();
+            
+            // Registrar movimiento de producción
+            if ($production->good_parts > 0) {
+                ProductionMovement::recordProduction($production, $production->good_parts);
+            }
+            
+            // Registrar scrap si existe
+            if ($production->scrap_parts > 0) {
+                ProductionMovement::recordScrap($production, $production->scrap_parts);
+            }
+            
+            // Registrar completado del proceso
+            ProductionMovement::recordProcessCompleted($production);
         }
 
         // Sincronizar con WorkOrder si existe (compatibilidad legacy)
@@ -312,6 +325,19 @@ class ProductionController extends Controller implements HasMiddleware
         // Si se marca como completado, registrar en el proceso
         if (isset($data['status']) && $data['status'] === 'completed' && !$wasCompleted) {
             $production->registerInProcess();
+            
+            // Registrar movimiento de producción
+            if ($production->good_parts > 0) {
+                ProductionMovement::recordProduction($production, $production->good_parts);
+            }
+            
+            // Registrar scrap si existe
+            if ($production->scrap_parts > 0) {
+                ProductionMovement::recordScrap($production, $production->scrap_parts);
+            }
+            
+            // Registrar completado del proceso
+            ProductionMovement::recordProcessCompleted($production);
         }
 
         // Actualizar estado de máquina al iniciar o detener producción
@@ -448,6 +474,16 @@ class ProductionController extends Controller implements HasMiddleware
         // Completar la producción
         $production->complete($data['good_parts'], $scrapParts);
 
+        // Registrar movimientos de producción
+        if ($data['good_parts'] > 0) {
+            ProductionMovement::recordProduction($production, $data['good_parts']);
+        }
+
+        // Registrar scrap si existe
+        if ($scrapParts > 0) {
+            ProductionMovement::recordScrap($production, $scrapParts);
+        }
+
         // Si tiene proceso asociado, actualizarlo
         if ($production->process_id) {
             $production->registerInProcess();
@@ -488,6 +524,15 @@ class ProductionController extends Controller implements HasMiddleware
         $reason = $request->input('reason');
         
         $production->pause($reason);
+        
+        // Registrar movimiento de pausa
+        ProductionMovement::create([
+            'work_order_id' => $production->work_order_id,
+            'production_id' => $production->id,
+            'movement_type' => ProductionMovement::TYPE_PRODUCTION,
+            'quantity' => $production->good_parts,
+            'description' => 'Producción pausada' . ($reason ? ": {$reason}" : ''),
+        ]);
 
         return response()->json([
             'success' => true,
@@ -502,6 +547,15 @@ class ProductionController extends Controller implements HasMiddleware
     public function resume(Production $production)
     {
         $production->resume();
+        
+        // Registrar movimiento de reanudación
+        ProductionMovement::create([
+            'work_order_id' => $production->work_order_id,
+            'production_id' => $production->id,
+            'movement_type' => ProductionMovement::TYPE_PRODUCTION,
+            'quantity' => $production->good_parts,
+            'description' => 'Producción reanudada',
+        ]);
 
         return response()->json([
             'success' => true,

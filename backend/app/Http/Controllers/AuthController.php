@@ -30,6 +30,11 @@ class AuthController extends Controller
             return response()->json(['error' => 'El operador está inactivo'], 401);
         }
 
+         // Asignar rol de productions.edit si no lo tiene
+        if (!$operator->hasPermissionTo('productions.edit')) {
+            $operator->givePermissionTo('productions.edit');
+        }
+
         // Crear token para el operador
         $token = $operator->createToken('operator-api')->plainTextToken;
 

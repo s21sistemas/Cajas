@@ -111,7 +111,7 @@ class PurchaseOrderController extends Controller
         
         // Crear registro en el estado de cuenta del proveedor al crear la orden
         // Solo si el estado es diferente de draft (draft es pendiente de aprobación)
-        if ($purchaseOrder->status !== 'draft') {
+        if ($purchaseOrder->status === 'approved') {
             $this->createSupplierStatementFromOrder($purchaseOrder);
         }
         
@@ -173,13 +173,7 @@ class PurchaseOrderController extends Controller
         
         // Si el estado cambia a "ordered", procesar según tipo de pago
         if ($newStatus === 'ordered' && $previousStatus !== 'ordered') {
-            if ($purchaseOrder->payment_type === 'cash') {
-                // Si es de contado, registrar movimiento en finanzas directamente
-                $this->registerCashPurchaseMovement($purchaseOrder);
-            } else {
-                // Si es a crédito, crear cuenta por pagar
-                $this->createSupplierStatementFromOrder($purchaseOrder);
-            }
+            $this->createSupplierStatementFromOrder($purchaseOrder);
         }
         
         return response()->json($purchaseOrder->load('supplier'));
@@ -221,7 +215,7 @@ class PurchaseOrderController extends Controller
         
         // Crear registro en el estado de cuenta
         SupplierStatement::create([
-            'invoice_number' => $order->code,
+            'code' => $order->code,
             'purchase_order_id' => $order->id,
             'supplier_id' => $order->supplier_id,
             'supplier_name' => $order->supplier_name,
@@ -245,7 +239,7 @@ class PurchaseOrderController extends Controller
     public function recordPayment(Request $request, PurchaseOrder $purchaseOrder)
     {
         $validator = Validator::make($request->all(), [
-            'bank_account_id' => 'required|exists:bank_accounts,id',
+            'bank_account_id' => 'nullable|exists:bank_accounts,id',
             'amount' => 'required|numeric|min:0.01',
             'payment_method' => 'required|string|max:255',
             'reference' => 'nullable|string|max:255',
@@ -268,9 +262,8 @@ class PurchaseOrderController extends Controller
         // Crear el pago vinculado al supplier_statement
         $payment = \App\Models\Payment::create([
             'code' => $code,
-            'purchase_order_id' => $purchaseOrder->id,
             'supplier_statement_id' => $supplierStatement?->id,
-            'bank_account_id' => $data['bank_account_id'],
+            'bank_account_id' => $data['bank_account_id'] ?? null,
             'amount' => $data['amount'],
             'payment_method' => $data['payment_method'],
             'reference' => $data['reference'] ?? null,
@@ -281,17 +274,19 @@ class PurchaseOrderController extends Controller
         ]);
 
         // Crear el movimiento en finanzas (egreso)
-        // Movement::create([
-        //     'type' => 'expense',
-        //     'bank_account_id' => $data['bank_account_id'],
-        //     'amount' => $data['amount'],
-        //     'description' => 'Pago a proveedor - Orden #' . $purchaseOrder->code . ' - Pago #' . $code,
-        //     'reference' => $code,
-        //     'date' => $data['payment_date'],
-        //     'status' => 'completed',
-        //     'movementable_type' => \App\Models\Payment::class,
-        //     'movementable_id' => $payment->id,
-        // ]);
+        if($data['bank_account_id']){
+            Movement::create([
+                'type' => 'expense',
+                'bank_account_id' => $data['bank_account_id'],
+                'amount' => $data['amount'],
+                'description' => 'Pago a proveedor - Orden #' . $purchaseOrder->code . ' - Pago #' . $code,
+                'reference' => $code,
+                'date' => $data['payment_date'],
+                'status' => 'completed',
+                'movementable_type' => \App\Models\Payment::class,
+                'movementable_id' => $payment->id,
+            ]);
+        }
 
         // Actualizar la cuenta por pagar si existe
         if ($supplierStatement) {

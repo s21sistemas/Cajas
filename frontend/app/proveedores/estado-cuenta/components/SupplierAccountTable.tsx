@@ -21,9 +21,15 @@ import {
 } from "@/components/ui/select";
 import { Search } from "lucide-react";
 
+// Helper function to format dates
+function formatDate(dateStr: string): string {
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleDateString('es-MX');
+}
+
 interface SupplierStatementResponse {
   id: number;
-  invoiceNumber: string;
+  code: string;
   supplierId: number;
   supplierName: string;
   date: string;
@@ -124,7 +130,7 @@ export function SupplierAccountTable({
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-muted-foreground">Factura</TableHead>
+              <TableHead className="text-muted-foreground">Orden de compra</TableHead>
               <TableHead className="text-muted-foreground">Proveedor</TableHead>
               <TableHead className="text-muted-foreground">Concepto</TableHead>
               <TableHead className="text-muted-foreground">Fecha</TableHead>
@@ -159,11 +165,11 @@ export function SupplierAccountTable({
             ) : (
               items.map((statement) => (
                 <TableRow key={statement.id} className="border-border">
-                  <TableCell className="font-mono text-sm text-primary">{statement.invoiceNumber}</TableCell>
+                  <TableCell className="font-mono text-sm text-primary">{statement.code}</TableCell>
                   <TableCell className="font-medium text-foreground">{statement.supplierName}</TableCell>
                   <TableCell className="text-muted-foreground max-w-[200px] truncate">{statement.concept}</TableCell>
-                  <TableCell className="text-muted-foreground">{statement.date}</TableCell>
-                  <TableCell className="text-muted-foreground">{statement.dueDate}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatDate(statement.date)}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatDate(statement.dueDate)}</TableCell>
                   <TableCell className="text-right text-foreground">${statement.amount.toLocaleString()}</TableCell>
                   <TableCell className="text-right text-green-400">${statement.paid.toLocaleString()}</TableCell>
                   <TableCell className="text-right font-medium text-foreground">${statement.balance.toLocaleString()}</TableCell>

@@ -75,42 +75,6 @@ class OperatorController extends Controller implements HasMiddleware
         ]);
     }
 
-   public function login(Request $request)
-    {
-        $request->validate([
-            'employee_code' => 'required|string'
-        ]);
-
-        $operator = Operator::where('employee_code', $request->employee_code)
-            ->where('active', true)
-            ->first();
-
-        if (!$operator) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Código de empleado inválido o inactivo'
-            ], 401);
-        }
-
-        // eliminar tokens anteriores (opcional)
-        $operator->tokens()->delete();
-
-        // crear token real
-        $token = $operator->createToken('operator-panel')->plainTextToken;
-
-        return response()->json([
-            'success' => true,
-            'token' => $token,
-            'operator' => [
-                'id' => $operator->id,
-                'name' => $operator->name,
-                'employeeCode' => $operator->employee_code,
-                'shift' => $operator->shift,
-                'specialty' => $operator->specialty,
-            ]
-        ]);
-    }
-
     /**
      * Obtener productions asignadas al operador
      */
