@@ -121,6 +121,22 @@ export interface QuoteFilters extends BaseFilters, DateRangeFilter {
 export type SaleStatus = 'pending' | 'paid' | 'overdue' | 'cancelled';
 export type PaymentType = 'cash' | 'credit';
 
+interface SaleItemForm {
+  id?: number;
+  productId: number | null;
+  // Datos del producto para autocompletar
+  productName?: string;
+  productCode?: string;
+  unit: string;
+  partNumber: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercentage: number;
+  discountAmount: number;
+  subtotal: number;
+}
+
 export interface Sale extends BaseEntity {
   code: string;
   clientId: number;
@@ -128,6 +144,7 @@ export interface Sale extends BaseEntity {
   quoteRef: string | null;
   quoteId: number | null;
   items: number;
+  saleItems?: SaleItemForm[];
   subtotal: number;
   taxRate: number;
   tax: number;
@@ -135,6 +152,7 @@ export interface Sale extends BaseEntity {
   status: SaleStatus;
   paymentType: PaymentType;
   creditDays: string | null;
+  dueDate?: string; 
 }
 
 export interface CreateSaleDto {

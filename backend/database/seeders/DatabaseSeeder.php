@@ -41,9 +41,9 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // 5. Crear cotizaciones en borrador
-        // $this->call([
-        //     QuoteSeeder::class,
-        // ]);
+        $this->call([
+            QuoteSeeder::class,
+        ]);
 
         // // 4. Crear órdenes de trabajo (después de catálogos)
         // $this->call([

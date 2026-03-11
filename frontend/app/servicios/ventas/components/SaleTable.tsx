@@ -101,7 +101,7 @@ export function SaleTable({
                 <TableHead className="text-muted-foreground">Cliente</TableHead>
                 <TableHead className="text-muted-foreground">Cant.</TableHead>
                 <TableHead className="text-muted-foreground">Total</TableHead>
-                {/* <TableHead className="text-muted-foreground">Vence</TableHead> */}
+                <TableHead className="text-muted-foreground">Vence</TableHead>
                 <TableHead className="text-muted-foreground">Estado</TableHead>
                 <TableHead className="text-muted-foreground text-right">Acciones</TableHead>
               </TableRow>
@@ -140,7 +140,7 @@ export function SaleTable({
                         (sale.items as any)?.quantity || 0}
                     </TableCell>
                     <TableCell className="text-foreground font-medium">{formatCurrency(sale.total)}</TableCell>
-                    {/* <TableCell className="text-foreground">{formatDate(sale.dueDate)}</TableCell> */}
+                    <TableCell className="text-foreground">{formatDate(sale.dueDate)}</TableCell>
                     <TableCell>{getStatusBadge(sale.status)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>

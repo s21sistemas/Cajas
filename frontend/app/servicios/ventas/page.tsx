@@ -73,6 +73,7 @@ export default function VentasPage() {
       const response = await serviceOrdersService.getSales(params);
       
       const data = Array.isArray(response?.data) ? response.data : [];
+      console.log('venta data:'+ JSON.stringify(data, null, 2));
       setSales(data);
       setCurrentPage((response as any)?.current_page || 1);
       setLastPage((response as any)?.last_page || 1);

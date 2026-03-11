@@ -41,25 +41,33 @@
 </head>
 <body>
     <div class="container">
+        <table style="width:100%;">
+            <tr>
+                <td style="width:150px; vertical-align:top;">
+                    @if(!empty($logoData))
+                        <img src="{{ $logoData }}" style="max-width:120px;">
+                    @endif
+                </td>
+
+                <td style="width:50%;">
+                    <div class="company-info">
+                        <h1>{{ $company['name'] ?? 'EMPRESA' }}</h1>
+                        <p>RFC: {{ $company['rfc'] ?? 'XXX000000XXX' }}</p>
+                        <p>{{ $company['address'] ?? 'Dirección de la empresa' }}</p>
+                        <p>{{ $company['city'] ?? '' }}</p>
+                        <p>Tel: {{ $company['phone'] ?? '(000) 000-0000' }}</p>
+                        @if(!empty($company['email']))
+                        <p>Email: {{ $company['email'] }}</p>
+                        @endif
+                        @if(!empty($company['website']))
+                        <p>Web: {{ $company['website'] }}</p>
+                        @endif
+                    </div>
+                </td>
+            </tr>
+        </table>
+
         <div class="header">
-            <div class="logo-container">
-                @if(!empty($logoData))
-                <img src="{{ $logoData }}" alt="Logo">
-                @endif
-            </div>
-            <div class="company-info">
-                <h1>{{ $company['name'] ?? 'EMPRESA' }}</h1>
-                <p>RFC: {{ $company['rfc'] ?? 'XXX000000XXX' }}</p>
-                <p>{{ $company['address'] ?? 'Dirección de la empresa' }}</p>
-                <p>{{ $company['city'] ?? '' }}</p>
-                <p>Tel: {{ $company['phone'] ?? '(000) 000-0000' }}</p>
-                @if(!empty($company['email']))
-                <p>Email: {{ $company['email'] }}</p>
-                @endif
-                @if(!empty($company['website']))
-                <p>Web: {{ $company['website'] }}</p>
-                @endif
-            </div>
             <div class="quote-info">
                 <h2>COTIZACIÓN</h2>
                 <p><strong>{{ $quote->code }}</strong></p>

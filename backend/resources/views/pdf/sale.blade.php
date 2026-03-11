@@ -10,7 +10,7 @@
         .container { width: 100%; max-width: 95%; margin: 0 auto; padding: 10px; }
         .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 2px solid #333; padding-bottom: 12px; }
         .logo-container { width: 150px; }
-        .logo-container img { flex:1; max-width: 100%; height: auto; }
+        .logo-container img { flex:2; max-width: 100%; height: auto; }
         .company-info { flex: 1; margin-left: 15px; }
         .company-info h1 { font-size: 20px; color: #2c3e50; margin-bottom: 4px; }
         .company-info p { font-size: 10px; margin: 2px 0; }
@@ -42,25 +42,33 @@
 </head>
 <body>
     <div class="container">
+        <table style="width:100%;">
+            <tr>
+                <td style="width:150px; vertical-align:top;">
+                    @if(!empty($logoData))
+                        <img src="{{ $logoData }}" style="max-width:120px;">
+                    @endif
+                </td>
+
+                <td style="width:50%;">
+                    <div class="company-info">
+                        <h1>{{ $company['name'] ?? 'EMPRESA' }}</h1>
+                        <p>RFC: {{ $company['rfc'] ?? 'XXX000000XXX' }}</p>
+                        <p>{{ $company['address'] ?? 'Dirección de la empresa' }}</p>
+                        <p>{{ $company['city'] ?? '' }}</p>
+                        <p>Tel: {{ $company['phone'] ?? '(000) 000-0000' }}</p>
+                        @if(!empty($company['email']))
+                        <p>Email: {{ $company['email'] }}</p>
+                        @endif
+                        @if(!empty($company['website']))
+                        <p>Web: {{ $company['website'] }}</p>
+                        @endif
+                    </div>
+                </td>
+            </tr>
+        </table>
+
         <div class="header">
-            <div class="logo-container">
-                @if(!empty($logoData))
-                <img src="{{ $logoData }}" alt="Logo">
-                @endif
-            </div>
-            <div class="company-info">
-                <h1>{{ $company['name'] ?? 'EMPRESA' }}</h1>
-                <p>RFC: {{ $company['rfc'] ?? 'XXX000000XXX' }}</p>
-                <p>{{ $company['address'] ?? 'Dirección de la empresa' }}</p>
-                <p>{{ $company['city'] ?? '' }}</p>
-                <p>Tel: {{ $company['phone'] ?? '(000) 000-0000' }}</p>
-                @if(!empty($company['email']))
-                <p>Email: {{ $company['email'] }}</p>
-                @endif
-                @if(!empty($company['website']))
-                <p>Web: {{ $company['website'] }}</p>
-                @endif
-            </div>
             <div class="sale-info">
                 <h2>VENTA</h2>
                 <p><strong>{{ $sale->code }}</strong></p>

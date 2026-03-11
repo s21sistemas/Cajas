@@ -52,7 +52,7 @@ export function SaleViewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Detalle de Venta</DialogTitle>
         </DialogHeader>
@@ -109,22 +109,17 @@ export function SaleViewDialog({
             <div>
               <p className="text-sm text-muted-foreground">Tipo de Pago</p>
               <p className="font-medium text-foreground">
-                {sale.paymentType === 'credito' ? 'Crédito' : 'Contado'}
+                {sale.paymentType === 'credit' ? 'Crédito' : 'Contado'}
               </p>
             </div>
-            {sale.paymentType === 'credito' ? (
+            {sale.paymentType === 'credit' && sale.creditDays && (
               <div>
                 <p className="text-sm text-muted-foreground">Días de Crédito</p>
-                <p className="font-medium text-foreground">{sale.creditDays}</p>
-              </div>
-            ) : (
-              <div>
-                <p className="text-sm text-muted-foreground">Método de Pago</p>
-                <p className="font-medium text-foreground">{sale.paymentMethod || '-'}</p>
+                <p className="font-medium text-foreground">{sale.creditDays} días</p>
               </div>
             )}
           </div>
-          {sale.paymentType === 'credito' && (
+          {sale.paymentType === 'credit' && sale.dueDate && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Fecha de Vencimiento</p>
@@ -134,7 +129,7 @@ export function SaleViewDialog({
           )}
 
           {/* Sale Items */}
-          {(sale as any).items && (sale as any).items.length > 0 && (
+          {(sale as any).saleItems && (sale as any).saleItems.length > 0 && (
             <div className="mt-4">
               <p className="text-sm text-muted-foreground mb-2">Productos</p>
               <div className="border rounded-md overflow-hidden">
@@ -142,21 +137,25 @@ export function SaleViewDialog({
                   <thead className="bg-muted">
                     <tr>
                       <th className="px-2 py-1 text-left font-medium">Producto</th>
+                      <th className="px-2 py-1 text-center font-medium">U.</th>
                       <th className="px-2 py-1 text-right font-medium">Cant.</th>
                       <th className="px-2 py-1 text-right font-medium">P.Unit</th>
+                      <th className="px-2 py-1 text-right font-medium">Desc. %</th>
                       <th className="px-2 py-1 text-right font-medium">Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(sale as any).items.map((item: any, index: number) => (
+                    {(sale as any).saleItems.map((item: any, index: number) => (
                       <tr key={index} className="border-t">
                         <td className="px-2 py-1">
-                          {item.description || item.product?.name || '-'}
-                          {item.part_number && <span className="text-muted-foreground text-xs"> ({item.part_number})</span>}
+                          <div className="font-medium">{item.description || item.product?.name || '-'}</div>
+                          {item.partNumber && <div className="text-muted-foreground text-xs">P/N: {item.partNumber}</div>}
                         </td>
+                        <td className="px-2 py-1 text-center">{item.unit || 'PZA'}</td>
                         <td className="px-2 py-1 text-right">{item.quantity}</td>
-                        <td className="px-2 py-1 text-right">{formatCurrency(item.unit_price)}</td>
-                        <td className="px-2 py-1 text-right">{formatCurrency(item.subtotal)}</td>
+                        <td className="px-2 py-1 text-right">{formatCurrency(item.unitPrice)}</td>
+                        <td className="px-2 py-1 text-right">{item.discountPercentage || 0}%</td>
+                        <td className="px-2 py-1 text-right font-medium">{formatCurrency(item.subtotal)}</td>
                       </tr>
                     ))}
                   </tbody>

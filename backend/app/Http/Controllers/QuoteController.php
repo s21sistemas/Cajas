@@ -81,11 +81,18 @@ class QuoteController extends Controller implements HasMiddleware
     /**
      * Obtener cotizaciones por cliente
      * Usado para cargar cotizaciones en SaleForm cuando se selecciona un cliente
+     * 
+     * @param Request $request
+     * @param int|null $clientId
+     * @return \Illuminate\Http\JsonResponse
      */
     public function getByClient(Request $request, $clientId = null)
     {
         // Support route parameter: /quotes/client/{client_id}
         $clientId = $clientId ?? $request->route('client_id');
+        
+        // Nuevo parámetro para filtrar solo cotizaciones sin venta asociada
+        $onlyWithoutSale = $request->boolean('without_sale', false);
         
         if (!$clientId) {
             return response()->json([
@@ -95,9 +102,15 @@ class QuoteController extends Controller implements HasMiddleware
         }
 
         try {
-            $quotes = Quote::where('client_id', $clientId)
-                ->whereIn('status', ['approved'])
-                ->orderByDesc('created_at')
+            $query = Quote::where('client_id', $clientId)
+                ->whereIn('status', ['approved']);
+            
+            // Filtrar solo cotizaciones que NO tienen una venta asociada
+            if ($onlyWithoutSale) {
+                $query->whereDoesntHave('sale');
+            }
+            
+            $quotes = $query->orderByDesc('created_at')
                 ->get()
                 ->map(function ($quote) {
                     return [
@@ -105,6 +118,7 @@ class QuoteController extends Controller implements HasMiddleware
                         'code' => $quote->code,
                         'title' => $quote->title ?? 'Sin título',
                         'client_name' => $quote->client_name,
+                        'client_id' => $quote->client_id,
                         'subtotal' => $quote->subtotal,
                         'tax_percentage' => $quote->tax_percentage,
                         'tax' => $quote->tax,
@@ -126,6 +140,57 @@ class QuoteController extends Controller implements HasMiddleware
             'success' => true,
             'data' => $quotes
         ]);
+    }
+
+    /**
+     * Obtener todas las cotizaciones sin venta (para crear venta)
+     * Retorna cotizaciones de todos los clientes que NO tienen venta asociada
+     * Incluye información del cliente para autocompletar
+     */
+    public function getWithoutSale()
+    {
+        try {
+            $quotes = Quote::with(['client:id,name,email,phone,address,rfc'])
+                ->whereIn('status', ['approved'])
+                ->whereDoesntHave('sale')
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(function ($quote) {
+                    return [
+                        'id' => $quote->id,
+                        'code' => $quote->code,
+                        'title' => $quote->title ?? 'Sin título',
+                        'client_id' => $quote->client_id,
+                        'client_name' => $quote->client_name,
+                        'client' => $quote->client ? [
+                            'id' => $quote->client->id,
+                            'name' => $quote->client->name,
+                            'email' => $quote->client->email,
+                            'phone' => $quote->client->phone,
+                            'address' => $quote->client->address,
+                            'rfc' => $quote->client->rfc,
+                        ] : null,
+                        'subtotal' => $quote->subtotal,
+                        'tax_percentage' => $quote->tax_percentage,
+                        'tax' => $quote->tax,
+                        'total' => $quote->total,
+                        'status' => $quote->status,
+                        'valid_until' => $quote->valid_until,
+                        'items_count' => $quote->items_count ?? 0,
+                        'created_at' => $quote->created_at,
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $quotes
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

@@ -167,6 +167,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/quotes/by-client/{client_id}', [QuoteController::class, 'getByClient'])
         ->name('quotes.byclient')
         ->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
+    // Quotes sin venta - para crear venta directamente
+    Route::get('/quotes/without-sale', [QuoteController::class, 'getWithoutSale'])
+        ->name('quotes.without-sale')
+        ->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
     Route::get('/quotes/stats', [QuoteController::class, 'stats'])->name('quotes.stats');
     Route::get('/quotes/{quote}/items', [QuoteController::class, 'getItems'])
         ->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);

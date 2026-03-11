@@ -22,6 +22,7 @@ import { useState, useEffect, useRef } from "react";
 import { clientsService } from "@/lib/services";
 import { productsService } from "@/lib/services/products.service";
 import { quotesService } from "@/lib/services/quotes.service";
+import { salesService } from "@/lib/services/sales.service";
 import type { Client, Product } from "@/lib/types";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { useApiQuery } from "@/hooks/use-api-query";
@@ -64,20 +65,6 @@ interface SaleItemForm {
   discountAmount: number;
   subtotal: number;
 }
-
-const paymentMethods = [
-  { value: "Transferencia", label: "Transferencia" },
-  { value: "Cheque", label: "Cheque" },
-  { value: "Efectivo", label: "Efectivo" },
-];
-
-const creditDaysOptions = [
-  { value: "15", label: "15 días" },
-  { value: "30", label: "30 días" },
-  { value: "45", label: "45 días" },
-  { value: "60", label: "60 días" },
-  { value: "90", label: "90 días" },
-];
 
 const statusOptions = [
   { value: "pending", label: "Pendiente" },
@@ -175,7 +162,9 @@ export function SaleFormDialog({
   const [clients, setClients] = useState<Client[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [quotes, setQuotes] = useState<any[]>([]);
+  const [availableQuotes, setAvailableQuotes] = useState<any[]>([]); // Todas las cotizaciones sin venta
   const [loadingQuotes, setLoadingQuotes] = useState(false);
+  const [loadingAvailableQuotes, setLoadingAvailableQuotes] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [selectedQuoteId, setSelectedQuoteId] = useState<string>("");
@@ -183,6 +172,7 @@ export function SaleFormDialog({
   const [items, setItems] = useState<SaleItemForm[]>([]);
   const [taxPercentage, setTaxPercentage] = useState(16);
   const [saving, setSaving] = useState(false);
+  const [dueDate, setDueDate] = useState<string>("");
 
   // Fetch clients using selectList
   const { data: clientsData, loading: clientsLoading } = useApiQuery(
@@ -198,14 +188,67 @@ export function SaleFormDialog({
   );
   const products = (productsData || []) as Product[];
 
-  // Initialize paymentType from editing sale
+  // Fetch all quotes without sale when dialog opens (for new sales)
+  // Also load the quote associated with the sale being edited
   useEffect(() => {
-    if (editingSale) {
-      setPaymentType(editingSale.paymentType || "cash");
-    } else {
-      setPaymentType("cash");
-    }
-  }, [editingSale, open]);
+    const fetchQuotes = async () => {
+      if (open) {
+        // Para nuevas ventas: cargar cotizaciones sin venta
+        if (!editingSale) {
+          setLoadingAvailableQuotes(true);
+          try {
+            const response = await quotesService.getWithoutSale();
+            console.log('Available quotes response:', response);
+            setAvailableQuotes(response.data || []);
+          } catch (error) {
+            console.error('Error fetching available quotes:', error);
+          } finally {
+            setLoadingAvailableQuotes(false);
+          }
+        } 
+        // Para ventas en edición: también cargar la cotización asociada
+        else if (editingSale.quoteId) {
+          setLoadingAvailableQuotes(true);
+          try {
+            // Cargar la cotización de la venta
+            const quoteResponse = await quotesService.getById(editingSale.quoteId);
+            const quoteData = quoteResponse.data || quoteResponse;
+            console.log('Editing sale quote:', quoteData);
+            
+            // Agregar la cotización actual a availableQuotes para que se pueda mostrar
+            if (quoteData) {
+              const currentQuote = {
+                id: quoteData.id,
+                code: quoteData.code,
+                title: quoteData.title,
+                client_id: quoteData.clientId,
+                client_name: quoteData.clientName,
+                subtotal: quoteData.subtotal,
+                tax_percentage: quoteData.taxPercentage,
+                tax: quoteData.tax,
+                total: quoteData.total,
+                status: quoteData.status,
+                valid_until: quoteData.validUntil,
+                items_count: quoteData.itemsCount,
+                created_at: quoteData.createdAt,
+              };
+              // Verificar si ya está en la lista (podría estar si ya tiene venta)
+              setAvailableQuotes(prev => {
+                const exists = prev.find(q => q.id === currentQuote.id);
+                if (exists) return prev;
+                return [currentQuote, ...prev];
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching quote for editing sale:', error);
+          } finally {
+            setLoadingAvailableQuotes(false);
+          }
+        }
+      }
+    };
+    fetchQuotes();
+  }, [open, editingSale]);
 
   // Sync field errors from parent prop
   useEffect(() => {
@@ -230,45 +273,118 @@ export function SaleFormDialog({
 
   // Load items when editing sale
   useEffect(() => {
-    if (editingSale) {
-      const itemsList = (editingSale as any).items || [];
-      if (itemsList && itemsList.length > 0) {
-        setItems(itemsList.map((item: any) => ({
-          id: item.id,
-          productId: item.product_id || null,
-          unit: item.unit || "",
-          partNumber: item.partNumber || item.part_number || "",
-          description: item.description || "",
-          quantity: item.quantity || 1,
-          unitPrice: item.unitPrice || item.unit_price || 0,
-          discountPercentage: item.discountPercentage || item.discount_percentage || 0,
-          discountAmount: item.discountAmount || item.discount_amount || 0,
-          subtotal: item.subtotal || 0,
-        })));
+    const loadSaleItems = async () => {
+      if (editingSale && editingSale.id) {
+        // Siempre intentar cargar los items desde el backend
+        // ya que la lista de ventas no incluye los items por defecto
+        try {
+          console.log('Loading items for sale:', editingSale.id);
+          const saleItemsResponse: any = await salesService.getItems(editingSale.id);
+          console.log('Sale items response:', saleItemsResponse);
+          
+          // El servicio puede devolver directamente el array o un objeto con data
+          let itemsList: any[] = [];
+          if (Array.isArray(saleItemsResponse)) {
+            itemsList = saleItemsResponse;
+          } else if (saleItemsResponse?.data) {
+            itemsList = saleItemsResponse.data;
+          } else if (saleItemsResponse?.success) {
+            itemsList = saleItemsResponse.data || [];
+          }
+          
+          console.log('Items list loaded:', itemsList);
+          
+          if (itemsList && itemsList.length > 0) {
+            setItems(itemsList.map((item: any) => ({
+              id: item.id,
+              productId: item.product_id || null,
+              productName: item.product?.name || "",
+              productCode: item.product?.code || "",
+              unit: item.unit || "",
+              partNumber: item.partNumber || item.part_number || "",
+              description: item.description || "",
+              quantity: item.quantity || 1,
+              unitPrice: item.unitPrice || item.unit_price || 0,
+              discountPercentage: item.discountPercentage || item.discount_percentage || 0,
+              discountAmount: item.discountAmount || item.discount_amount || 0,
+              subtotal: item.subtotal || 0,
+            })));
+          } else {
+            // Si no hay items del backend, verificar si vienen en editingSale
+            const directItems = (editingSale as any).items || [];
+            if (directItems.length > 0) {
+              setItems(directItems.map((item: any) => ({
+                id: item.id,
+                productId: item.product_id || null,
+                unit: item.unit || "",
+                partNumber: item.partNumber || item.part_number || "",
+                description: item.description || "",
+                quantity: item.quantity || 1,
+                unitPrice: item.unitPrice || item.unit_price || 0,
+                discountPercentage: item.discountPercentage || item.discount_percentage || 0,
+                discountAmount: item.discountAmount || item.discount_amount || 0,
+                subtotal: item.subtotal || 0,
+              })));
+            } else {
+              setItems([]);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading sale items:', error);
+          // Si falla, intentar con los items directos
+          const directItems = (editingSale as any).items || [];
+          if (directItems.length > 0) {
+            setItems(directItems);
+          } else {
+            setItems([]);
+          }
+        }
+        
+        // Cargar taxPercentage de la venta
+        const saleTaxRate = (editingSale as any).taxPercentage ?? (editingSale as any).taxercentage ?? 16;
+        setTaxPercentage(typeof saleTaxRate === 'number' ? saleTaxRate : parseFloat(saleTaxRate) || 16);
+        
+        // Cargar paymentType de la venta
+        if ((editingSale as any).paymentType) {
+          setPaymentType((editingSale as any).paymentType);
+        }
+        
+        // Cargar dueDate de la venta o del AccountStatement
+        const saleDueDate = (editingSale as any).dueDate;
+        if (saleDueDate) {
+          setDueDate(formatDateForInput(saleDueDate));
+        }
+        
+        // Set quote info if editing sale with quote
+        if (editingSale.clientId) {
+          setSelectedClientId(editingSale.clientId.toString());
+        }
+        if (editingSale.quoteId) {
+          setSelectedQuoteId(editingSale.quoteId.toString());
+        }
       } else {
         setItems([]);
+        setTaxPercentage(16);
+        setPaymentType("cash");
+        setSelectedClientId("");
+        setSelectedQuoteId("");
+        setQuotes([]);
+        setAvailableQuotes([]);
+        setDueDate("");
       }
-      // Cargar taxPercentage de la venta
-      const saleTaxRate = (editingSale as any).taxPercentage ?? (editingSale as any).taxercentage ?? 16;
-      setTaxPercentage(typeof saleTaxRate === 'number' ? saleTaxRate : parseFloat(saleTaxRate) || 16);
-      
-      // Set quote info if editing sale with quote
-      if (editingSale.clientId) {
-        setSelectedClientId(editingSale.clientId.toString());
-      }
-      if (editingSale.quoteId) {
-        setSelectedQuoteId(editingSale.quoteId.toString());
-      }
-    } else {
-      setItems([]);
-      setTaxPercentage(16);
-      setSelectedClientId("");
-      setSelectedQuoteId("");
-      setQuotes([]);
-    }
+    };
+    loadSaleItems();
   }, [editingSale, open]);
 
-  // Fetch quotes when client is selected
+  // Clear quotes when closing modal
+  useEffect(() => {
+    if (!open) {
+      setAvailableQuotes([]);
+      setQuotes([]);
+    }
+  }, [open]);
+
+  // Fetch quotes when client is selected - only quotes without sale
   useEffect(() => {
     const fetchQuotes = async () => {
       console.log('Fetching quotes for client:', selectedClientId);
@@ -276,7 +392,8 @@ export function SaleFormDialog({
         setLoadingQuotes(true);
         try {
           // api.get devuelve directamente res.data = { success: true, data: [...] }
-          const response = await quotesService.getByClient(Number(selectedClientId));
+          // Solo traer cotizaciones que NO tienen una venta asociada
+          const response = await quotesService.getByClient(Number(selectedClientId), true);
           console.log('Quotes response:', response);
           
           // response es { success: true, data: [...] }
@@ -305,27 +422,27 @@ export function SaleFormDialog({
         try {
           console.log('Fetching quote items for quote ID:', selectedQuoteId);
           
-          // Siempre intentar obtener el tax_percentage de la cotización
+          // Siempre intentar obtener el taxPercentage de la cotización
           // Primero buscar en el array de cotizaciones
           const selectedQuote = quotes.find(q => q.id.toString() === selectedQuoteId);
           console.log('Selected quote from array:', selectedQuote);
-          console.log('Quote tax_percentage value:', selectedQuote?.tax_percentage);
+          console.log('Quote taxPercentage value:', selectedQuote?.taxPercentage);
           console.log('Quote tax value:', selectedQuote?.tax);
           console.log('Quote subtotal value:', selectedQuote?.subtotal);
           
-          // Intentar obtener el tax_percentage de cualquier forma
+          // Intentar obtener el taxPercentage de cualquier forma
           let taxPercent: number | null = null;
           
           // Buscar en el array de cotizaciones
-          if (selectedQuote?.tax_percentage) {
-            const parsed = parseFloat(selectedQuote.tax_percentage);
+          if (selectedQuote?.taxPercentage) {
+            const parsed = parseFloat(selectedQuote.taxPercentage);
             console.log('Parsed tax from array:', parsed);
             if (!isNaN(parsed)) {
               taxPercent = parsed;
             }
           }
           
-          // Si tax_percentage es null pero tenemos tax y subtotal, calcular el porcentaje
+          // Si taxPercentage es null pero tenemos tax y subtotal, calcular el porcentaje
           if (taxPercent === null && selectedQuote?.tax && selectedQuote?.subtotal) {
             const tax = parseFloat(selectedQuote.tax);
             const subtotal = parseFloat(selectedQuote.subtotal);
@@ -344,19 +461,19 @@ export function SaleFormDialog({
               // quoteResponse ya es el objeto Quote directamente
               const quoteData = quoteResponse.data || quoteResponse;
               console.log('Quote data:', quoteData);
-              console.log('Quote tax_percentage from API:', quoteData?.tax_percentage);
+              console.log('Quote taxPercentage from API:', quoteData?.taPercentage);
               console.log('Quote tax from API:', quoteData?.tax);
               console.log('Quote subtotal from API:', quoteData?.subtotal);
               
-              if (quoteData?.tax_percentage) {
-                const parsed = parseFloat(quoteData.tax_percentage);
+              if (quoteData?.taxPercentage) {
+                const parsed = parseFloat(quoteData.taxPercentage);
                 console.log('Parsed tax from API:', parsed);
                 if (!isNaN(parsed)) {
                   taxPercent = parsed;
                 }
               }
               
-              // Calcular desde tax y subtotal si tax_percentage es null
+              // Calcular desde tax y subtotal si taxPercentage es null
               if (taxPercent === null && quoteData?.tax && quoteData?.subtotal) {
                 const tax = parseFloat(quoteData.tax);
                 const subtotal = parseFloat(quoteData.subtotal);
@@ -495,16 +612,19 @@ export function SaleFormDialog({
 
       const { subtotal, tax, total } = calculateTotals();
 
+      const selectedQuote = availableQuotes.find(
+        q => q.id.toString() === selectedQuoteId
+      );
+
       const data = {
         code: formData.get("code") as string,
         clientId: Number(formData.get("clientId")),
-        quoteRef: selectedQuoteId && selectedQuoteId !== '__none__' ? (quotes.find(q => q.id.toString() === selectedQuoteId)?.code || null) : (formData.get("quoteRef") as string || null),
+        quoteRef: selectedQuote ? selectedQuote.code : null,
         quoteId: selectedQuoteId && selectedQuoteId !== '__none__' ? Number(selectedQuoteId) : null,
         status: formData.get("status") as string,
         paymentType: paymentType,
         creditDays: paymentType === "credit" ? (formData.get("creditDays") ? String(formData.get("creditDays")) : "30") : null,
-        paymentMethod: formData.get("paymentMethod") as string,
-        dueDate: formData.get("dueDate") as string,
+        dueDate: dueDate || null,
         subtotal: subtotal,
         taxRate: taxPercentage,
         tax: tax,
@@ -543,6 +663,85 @@ export function SaleFormDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
+            {/* Selector de cotización para nueva venta: mostrar siempre para poder buscar cotizaciones */}
+            {!editingSale && (
+              <div className="grid gap-2">
+                <Label htmlFor="quoteSelect">Buscar Cotización</Label>
+                <Select
+                  value={selectedQuoteId}
+                  onValueChange={async (value) => {
+                    if (value && value !== '__none__') {
+                      const selectedQuote = availableQuotes.find(q => q.id.toString() === value);
+                      console.log('Quote selected:', selectedQuote);
+                      
+                      if (selectedQuote) {
+                        // Autocompletar el cliente
+                        if (selectedQuote.clientId) {
+                          setSelectedClientId(selectedQuote.clientId.toString());
+                        }
+                        // Autocompletar el tax percentage
+                        if (selectedQuote.taxPercentage) {
+                          setTaxPercentage(parseFloat(selectedQuote.taxPercentage));
+                        }
+                        setSelectedQuoteId(value);
+                        
+                        // Cargar los items de la cotización
+                        try {
+                          const response = await quotesService.getItems(Number(value));
+                          const itemsArray = response.data || [];
+                          
+                          if (itemsArray && itemsArray.length > 0) {
+                            const mappedItems = itemsArray.map((item: any) => {
+                              const qty = parseFloat(item.quantity) || 1;
+                              const price = parseFloat(item.unitPrice) || parseFloat(item.product?.price) || 0;
+                              const total = parseFloat(item.total) || (qty * price);
+                              
+                              return {
+                                id: undefined,
+                                productId: item.product_id || null,
+                                productName: item.product?.name || item.description || "",
+                                productCode: item.product?.code || item.partNumber || "",
+                                unit: item.unit || "PZA",
+                                partNumber: item.partNumber || item.product?.code || "",
+                                description: item.description || item.product?.name || "",
+                                quantity: qty,
+                                unitPrice: price,
+                                discountPercentage: 0,
+                                discountAmount: 0,
+                                subtotal: total,
+                              };
+                            });
+                            setItems(mappedItems);
+                          }
+                        } catch (error) {
+                          console.error('Error fetching quote items:', error);
+                        }
+                      }
+                    } else if (value === '__none__') {
+                      setSelectedQuoteId("");
+                      setItems([]);
+                    }
+                  }}
+                  disabled={loadingAvailableQuotes}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingAvailableQuotes ? "Cargando..." : "Seleccionar cotización"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin cotización</SelectItem>
+                    {availableQuotes.map((quote) => (
+                      <SelectItem key={quote.id} value={quote.id.toString()}>
+                        {quote.code} - {quote.client_name || quote.title || 'Sin título'} (${Number(quote.total).toLocaleString('es-MX')})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Selecciona una cotización para autocompletar el cliente y los productos
+                </p>
+              </div>
+            )}
+
             {/*venta*/}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
@@ -557,68 +756,49 @@ export function SaleFormDialog({
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="clientId">Cliente</Label>
-                <Select
-                  name="clientId"
-                  defaultValue={editingSale?.clientId?.toString() || ""}
-                  onValueChange={(value) => {
-                    setSelectedClientId(value);
-                    setSelectedQuoteId(""); // Reset quote when client changes
-                  }}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientsList.map((client) => (
-                      <SelectItem key={client.id} value={client.id.toString()}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Si hay un cliente seleccionado pero no está en la lista, mostrar el nombre */}
+                {selectedClientId && !clientsList.find(c => c.id.toString() === selectedClientId) ? (
+                  <div className="flex gap-2">
+                    <Input
+                      id="clientId"
+                      name="clientId"
+                      value={selectedClientId}
+                      disabled
+                      className="bg-muted flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedClientId("")}
+                    >
+                      X
+                    </Button>
+                  </div>
+                ) : (
+                  <Select
+                    name="clientId"
+                    value={selectedClientId || editingSale?.clientId?.toString() || ""}
+                    onValueChange={(value) => {
+                      console.log('Client selected:', value);
+                      setSelectedClientId(value);
+                      setSelectedQuoteId("");
+                    }}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientsList.map((client) => (
+                        <SelectItem key={client.id} value={client.id.toString()}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="quoteSelect">Cotización</Label>
-                <Select
-                  defaultValue={selectedQuoteId}
-                  onValueChange={(value) => {
-                    setSelectedQuoteId(value);
-                    // Actualizar el tax percentage si hay una cotización seleccionada
-                    if (value && value !== '__none__') {
-                      const selectedQuote = quotes.find(q => q.id.toString() === value);
-                      if (selectedQuote?.tax_percentage) {
-                        setTaxPercentage(parseFloat(selectedQuote.tax_percentage));
-                      }
-                    }
-                  }}
-                  disabled={!selectedClientId || loadingQuotes}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={!selectedClientId ? "Seleccione un cliente primero" : loadingQuotes ? "Cargando..." : quotes.length === 0 ? "No hay cotizaciones" : "Seleccionar cotización"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin cotización</SelectItem>
-                    {quotes.map((quote) => (
-                      <SelectItem key={quote.id} value={quote.id.toString()}>
-                        {quote.code} - {quote.title || 'Sin título'} (${Number(quote.total).toLocaleString('es-MX')})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* <div className="grid gap-2">
-                <Label htmlFor="quoteRef">Ref. Cotización (manual)</Label>
-                <Input
-                  id="quoteRef"
-                  name="quoteRef"
-                  placeholder="COT-XXX (opcional)"
-                  defaultValue={editingSale?.quoteRef || ""}
-                />
-              </div> */}
             </div>
 
             {/* Items Section */}
@@ -763,10 +943,20 @@ export function SaleFormDialog({
                   type="text"
                   defaultValue={editingSale?.creditDays?.toString() || "30"}
                   placeholder="Ej: 30"
-                  required
                 />
               </div>
             )}
+
+            {/* Due Date - Always visible */}
+            <div className="grid gap-2">
+              <Label htmlFor="dueDate">Fecha de Vencimiento</Label>
+              <Input
+                id="dueDate"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
             
             <div className="grid gap-2">
               <Label htmlFor="status">Estado</Label>

@@ -22,6 +22,8 @@ class Sale extends Model
         'total',
         'status',       
         'due_date',
+        'payment_type',
+        'credit_days',
     ];
 
     protected $casts = [

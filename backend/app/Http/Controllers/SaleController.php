@@ -47,7 +47,7 @@ class SaleController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $perPage = $request->integer('per_page', 100);
-        $items = Sale::with(['client'])->orderByDesc('created_at')->paginate($perPage);
+        $items = Sale::with(['client', 'saleItems'])->orderByDesc('created_at')->paginate($perPage);
         return response()->json($items);
     }
 
@@ -91,6 +91,7 @@ class SaleController extends Controller implements HasMiddleware
             'status' => 'sometimes|in:pending,paid,overdue,cancelled',           
             'payment_type' => 'sometimes|in:cash,credit',
             'credit_days' => 'nullable|integer|min:0',           
+            'due_date' => 'nullable|date',
             'sale_items' => 'sometimes|array',
             'sale_items.*.product_id' => 'nullable|exists:products,id',
             'sale_items.*.unit' => 'nullable|string|max:50',
@@ -116,6 +117,9 @@ class SaleController extends Controller implements HasMiddleware
         $data['tax'] = $data['tax'] ?? 0;
         $data['total'] = $data['total'] ?? 0;
         $data['status'] = $data['status'] ?? 'pending';
+        $data['payment_type'] = $data['payment_type'] ?? 'cash';
+        $data['credit_days'] = $data['credit_days'] ?? 0;
+        
 
         // Extraer sale_items antes de crear la venta
         $saleItems = $data['sale_items'] ?? [];
@@ -148,12 +152,25 @@ class SaleController extends Controller implements HasMiddleware
         // Si es contado: ya está pagada
         // $isCredit = ($data['payment_type'] ?? 'cash') === 'credit';
         // $status = $data['status'];
+        
+        // Usar due_date directamente del formulario, o calcularlo si es crédito
+        $dueDate = $data['due_date'] ?? null;
+        if (!$dueDate && ($data['payment_type'] ?? 'cash') === 'credit') {
+            // Si es crédito y no hay due_date, calcularlo con credit_days
+            $dueDate = now()->addDays((int) ($data['credit_days'] ?? 0))->toDateString();
+        }
+        
+        // Guardar due_date en la venta
+        if ($dueDate) {
+            $sale->update(['due_date' => $dueDate]);
+        }
+        
         AccountStatement::create([
             'sale_id' => $sale->id,
             'client_id' => $sale->client_id,
             'client_name' => $sale->client_name,
             'date' => now()->toDateString(),
-            'due_date' => now()->addDays((int) ($data['credit_days'] ?? 0))->toDateString(), // Usar la fecha de vencimiento si está definida, de lo contrario usar la fecha actual'
+            'due_date' => $dueDate ?? now()->toDateString(),
             'amount' => $sale->total,
             'paid' => 0 ,
             'balance' => $sale->total,
@@ -211,7 +228,7 @@ class SaleController extends Controller implements HasMiddleware
         // Configurar PDF horizontal (landscape) con márgenes adecuados
         $pdf->setPaper('a4', 'landscape')->setOption('margin-top', 15)->setOption('margin-bottom', 15)->setOption('margin-left', 15)->setOption('margin-right', 15);
         
-        return $pdf->download('venta-' . now() . '.pdf');
+        return $pdf->download('venta-' . $sale->code . '.pdf');
     }
 
     public function update(Request $request, Sale $sale)
@@ -227,6 +244,7 @@ class SaleController extends Controller implements HasMiddleware
             'status' => 'sometimes|in:pending,paid,overdue,cancelled',
             'payment_type' => 'sometimes|in:cash,credit',
             'credit_days' => 'nullable|string|max:10',
+            'due_date' => 'nullable|date',
             'sale_items' => 'sometimes|array',
             'sale_items.*.id' => 'nullable|exists:sale_items,id',
             'sale_items.*.product_id' => 'nullable|exists:products,id',
@@ -302,14 +320,34 @@ class SaleController extends Controller implements HasMiddleware
             }
         }
         
-       $accountStatement = $sale->accountStatement;
+        // Actualizar el AccountStatement si existe
+        $accountStatement = $sale->accountStatement;
         if ($accountStatement) {
-            $accountStatement->update([
-                'paid' => $sale->total,
-                'balance' => 0,
-                'status' => 'paid',
-                'due_date' => now()->toDateString(),
-            ]);
+            // Obtener el total actual de la venta (ya actualizada)
+            $newTotal = $sale->total;
+            $oldAmount = $accountStatement->amount;
+            
+            $updateData = [];
+            
+            // Solo actualizar si el amount cambió
+            if ($newTotal != $oldAmount) {
+                $paid = $accountStatement->paid ?? 0;
+                $newBalance = $newTotal - $paid;
+                
+                $updateData['amount'] = $newTotal;
+                $updateData['balance'] = $newBalance;
+            }
+            
+            // Actualizar due_date si se proporcionó
+            if (!empty($data['due_date'])) {
+                $updateData['due_date'] = $data['due_date'];
+                // También actualizar en la venta
+                $sale->update(['due_date' => $data['due_date']]);
+            }
+            
+            if (!empty($updateData)) {
+                $accountStatement->update($updateData);
+            }
         }
         
         return response()->json($sale->load(['client', 'quote', 'saleItems']));
@@ -357,21 +395,23 @@ class SaleController extends Controller implements HasMiddleware
             'type' => 'receivable',
         ]);
 
-        // $bankAccount = BankAccount::find($data['bank_account_id'])->increment('balance', $data['amount']);
+        $bankAccount = BankAccount::find($data['bank_account_id'])->increment('balance', $data['amount']);
 
         // Crear el movimiento en finanzas vinculado al pago
-        // Movement::create([
-        //     'type' => 'income',
-        //     'bank_account_id' => $data['bank_account_id'],
-        //     'balance' => $bankAccount->balance,
-        //     'amount' => $data['amount'],
-        //     'description' => 'Pago de venta #' . $sale->code . ' - Pago #' . $code,
-        //     'reference' => $code,
-        //     'date' => $data['payment_date'],
-        //     'status' => 'completed',
-        //     'movementable_type' => Payment::class,
-        //     'movementable_id' => $payment->id,
-        // ]);
+        if($bankAccount){
+            Movement::create([
+                'type' => 'income',
+                'bank_account_id' => $data['bank_account_id'],
+                'balance' => $bankAccount->balance,
+                'amount' => $data['amount'],
+                'description' => 'Pago de venta #' . $sale->code . ' - Pago #' . $code,
+                'reference' => $code,
+                'date' => $data['payment_date'],
+                'status' => 'completed',
+                'movementable_type' => Payment::class,
+                'movementable_id' => $payment->id,
+            ]);
+        }
 
         // Actualizar la cuenta por cobrar si existe
         $accountStatement = $sale->accountStatement;
@@ -406,6 +446,21 @@ class SaleController extends Controller implements HasMiddleware
 
     public function destroy(Sale $sale)
     {
+        // Eliminar relaciones primero
+        if ($sale->accountStatement) {
+            $sale->accountStatement->delete();
+        }
+        
+        // Eliminar pagos relacionados
+        foreach ($sale->payments as $payment) {
+            $payment->delete();
+        }
+        
+        // Eliminar items de venta
+        foreach ($sale->saleItems as $item) {
+            $item->delete();
+        }
+        
         $sale->delete();
         return response()->json(null, 204);
     }

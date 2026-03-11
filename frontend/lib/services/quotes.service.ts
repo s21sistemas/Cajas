@@ -1,8 +1,14 @@
 import { api, apiClient } from '@/lib/api';
 
 export const quotesService = {
-  getByClient: async (clientId: number) => {
-    return api.get<any>(`/quotes/by-client/${clientId}`);
+  getByClient: async (clientId: number, withoutSale: boolean = false) => {
+    const params = withoutSale ? '?without_sale=true' : '';
+    return api.get<any>(`/quotes/by-client/${clientId}${params}`);
+  },
+
+  // Obtener todas las cotizaciones sin venta (para crear venta directamente)
+  getWithoutSale: async () => {
+    return api.get<any>('/quotes/without-sale');
   },
 
   getItems: async (quoteId: number) => {
