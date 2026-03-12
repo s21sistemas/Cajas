@@ -47,7 +47,7 @@ class SaleController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $perPage = $request->integer('per_page', 100);
-        $items = Sale::with(['client', 'saleItems'])->orderByDesc('created_at')->paginate($perPage);
+        $items = Sale::with(['client', 'saleItems', 'accountStatement'])->orderByDesc('created_at')->paginate($perPage);
         return response()->json($items);
     }
 
@@ -395,7 +395,11 @@ class SaleController extends Controller implements HasMiddleware
             'type' => 'receivable',
         ]);
 
-        $bankAccount = BankAccount::find($data['bank_account_id'])->increment('balance', $data['amount']);
+        $bankAccount = BankAccount::findOrFail($data['bank_account_id']);
+
+        $bankAccount->increment('balance', $data['amount']);
+
+        $bankAccount->refresh(); 
 
         // Crear el movimiento en finanzas vinculado al pago
         if($bankAccount){

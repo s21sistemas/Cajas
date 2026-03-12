@@ -40,7 +40,7 @@ return new class extends Migration
             ])->default('completed');
 
             $table->nullableMorphs('movementable');
-            $table->foreignId('payment_id')->nullable()->constrained('payments');
+
             $table->timestamps();
         });
     }

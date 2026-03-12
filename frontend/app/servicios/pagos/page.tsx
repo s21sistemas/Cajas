@@ -40,6 +40,11 @@ interface Sale {
   paymentType: string;
   creditDays: number;
   dueDate: string | null;
+  accountStatement?: {
+    amount: number;
+    paid: number;
+    balance: number;
+  };
 }
 
 interface PurchaseOrder {
@@ -106,17 +111,24 @@ export default function PaymentsPage() {
         ]);
         
         const salesData = salesRes?.data || [];
-        const creditSales = salesData.filter((s: Sale) => 
-          s.paymentType === 'credit' || s.status === 'pending'
-        ).map((s: Sale) => ({
-          ...s,
-          balance: s.balance ?? (s.total - (s.paid ?? 0)),
-        }));
+        const creditSales = salesData
+          .filter((s: Sale) => s.status === "pending")
+          .map((s: Sale) => {
+            const paid = Number(s.accountStatement?.paid || 0);
+            const total = Number(s.total || 0);
+
+            return {
+              ...s,
+              paid,
+              balance: Number(s.accountStatement?.balance ?? (total - paid)),
+            };
+          });
+
         setSales(creditSales);
         
         const ordersData = ordersRes?.data || [];
         const creditOrders = ordersData.filter((o: PurchaseOrder) => 
-          o.paymentType === 'credit' || o.status === 'pending'
+          o.status === 'pending'
         ).map((o: PurchaseOrder) => ({
           ...o,
           balance: o.balance ?? (o.total - (o.paid ?? 0)),
@@ -354,7 +366,7 @@ export default function PaymentsPage() {
           <TabsContent value="receivables" className="space-y-4">
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-foreground">Cuentas por Cobrar (Ventas a Crédito)</CardTitle>
+                <CardTitle className="text-foreground">Cuentas por Cobrar</CardTitle>
               </CardHeader>
               <CardContent>
                 {loadingSales ? (
@@ -374,6 +386,7 @@ export default function PaymentsPage() {
                         <TableHead className="text-right text-muted-foreground">Total</TableHead>
                         <TableHead className="text-right text-muted-foreground">Pagado</TableHead>
                         <TableHead className="text-right text-muted-foreground">Saldo</TableHead>
+                        <TableHead className="text-muted-foreground">Fecha Solicitud</TableHead>
                         <TableHead className="text-muted-foreground">Vencimiento</TableHead>
                         <TableHead className="text-muted-foreground">Días</TableHead>
                         <TableHead className="text-muted-foreground">Acciones</TableHead>
@@ -381,7 +394,7 @@ export default function PaymentsPage() {
                     </TableHeader>
                     <TableBody>
                       {sales.map((sale: any) => {
-                        const daysUntil = getDaysUntilDue(sale.dueDate);
+                        const daysUntil = sale.creditDays;
                         return (
                           <TableRow key={sale.id} className="border-border">
                             <TableCell className="font-medium">{sale.code}</TableCell>
@@ -389,6 +402,7 @@ export default function PaymentsPage() {
                             <TableCell className="text-right">{formatCurrency(sale.total)}</TableCell>
                             <TableCell className="text-right text-green-400">{formatCurrency(sale.paid || 0)}</TableCell>
                             <TableCell className="text-right font-medium text-red-400">{formatCurrency(sale.balance)}</TableCell>
+                            <TableCell>{formatDate(sale.createdAt)}</TableCell>
                             <TableCell>{formatDate(sale.dueDate)}</TableCell>
                             <TableCell>
                               {daysUntil !== null && (
@@ -415,7 +429,7 @@ export default function PaymentsPage() {
           <TabsContent value="payables" className="space-y-4">
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-foreground">Cuentas por Pagar (Ordenes de Compra a Crédito)</CardTitle>
+                <CardTitle className="text-foreground">Cuentas por Pagar</CardTitle>
               </CardHeader>
               <CardContent>
                 {loadingOrders ? (
@@ -527,7 +541,7 @@ export default function PaymentsPage() {
         </Tabs>
 
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {paymentType === 'receivable' ? 'Registrar Cobro' : 'Registrar Pago'}

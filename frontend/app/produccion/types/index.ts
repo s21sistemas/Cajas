@@ -27,14 +27,14 @@ export interface Product {
 
 // Tipo para el formulario de creación
 export interface CreateProductionForm {
-  processId: string;
-  machineId: string;
-  operatorId: string;
-  productId: string;
+  processId: number;
+  machineId: number;
+  operatorId: number;
+  productId: number;
   targetParts: number;
   notes: string;
-  workOrderId: string;
-  parentProductionId: string;
+  workOrderId: number;
+  parentProductionId: number;
 }
 
 // Configuración de estados
@@ -61,14 +61,14 @@ export const PAUSE_REASONS = [
 
 // Valores por defecto
 export const DEFAULT_FORM: CreateProductionForm = {
-  processId: '',
-  machineId: '',
-  operatorId: '',
-  productId: '',
+  processId: 0,
+  machineId: 0,
+  operatorId: 0,
+  productId: 0,
   targetParts: 100,
   notes: '',
-  workOrderId: '',
-  parentProductionId: '',
+  workOrderId: 0,
+  parentProductionId: 0,
 };
 
 // Tipo para WorkOrder (del módulo de Órdenes de Trabajo)

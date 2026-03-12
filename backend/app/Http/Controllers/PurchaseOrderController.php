@@ -180,22 +180,6 @@ class PurchaseOrderController extends Controller
     }
     
     /**
-     * Registra un movimiento de finances cuando la orden es de contado
-     */
-    private function registerCashPurchaseMovement(PurchaseOrder $order): void
-    {
-        \App\Models\Movement::create([
-            'type' => 'expense',
-            'category' => 'purchase',
-            'description' => 'Orden de compra - ' . ($order->material_name ?? 'Material'),
-            'amount' => $order->total,
-            'reference' => $order->code,
-            'date' => now()->toDateString(),
-            'status' => 'completed',
-        ]);
-    }
-    
-    /**
      * Crea un registro en el estado de cuenta del proveedor cuando la orden se marca como ordenada
      */
     private function createSupplierStatementFromOrder(PurchaseOrder $order): void
@@ -262,6 +246,7 @@ class PurchaseOrderController extends Controller
         // Crear el pago vinculado al supplier_statement
         $payment = \App\Models\Payment::create([
             'code' => $code,
+            'purchase_order_id' => $purchaseOrder->id,
             'supplier_statement_id' => $supplierStatement?->id,
             'bank_account_id' => $data['bank_account_id'] ?? null,
             'amount' => $data['amount'],

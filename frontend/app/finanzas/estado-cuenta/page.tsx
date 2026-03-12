@@ -39,6 +39,17 @@ const formatCurrency = (amount: number): string => {
   return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
+const formatDate = (dateString: string | null | undefined) => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+};
+
 export default function FinanceAccountPage() {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<Movement[]>([]);
@@ -344,7 +355,7 @@ export default function FinanceAccountPage() {
                 <TableBody>
                   {filtered.map((transaction) => (
                     <TableRow key={transaction.id} className="border-border">
-                      <TableCell className="text-muted-foreground">{transaction.date}</TableCell>
+                      <TableCell className="text-muted-foreground">{formatDate(transaction.date)}</TableCell>
                       <TableCell className="font-mono text-sm text-primary">{transaction.reference}</TableCell>
                       <TableCell className="font-medium text-foreground max-w-[250px] truncate">{transaction.description}</TableCell>
                       <TableCell className="text-muted-foreground">{getBankName(transaction)}</TableCell>

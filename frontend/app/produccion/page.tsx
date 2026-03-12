@@ -181,15 +181,15 @@ export default function ProduccionPage() {
     setSaving(true);
     try {
       const newProduction = await productionService.create({
-        processId: parseInt(form.processId),
-        operatorId: form.operatorId ? parseInt(form.operatorId) : null,
-        machineId: form.machineId ? parseInt(form.machineId) : null,
-        productId: form.productId ? parseInt(form.productId) : null,
+        processId: form.processId,
+        operatorId: form.operatorId ? form.operatorId : null,
+        machineId: form.machineId ? form.machineId : null,
+        productId: form.productId ? form.productId : null,
         targetParts: form.targetParts,
         notes: form.notes || undefined,
         startTime: new Date().toISOString(),
-        workOrderId: form.workOrderId ? parseInt(form.workOrderId) : undefined,
-        parentProductionId: form.parentProductionId ? parseInt(form.parentProductionId) : null,
+        workOrderId: form.workOrderId ? form.workOrderId : undefined,
+        parentProductionId: form.parentProductionId ? form.parentProductionId : null,
       });
       
       setProductions([newProduction, ...productions]);
@@ -324,14 +324,14 @@ export default function ProduccionPage() {
   function openEditDialog(p: Production) {
     setSelectedProduction(p);
     setForm({
-      processId: '', // El proceso no se puede cambiar en edición
-      machineId: p.machineId ? String(p.machineId) : '',
-      operatorId: p.operatorId ? String(p.operatorId) : '',
-      productId: '',
+      processId: 0, // El proceso no se puede cambiar en edición
+      machineId: p.machineId ? p.machineId : 0,
+      operatorId: p.operatorId ? p.operatorId : 0,
+      productId: 0,
       targetParts: p.targetParts || 0,
       notes: '',
-      workOrderId: '',
-      parentProductionId: p.parentProductionId ? String(p.parentProductionId) : '',
+      workOrderId: 0,
+      parentProductionId: p.parentProductionId ? p.parentProductionId : 0,
     });
     setShowEditDialog(true);
   }
@@ -347,8 +347,8 @@ export default function ProduccionPage() {
     setSaving(true);
     try {
       const updated = await productionService.update(selectedProduction.id, {
-        machineId: form.machineId ? parseInt(form.machineId) : null,
-        operatorId: form.operatorId ? parseInt(form.operatorId) : null,
+        machineId: form.machineId ? form.machineId : null,
+        operatorId: form.operatorId ? form.operatorId : null,
         targetParts: form.targetParts,
         notes: form.notes || null,
       });

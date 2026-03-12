@@ -49,8 +49,8 @@ export function EditProductionDialog({
             <div>
               <Label>Máquina</Label>
               <Select
-                value={form.machineId || ''}
-                onValueChange={(v) => onFormChange({ ...form, machineId: v })}
+                value={form.machineId ? String(form.machineId) : ""}
+                onValueChange={(v) => onFormChange({ ...form, machineId: Number(v) || 0 })}
               >
                 <SelectTrigger className="bg-secondary border-border">
                   <SelectValue placeholder="Seleccionar máquina" />
@@ -60,7 +60,7 @@ export function EditProductionDialog({
                     <div className="p-2 text-sm text-muted-foreground">No hay máquinas disponibles</div>
                   ) : (
                     machines.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
+                      <SelectItem key={m.id} value={String(m.id)}>
                         {m.name}
                       </SelectItem>
                     ))
@@ -74,8 +74,8 @@ export function EditProductionDialog({
           <div>
             <Label>Operador</Label>
             <Select
-              value={form.operatorId || ''}
-              onValueChange={(v) => onFormChange({ ...form, operatorId: v })}
+              value={form.operatorId ? String(form.operatorId) : ""}
+              onValueChange={(v) => onFormChange({ ...form, operatorId: Number(v) || 0 })}
             >
               <SelectTrigger className="bg-secondary border-border">
                 <SelectValue placeholder="Seleccionar operador" />
@@ -85,7 +85,7 @@ export function EditProductionDialog({
                   <div className="p-2 text-sm text-muted-foreground">No hay operadores disponibles</div>
                 ) : (
                   operators.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
+                    <SelectItem key={o.id} value={String(o.id)}>
                       {o.name}
                     </SelectItem>
                   ))
