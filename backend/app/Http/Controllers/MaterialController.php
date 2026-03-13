@@ -60,7 +60,7 @@ class MaterialController extends Controller implements HasMiddleware
     }
 
     public function selectListMaterials(){
-        return response()->json(Material::select('id', 'name', 'code', 'category', 'cost', 'unit', 'stock', 'min_stock')->orderBy('name')->get());
+        return response()->json(Material::select('id', 'name', 'code', 'category', 'cost', 'unit', 'stock', 'min_stock', 'price')->orderBy('name')->get());
     }
 
     /**

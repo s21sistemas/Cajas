@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Material } from '@/lib/types/material.types';
 
 const purchaseOrderSchema = z.object({
   supplier_id: z.coerce.number().min(1, 'El proveedor es requerido'),
@@ -22,7 +23,7 @@ const purchaseOrderSchema = z.object({
   total: z.coerce.number().min(0).default(0),
   payment_type: z.enum(['cash', 'credit']).default('cash'),
   credit_days: z.coerce.number().min(0).default(0),
-  status: z.enum(['draft', 'pending', 'approved', 'ordered', 'partial', 'received', 'cancelled']).default('draft'),
+  status: z.enum(['draft', 'paid', 'pending', 'approved', 'ordered', 'partial', 'received', 'cancelled']).default('draft'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
   expected_date: z.string().optional().default(''),
   due_date: z.string().optional().default(''),
@@ -35,7 +36,7 @@ interface PurchaseOrderFormProps {
   onSubmit: (data: PurchaseOrderFormValues) => Promise<void>;
   isLoading?: boolean;
   suppliers?: any[];
-  materials?: any[];
+  materials?: Material[];
   suppliersLoading?: boolean;
   materialsLoading?: boolean;
 }
@@ -151,10 +152,11 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
                       const materialId = value;
                       field.onChange(materialId);
                       const material = materials.find((m: any) => m.id.toString() === value);
+                      console.log(material);
                       if (material) {
                         form.setValue('material_name', material.name);
-                        if (material.cost) {
-                          form.setValue('unit_price', material.cost);
+                        if (material.price) {
+                          form.setValue('unit_price', material.price);
                           calculateTotals();
                         }
                       }

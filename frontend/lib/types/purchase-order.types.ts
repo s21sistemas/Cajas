@@ -1,4 +1,6 @@
 import { BaseEntity, BaseFilters, DateRangeFilter } from './api.types';
+import { Material } from './material.types';
+import { Supplier } from './supplier.types';
 
 // Purchase Order types
 export type PurchaseOrderStatus = 'draft' | 'pending' | 'approved' | 'ordered' | 'partial' | 'received' | 'cancelled';
@@ -18,6 +20,12 @@ export interface PurchaseOrder extends BaseEntity {
   approvedBy: string | null;
   expectedDate: string | null;
   notes: string | null;
+  materialName: string;
+  material?: Material;
+  supplier?: Supplier;
+  quantity: number;
+  paymentType: string;
+  creditDays: number;
 }
 
 export interface PurchaseOrderItem {

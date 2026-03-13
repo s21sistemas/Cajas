@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ERPLayout } from "@/components/erp/erp-layout";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,43 +34,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Search, ShoppingBag, Edit, Trash2 } from "lucide-react";
-import { purchaseOrdersService } from "@/lib/services/purchase-orders.service";
-import { suppliersService, materialsService } from "@/lib/services";
-import { useApiQuery } from "@/hooks/use-api-query";
+import { purchaseOrdersService, suppliersService, materialsService } from "@/lib/services";
+import { PurchaseOrder } from "@/lib/types/purchase-order.types";
+import { Supplier } from "@/lib/types/supplier.types";
+import { Material } from "@/lib/types/material.types";
 import { useToast } from "@/components/erp/action-toast";
 import { PurchaseOrderForm } from "@/components/forms/PurchaseOrderForm";
 
 // ============================================
 // Tipos
 // ============================================
-
-interface PurchaseOrder {
-  id: number;
-  code: string;
-  supplier_id: number;
-  supplier_name: string;
-  supplier?: { name: string };
-  material_id?: number;
-  material_name?: string;
-  material?: { name: string };
-  quantity: number;
-  unit_price: number;
-  subtotal: number;
-  iva_percentage: number;
-  iva: number;
-  total: number;
-  items: number;
-  status: string;
-  priority: string;
-  payment_type: string;
-  credit_days: number;
-  requested_by: string;
-  approved_by?: string;
-  expected_date?: string;
-  due_date?: string;
-  created_at: string;
-  updated_at: string;
-}
 
 interface Stats {
   total: number;
@@ -260,13 +233,13 @@ function OrdersTable({ orders, loading, onEdit, onDelete }: OrdersTableProps) {
               orders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">{order.code}</TableCell>
-                  <TableCell>{order.supplier_name || order.supplier?.name || '-'}</TableCell>
-                  <TableCell>{order.material_name || order.material?.name || '-'}</TableCell>
+                  <TableCell>{order.supplierName || order.supplier?.name || '-'}</TableCell>
+                  <TableCell>{order.materialName || order.material?.name || '-'}</TableCell>
                   <TableCell className="text-center">{order.quantity}</TableCell>
                   <TableCell className="text-right">{formatCurrency(order.total || 0)}</TableCell>
                   <TableCell>
                     <span className="px-2 py-1 rounded-md text-xs border bg-muted">
-                      {order.payment_type === 'credit' ? `Crédito (${order.credit_days} días)` : 'Contado'}
+                      {order.paymentType === 'credit' ? `Crédito (${order.creditDays} días)` : 'Contado'}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -349,39 +322,48 @@ function OrdenesCompraPageInner() {
   
   const { showToast } = useToast();
 
-  // Fetch purchase orders from API
-  const { data: ordersResponse, loading: ordersLoading, refetch } = useApiQuery(
-    () => purchaseOrdersService.getAll({ search: searchTerm || undefined }),
-    { enabled: true }
-  );
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch stats from backend
-  const { data: statsResponse, loading: statsLoading } = useApiQuery(
-    () => purchaseOrdersService.getStats(),
-    { enabled: true }
-  );
+  // Fetch data from API
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [ordersRes, statsRes, suppliersRes, materialsRes] = await Promise.all([
+        purchaseOrdersService.getAll({ search: searchTerm || undefined }),
+        purchaseOrdersService.getStats(),
+        suppliersService.selectList(),
+        materialsService.selectList(),
+      ]);
+      
+      setOrders(ordersRes?.data || []);
+      setStats({
+        total: ordersRes?.total ?? 0,
+        pending: statsRes?.pending ?? 0,
+        approved: statsRes?.approved ?? 0,
+        ordered: statsRes?.ordered ?? 0,
+        received: statsRes?.received ?? 0,
+        totalAmount: statsRes?.totalAmount ?? 0,
+      });
+      setSuppliers(suppliersRes || []);
+      console.log(materialsRes);
+      setMaterials(materialsRes || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchTerm]);
 
-  // Fetch suppliers and materials for the form
-  const { data: suppliersData, loading: suppliersLoading } = useApiQuery(
-    () => suppliersService.selectList(),
-    { enabled: true }
-  );
-  const { data: materialsData, loading: materialsLoading } = useApiQuery(
-    () => materialsService.selectList(),
-    { enabled: true }
-  );
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  const suppliers = suppliersData || [];
-  const materials = materialsData || [];
-  const orders = ordersResponse?.data || [];
-  const stats: Stats | null = statsResponse ? {
-    total: statsResponse.total ?? 0,
-    pending: statsResponse.pending ?? 0,
-    approved: statsResponse.approved ?? 0,
-    ordered: statsResponse.ordered ?? 0,
-    received: statsResponse.received ?? 0,
-    totalAmount: statsResponse.totalAmount ?? 0,
-  } : null;
+  const suppliersLoading = false;
+  const materialsLoading = false;
 
   // Funciones de mutación usando async/await directo
   const handleCreate = async (data: any) => {
@@ -391,7 +373,7 @@ function OrdenesCompraPageInner() {
       showToast("success", "Orden creada", "La orden de compra se ha creado correctamente");
       setIsDialogOpen(false);
       setEditingOrder(null);
-      refetch();
+      fetchData();
     } catch (error: any) {
       showToast("error", "Error", error?.message || "No se pudo crear la orden");
     } finally {
@@ -407,7 +389,7 @@ function OrdenesCompraPageInner() {
       showToast("success", "Orden actualizada", "La orden de compra se ha actualizado correctamente");
       setIsDialogOpen(false);
       setEditingOrder(null);
-      refetch();
+      fetchData();
     } catch (error: any) {
       showToast("error", "Error", error?.message || "No se pudo actualizar la orden");
     } finally {
@@ -422,7 +404,7 @@ function OrdenesCompraPageInner() {
       await purchaseOrdersService.delete(deletingOrder.id);
       showToast("success", "Orden eliminada", "La orden de compra se ha eliminado correctamente");
       setDeletingOrder(null);
-      refetch();
+      fetchData();
     } catch (error: any) {
       showToast("error", "Error", error?.message || "No se pudo eliminar la orden");
     } finally {
@@ -462,13 +444,11 @@ function OrdenesCompraPageInner() {
     openCreateDialog();
   };
 
-  const loading = ordersLoading || statsLoading;
-
   return (
     <ERPLayout title="Órdenes de Compra" subtitle="Gestión de órdenes de compra">
       <div className="space-y-6">
         {/* Stats Cards - datos del backend */}
-        <StatsCards stats={stats} loading={statsLoading} />
+        <StatsCards stats={stats} loading={loading} />
 
         {/* Filters and Actions */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -492,7 +472,7 @@ function OrdenesCompraPageInner() {
         {/* Orders Table */}
         <OrdersTable
           orders={orders}
-          loading={ordersLoading}
+          loading={loading}
           onEdit={openEditDialog}
           onDelete={(order) => setDeletingOrder(order)}
         />
