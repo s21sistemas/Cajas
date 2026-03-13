@@ -128,7 +128,7 @@ export default function PaymentsPage() {
         
         const ordersData = ordersRes?.data || [];
         const creditOrders = ordersData.filter((o: PurchaseOrder) => 
-          o.status === 'pending'
+          o.status === 'approved'
         ).map((o: PurchaseOrder) => ({
           ...o,
           balance: o.balance ?? (o.total - (o.paid ?? 0)),
@@ -456,7 +456,7 @@ export default function PaymentsPage() {
                     </TableHeader>
                     <TableBody>
                       {purchaseOrders.map((order: any) => {
-                        const daysUntil = getDaysUntilDue(order.dueDate);
+                        const daysUntil = order.creditDays;
                         return (
                           <TableRow key={order.id} className="border-border">
                             <TableCell className="font-medium">{order.code}</TableCell>

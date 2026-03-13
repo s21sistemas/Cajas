@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\SupplierStatement;
+use App\Models\Movement;
 use Illuminate\Support\Facades\Validator;
 use \Spatie\Permission\Middleware\PermissionMiddleware;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -77,7 +78,7 @@ class PurchaseOrderController extends Controller
             'iva' => 'nullable|numeric|min:0',
             'total' => 'nullable|numeric|min:0',
             'items' => 'sometimes|integer|min:0',
-            'status' => 'sometimes|in:draft,pending,approved,ordered,partial,received,cancelled',
+            'status' => 'sometimes|in:draft,paid,pending,approved,ordered,partial,received,cancelled',
             'priority' => 'sometimes|in:low,medium,high,urgent',
             'payment_type' => 'sometimes|in:cash,credit',
             'credit_days' => 'sometimes|integer|min:0',
@@ -136,7 +137,7 @@ class PurchaseOrderController extends Controller
             'iva' => 'nullable|numeric|min:0',
             'items' => 'sometimes|integer|min:0',
             'total' => 'sometimes|numeric|min:0',
-            'status' => 'sometimes|in:draft,pending,approved,ordered,partial,received,cancelled',
+            'status' => 'sometimes|in:draft,paid,pending,approved,ordered,partial,received,cancelled',
             'priority' => 'sometimes|in:low,medium,high,urgent',
             'payment_type' => 'sometimes|in:cash,credit',
             'credit_days' => 'sometimes|integer|min:0',

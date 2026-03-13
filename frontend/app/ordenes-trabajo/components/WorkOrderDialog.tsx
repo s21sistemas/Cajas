@@ -188,21 +188,21 @@ export function WorkOrderDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            <div className="w-full min-w-0">
               <Label>Venta</Label>
               <Select
                 value={formData.sale_id?.toString() || ""}
                 onValueChange={handleSaleChange}
                 disabled={loadingSales}
               >
-                <SelectTrigger className="bg-secondary border-border">
+                <SelectTrigger className="w-full bg-secondary border-border">
                   <SelectValue className="truncate"
                   placeholder={loadingSales ? "Cargando..." : "Seleccionar venta"} />
                 </SelectTrigger>
                 <SelectContent className="max-w-md">
                   {sales.map((s) => (
                     <SelectItem key={s.id} value={s.id.toString()}>
-                      <span>
+                      <span className="block truncate">
                         {s.code} - {s.clientName} - ${s.total.toLocaleString()}
                       </span>
                     </SelectItem>
@@ -217,13 +217,16 @@ export function WorkOrderDialog({
                 onValueChange={handleProductChange}
                 disabled={!formData.sale_id || loadingProducts}
               >
-                <SelectTrigger className="bg-secondary border-border">
-                  <SelectValue placeholder={loadingProducts ? "Cargando..." : formData.sale_id ? (saleProducts.length === 0 ? "No hay productos disponibles" : "Seleccionar producto") : "Seleccione una venta primero"} />
+                <SelectTrigger className="w-full bg-secondary border-border">
+                  <SelectValue className="truncate"
+                  placeholder={loadingProducts ? "Cargando..." : formData.sale_id ? (saleProducts.length === 0 ? "No hay productos disponibles" : "Seleccionar producto") : "Seleccione una venta primero"} />
                 </SelectTrigger>
                 <SelectContent>
                   {saleProducts.map((p) => (
                     <SelectItem key={p.productId} value={p.productId.toString()}>
-                      {p.productName} - Cant: {p.quantity}
+                      <span className="block truncate">
+                        {p.productName} - Cant: {p.quantity}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

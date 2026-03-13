@@ -225,12 +225,6 @@ class Production extends Model
         $this->status = 'paused';
         $this->pause_reason = $reason;
         $this->save();
-        
-        // Pausar el proceso
-        $process = $this->process;
-        if ($process) {
-            $process->pause($reason);
-        }
     }
 
     /**
@@ -241,12 +235,6 @@ class Production extends Model
         $this->status = 'in_progress';
         $this->pause_reason = null;
         $this->save();
-        
-        // Reanudar el proceso
-        $process = $this->process;
-        if ($process) {
-            $process->start();
-        }
     }
 
     /**

@@ -11,17 +11,17 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Skeleton } from '@/components/ui/skeleton';
 
 const purchaseOrderSchema = z.object({
-  supplier_id: z.number().min(1, 'El proveedor es requerido'),
+  supplier_id: z.coerce.number().min(1, 'El proveedor es requerido'),
   material_id: z.coerce.number().min(1, 'El material es requerido'),
   material_name: z.string().optional(),
-  quantity: z.number().min(1, 'La cantidad debe ser mayor a 0'),
+  quantity: z.coerce.number().min(1, 'La cantidad debe ser mayor a 0'),
   unit_price: z.coerce.number().min(0, 'El precio debe ser mayor o igual a 0').default(0),
-  subtotal: z.number().min(0).default(0),
-  iva_percentage: z.number().min(0).max(100).default(16),
-  iva: z.number().min(0).default(0),
-  total: z.number().min(0).default(0),
+  subtotal: z.coerce.number().min(0).default(0),
+  iva_percentage: z.coerce.number().min(0).max(100).default(16),
+  iva: z.coerce.number().min(0).default(0),
+  total: z.coerce.number().min(0).default(0),
   payment_type: z.enum(['cash', 'credit']).default('cash'),
-  credit_days: z.number().min(0).default(0),
+  credit_days: z.coerce.number().min(0).default(0),
   status: z.enum(['draft', 'pending', 'approved', 'ordered', 'partial', 'received', 'cancelled']).default('draft'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
   expected_date: z.string().optional().default(''),
@@ -45,56 +45,55 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
   const materials = initialMaterials || [];
   const isSuppliersLoading = initialSuppliersLoading ?? false;
   const isMaterialsLoading = initialMaterialsLoading ?? false;
-
+  console.log(order);
   const form = useForm<PurchaseOrderFormValues>({
     resolver: zodResolver(purchaseOrderSchema),
     defaultValues: {
-      supplier_id: order?.supplier_id ?? 0,
-      material_id: order?.material_id ?? 0,
-      material_name: order?.material_name ?? '',
+      supplier_id: order?.supplierId ?? 0,
+      material_id: order?.materialId ?? 0,
+      material_name: order?.materialName ?? '',
       quantity: order?.quantity ?? 1,
-      unit_price: order?.unit_price ?? 0,
+      unit_price: order?.unitPrice ?? 0,
       subtotal: order?.subtotal ?? 0,
-      iva_percentage: order?.iva_percentage ?? 16,
+      iva_percentage: order?.ivaPercentage ?? 16,
       iva: order?.iva ?? 0,
       total: order?.total ?? 0,
-      payment_type: order?.payment_type ?? 'cash',
-      credit_days: order?.credit_days ?? 0,
+      payment_type: order?.paymentType ?? 'cash',
+      credit_days: order?.creditDays ?? 0,
       status: order?.status ?? 'draft',
       priority: order?.priority ?? 'medium',
-      expected_date: order?.expected_date?.split('T')[0] ?? '',
-      due_date: order?.due_date?.split('T')[0] ?? '',
+      expected_date: order?.expectedDate?.split('T')[0] ?? '',
+      due_date: order?.dueDate?.split('T')[0] ?? '',
     },
   });
 
   // Apply order data when order changes
   useEffect(() => {
-    if (order) {
+    if (order && Object.keys(order).length > 0) {
       // Format dates properly - extract YYYY-MM-DD from ISO string
-      const formatDate = (dateStr: string) => {
+      const formatDate = (dateStr: string | null | undefined) => {
         if (!dateStr) return '';
         return dateStr.split('T')[0];
       };
       
-      form.reset({
-        supplier_id: Number(order.supplier_id) || 0,
-        material_id: Number(order.material_id) || 0,
-        material_name: order.material_name || '',
-        quantity: Number(order.quantity) || 1,
-        unit_price: parseFloat(order.unit_price) || 0,
-        subtotal: parseFloat(order.subtotal) || 0,
-        iva_percentage: order.iva_percentage || 16,
-        iva: parseFloat(order.iva) || 0,
-        total: parseFloat(order.total) || 0,
-        payment_type: order.payment_type || 'cash',
-        credit_days: Number(order.credit_days) || 0,
-        status: order.status || 'draft',
-        priority: order.priority || 'medium',
-        expected_date: formatDate(order.expected_date),
-        due_date: formatDate(order.due_date),
-      });
+      // Use setValue to set each field individually
+      form.setValue('supplier_id', Number(order.supplierId) || 0, { shouldValidate: false });
+      form.setValue('material_id', Number(order.materialId) || 0, { shouldValidate: false });
+      form.setValue('material_name', order.materialName || '', { shouldValidate: false });
+      form.setValue('quantity', Number(order.quantity) || 1, { shouldValidate: false });
+      form.setValue('unit_price', parseFloat(order.unitPrice) || 0, { shouldValidate: false });
+      form.setValue('subtotal', parseFloat(order.subtotal) || 0, { shouldValidate: false });
+      form.setValue('iva_percentage', Number(order.ivaPercentage) || 16, { shouldValidate: false });
+      form.setValue('iva', parseFloat(order.iva) || 0, { shouldValidate: false });
+      form.setValue('total', parseFloat(order.total) || 0, { shouldValidate: false });
+      form.setValue('payment_type', order.paymentType || 'cash', { shouldValidate: false });
+      form.setValue('credit_days', Number(order.creditDays) || 0, { shouldValidate: false });
+      form.setValue('status', order.status || 'draft', { shouldValidate: false });
+      form.setValue('priority', order.priority || 'medium', { shouldValidate: false });
+      form.setValue('expected_date', formatDate(order.expectedDate), { shouldValidate: false });
+      form.setValue('due_date', formatDate(order.dueDate), { shouldValidate: false });
     }
-  }, [order, form]);
+  }, [order]);
 
   const quantity = form.watch('quantity') || 0;
   const unitPrice = form.watch('unit_price') || 0;
@@ -135,7 +134,7 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
         {/* Material y Proveedor */}
         <div className="grid grid-cols-2 gap-4">
           <FormField
@@ -155,22 +154,24 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
                       if (material) {
                         form.setValue('material_name', material.name);
                         if (material.cost) {
-                          form.setValue('unit_price', material.cost);
+                          form.setValue('unit_price', material.unit_price);
                           calculateTotals();
                         }
                       }
                     }} 
-                    defaultValue={field.value ? String(field.value) : undefined}
+                    value={field.value ? String(field.value) : undefined}
                   >
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar material" />
+                      <SelectTrigger className="w-full bg-secondary border-border overflow-hidden">
+                        <SelectValue className="truncate" placeholder="Seleccionar material" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {materials.map((material: any) => (
                         <SelectItem key={material.id} value={material.id.toString()}>
-                          {material.name}
+                          <span className="block w-full truncate">
+                            {material.name}
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -191,17 +192,17 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
                 ) : (
                   <Select 
                     onValueChange={(value) => field.onChange(Number(value))} 
-                    defaultValue={field.value ? String(field.value) : undefined}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar proveedor" />
-                      </SelectTrigger>
-                    </FormControl>
+                    value={field.value ? String(field.value) : undefined}
+                  >                    
+                    <SelectTrigger className="w-full bg-secondary border-border overflow-hidden">
+                      <SelectValue className="truncate" placeholder="Seleccionar proveedor" />
+                    </SelectTrigger>                    
                     <SelectContent>
                       {suppliers.map((supplier: any) => (
                         <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                          {supplier.name}
+                          <span className="block w-full truncate">
+                            {supplier.name}
+                          </span>                          
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -340,7 +341,7 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Tipo de Pago</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar tipo de pago" />
@@ -423,7 +424,7 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Prioridad</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar prioridad" />
@@ -446,7 +447,7 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Estado</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar estado" />
@@ -454,6 +455,7 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
                   </FormControl>
                   <SelectContent>
                     <SelectItem value="draft">Borrador</SelectItem>
+                    <SelectItem value="paid">Pagado</SelectItem>
                     <SelectItem value="pending">Pendiente</SelectItem>
                     <SelectItem value="approved">Aprobada</SelectItem>
                     <SelectItem value="ordered">Ordenada</SelectItem>

@@ -98,11 +98,13 @@ class WorkOrderController extends Controller implements HasMiddleware
      */
     public function getAssigned()
     {
+        $operatorId = auth()->id();
         // Obtener work orders que tienen producciones pendientes o en proceso
         $workOrders = WorkOrder::select('id', 'code', 'product_id', 'client_id', 'product_name', 'client_name', 'quantity', 'completed', 'progress', 'status', 'priority')
-            ->with(['productions:id,work_order_id,status,process_id,product_id'])
-            ->whereHas('productions', function ($query) {
-                $query->whereIn('status', ['pending', 'in_progress', 'paused']);
+            ->with(['productions:id,work_order_id,status,process_id,product_id', 'client'])
+            ->whereHas('productions', function ($query) use ($operatorId) {
+                $query->whereIn('status', ['pending', 'in_progress', 'paused'])
+                    ->where('operator_id', $operatorId);
             })
             ->orderByRaw("FIELD(priority, 'urgent', 'high', 'medium', 'low')")
             ->orderByDesc('created_at')
@@ -112,7 +114,7 @@ class WorkOrderController extends Controller implements HasMiddleware
                     'id' => $wo->id,
                     'code' => $wo->code,
                     'product_name' => $wo->product_name,
-                    'client_name' => $wo->client_name,
+                    'client_name' => $wo->client->name,
                     'quantity' => $wo->quantity,
                     'completed' => $wo->completed,
                     'progress' => $wo->progress,
@@ -157,27 +159,27 @@ class WorkOrderController extends Controller implements HasMiddleware
         //         ];
         //     });
 
-            $operatorId = auth()->id();
+        $operatorId = auth()->id();
 
         $productions = Production::query()
-    ->where('productions.work_order_id', $workOrder->id)
-    ->where('productions.operator_id', $operatorId)
-    ->leftJoin('product_processes', function ($join) {
-        $join->on('product_processes.process_id', '=', 'productions.process_id')
-             ->on('product_processes.product_id', '=', 'productions.product_id');
-    })
-    ->select(
-        'productions.*',
-        'product_processes.sequence'
-    )
-    ->with([
-        'process:id,name',
-        'machine:id,name',
-        'operator:id,name',
-        'parentProcess:id,code,status,good_parts,scrap_parts'
-    ])
-    ->orderBy('sequence')
-    ->get();
+        ->where('productions.work_order_id', $workOrder->id)
+        ->where('productions.operator_id', $operatorId)
+        ->leftJoin('product_processes', function ($join) {
+            $join->on('product_processes.process_id', '=', 'productions.process_id')
+                ->on('product_processes.product_id', '=', 'productions.product_id');
+        })
+        ->select(
+            'productions.*',
+            'product_processes.sequence'
+        )
+        ->with([
+            'process:id,name,requires_machine',
+            'machine:id,name',
+            'operator:id,name',
+            'parentProcess:id,code,status,good_parts,scrap_parts'
+        ])
+        ->orderBy('sequence')
+        ->get();
 
         return response()->json($productions);
     }

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ERPLayout } from "@/components/erp/erp-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +63,7 @@ interface Production {
   process?: {
     id: number;
     name: string;
+    requiresMachine: boolean;
   };
   product_process_id: number;
   productProcess?: {
@@ -242,8 +242,8 @@ export default function OperadorProduccionPage() {
   // Open start production dialog
   const handleOpenStartProduction = (production: Production) => {
     setSelectedProduction(production);
-    setMachineId("");
-    setOperatorId("");
+    setMachineId(production.machine?.id?.toString() || "");
+    setOperatorId(production.operator?.id?.toString() || "");
     setRegisterOpen(true);
   };
 
@@ -317,10 +317,13 @@ export default function OperadorProduccionPage() {
 
     setSubmitting(true);
     try {
-      await productionService.update(production.id, {
-        status: 'in_progress',
-        machineId: machineId ? parseInt(machineId) : undefined,
-        operatorId: operatorId ? parseInt(operatorId) : undefined,
+      // Si el proceso requiere máquina, usar el machineId seleccionado
+      // Si no requiere máquina, no enviar machineId
+      const requiresMachine = production.process?.requiresMachine ?? false;
+      
+      // Usar la función start dedicada del servicio
+      await productionService.start(production.id, {
+        ...(requiresMachine && machineId ? { machineId: parseInt(machineId) } : {}),
       });
       toast.success("La producción ha iniciado");
       if (selectedWorkOrder) {
@@ -328,6 +331,22 @@ export default function OperadorProduccionPage() {
       }
     } catch (error: any) {
       toast.error(error?.message || "No se pudo iniciar la producción");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Resume production (for paused productions)
+  const handleResumeProduction = async (production: Production) => {
+    setSubmitting(true);
+    try {
+      await productionService.resume(production.id);
+      toast.success("La producción ha sido reanudada");
+      if (selectedWorkOrder) {
+        await fetchProductions(selectedWorkOrder.id);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "No se pudo reanudar la producción");
     } finally {
       setSubmitting(false);
     }
@@ -476,284 +495,285 @@ export default function OperadorProduccionPage() {
     );
   }
 
-  return (
-    <ERPLayout title="Producción" subtitle="Panel del Operador">
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Mis Órdenes de Trabajo</h1>
-            <p className="text-muted-foreground">Selecciona una orden para registrar producción</p>
-            {operator && (
-              <p className="text-sm text-muted-foreground mt-1">Operador: {operator.name}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={fetchWorkOrders} variant="outline">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Actualizar
-            </Button>
-            <Button onClick={handleLogout} variant="outline">
-              <LogOut className="h-4 w-4 mr-2" />
-              Cerrar Sesión
-            </Button>
-          </div>
+  return (    
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Mis Órdenes de Trabajo</h1>
+          <p className="text-muted-foreground">Selecciona una orden para registrar producción</p>
+          {operator && (
+            <p className="text-sm text-muted-foreground mt-1">Operador: {operator.name}</p>
+          )}
         </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <ClipboardList className="h-8 w-8 text-primary" />
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium uppercase">Pendientes</p>
-                  <p className="text-2xl font-bold text-card-foreground">
-                    {workOrders.filter((wo) => wo.status === "draft").length}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <Play className="h-8 w-8 text-blue-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium uppercase">En Producción</p>
-                  <p className="text-2xl font-bold text-card-foreground">
-                    {workOrders.filter((wo) => wo.status === "in_progress").length}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <Package className="h-8 w-8 text-green-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium uppercase">Completadas</p>
-                  <p className="text-2xl font-bold text-card-foreground">
-                    {workOrders.filter((wo) => wo.status === "completed").length}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="flex items-center gap-2">
+          <Button onClick={fetchWorkOrders} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Actualizar
+          </Button>
+          <Button onClick={handleLogout} variant="outline">
+            <LogOut className="h-4 w-4 mr-2" />
+            Cerrar Sesión
+          </Button>
         </div>
+      </div>
 
-        {/* Work Orders List */}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle>Órdenes de Trabajo Asignadas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {workOrders.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No hay órdenes de trabajo asignadas
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <ClipboardList className="h-8 w-8 text-primary" />
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase">Pendientes</p>
+                <p className="text-2xl font-bold text-card-foreground">
+                  {workOrders.filter((wo) => wo.status === "draft").length}
+                </p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {workOrders.map((wo) => (
-                  <div
-                    key={wo.id}
-                    className="flex items-center justify-between p-4 border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{wo.productName}</h3>
-                        <span className={`w-2 h-2 rounded-full ${getPriorityColor(wo.priority)}`} />
-                        {getWorkOrderStatusBadge(wo.status)}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Cliente: {wo.clientName} | Cantidad: {wo.quantity}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Progress value={wo.progress} className="flex-1 h-2" />
-                        <span className="text-sm font-medium">{wo.progress}%</span>
-                        <span className="text-sm text-muted-foreground">
-                          ({wo.completed}/{wo.quantity})
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 ml-4">
-                      <Button
-                        size="sm"
-                        onClick={() => handleSelectWorkOrder(wo)}
-                        disabled={wo.status === "completed"}
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Ver Producciones
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            </div>
           </CardContent>
         </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Play className="h-8 w-8 text-blue-500" />
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase">En Producción</p>
+                <p className="text-2xl font-bold text-card-foreground">
+                  {workOrders.filter((wo) => wo.status === "in_progress").length}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Package className="h-8 w-8 text-green-500" />
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase">Completadas</p>
+                <p className="text-2xl font-bold text-card-foreground">
+                  {workOrders.filter((wo) => wo.status === "completed").length}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Productions List - Show when a work order is selected */}
-        {selectedWorkOrder && productions.length > 0 && (
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Producciones - {selectedWorkOrder.productName}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {productions
-                  .sort((a, b) => (a.productProcess?.sequence || 0) - (b.productProcess?.sequence || 0))
-                  .map((production, index) => {
-                    const qualityCheck = canStartProduction(production);
-                    const canWork = qualityCheck.canStart || production.status !== 'pending';
-                    
-                    return (
-                      <div
-                        key={production.id}
-                        className={`flex items-center justify-between p-4 border rounded-lg ${
-                          production.status === 'in_progress' 
-                            ? 'bg-blue-50 border-blue-200 dark:bg-blue-950/30' 
-                            : production.status === 'completed'
-                            ? 'bg-green-50 border-green-200 dark:bg-green-950/30'
-                            : 'bg-muted/30'
-                        }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
-                            {index + 1}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-medium">{production.process?.name || `Proceso ${production.process_id}`}</h4>
-                              {getProductionStatusBadge(production.status)}
-                              {production.quality_status && getQualityStatusBadge(production.quality_status)}
-                            </div>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                              <span>Meta: {production.targetParts} piezas</span>
-                              <span>Buenos: {production.goodParts || 0}</span>
-                              <span>Scrap: {production.scrapParts || 0}</span>
-                            </div>
-                            {!canWork && production.status === 'pending' && (
-                              <div className="flex items-center gap-1 text-xs text-orange-500 mt-1">
-                                <AlertCircle className="h-3 w-3" />
-                                {qualityCheck.reason}
-                              </div>
-                            )}
-                          </div>
+      {/* Work Orders List */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle>Órdenes de Trabajo Asignadas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {workOrders.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No hay órdenes de trabajo asignadas
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {workOrders.map((wo) => (
+                <div
+                  key={wo.id}
+                  className="flex items-center justify-between p-4 border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">{wo.productName}</h3>
+                      <span className={`w-2 h-2 rounded-full ${getPriorityColor(wo.priority)}`} />
+                      {getWorkOrderStatusBadge(wo.status)}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Cliente: {wo.clientName} | Cantidad: {wo.quantity}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Progress value={wo.progress} className="flex-1 h-2" />
+                      <span className="text-sm font-medium">{wo.progress}%</span>
+                      <span className="text-sm text-muted-foreground">
+                        ({wo.completed}/{wo.quantity})
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 ml-4">
+                    <Button
+                      size="sm"
+                      onClick={() => handleSelectWorkOrder(wo)}
+                      disabled={wo.status === "completed"}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Ver Producciones
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Productions List - Show when a work order is selected */}
+      {selectedWorkOrder && productions.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Producciones - {selectedWorkOrder.productName}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {productions
+                .sort((a, b) => (a.productProcess?.sequence || 0) - (b.productProcess?.sequence || 0))
+                .map((production, index) => {
+                  const qualityCheck = canStartProduction(production);
+                  const canWork = qualityCheck.canStart || production.status !== 'pending';
+                  
+                  return (
+                    <div
+                      key={production.id}
+                      className={`flex items-center justify-between p-4 border rounded-lg ${
+                        production.status === 'in_progress' 
+                          ? 'bg-blue-50 border-blue-200 dark:bg-blue-950/30' 
+                          : production.status === 'completed'
+                          ? 'bg-green-50 border-green-200 dark:bg-green-950/30'
+                          : 'bg-muted/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                          {index + 1}
                         </div>
-                        <div className="flex gap-2">
-                          {production.status === 'pending' && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleOpenStartProduction(production)}
-                              disabled={!qualityCheck.canStart}
-                            >
-                              <Play className="h-4 w-4 mr-1" />
-                              Iniciar
-                            </Button>
-                          )}
-                          {production.status === 'in_progress' && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleOpenProductionDetail(production)}
-                            >
-                              <Package className="h-4 w-4 mr-1" />
-                              Continuar
-                            </Button>
-                          )}
-                          {production.status === 'paused' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleOpenProductionDetail(production)}
-                            >
-                              <Play className="h-4 w-4 mr-1" />
-                              Reanudar
-                            </Button>
-                          )}
-                          {production.status === 'completed' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleOpenProductionDetail(production)}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Ver Detalle
-                            </Button>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{production.process?.name || `Proceso ${production.process_id}`}</h4>
+                            {getProductionStatusBadge(production.status)}
+                            {production.quality_status && getQualityStatusBadge(production.quality_status)}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                            <span>Meta: {production.targetParts} piezas</span>
+                            <span>Buenos: {production.goodParts || 0}</span>
+                            <span>Scrap: {production.scrapParts || 0}</span>
+                          </div>
+                          {!canWork && production.status === 'pending' && (
+                            <div className="flex items-center gap-1 text-xs text-orange-500 mt-1">
+                              <AlertCircle className="h-3 w-3" />
+                              {qualityCheck.reason}
+                            </div>
                           )}
                         </div>
                       </div>
-                    );
-                  })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                      <div className="flex gap-2">
+                        {production.status === 'pending' && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenStartProduction(production)}
+                            disabled={!qualityCheck.canStart}
+                          >
+                            <Play className="h-4 w-4 mr-1" />
+                            Iniciar
+                          </Button>
+                        )}
+                        {production.status === 'in_progress' && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenProductionDetail(production)}
+                          >
+                            <Package className="h-4 w-4 mr-1" />
+                            Continuar
+                          </Button>
+                        )}
+                        {production.status === 'paused' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenProductionDetail(production)}
+                          >
+                            <Play className="h-4 w-4 mr-1" />
+                            Reanudar
+                          </Button>
+                        )}
+                        {production.status === 'completed' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenProductionDetail(production)}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Ver Detalle
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* No productions message */}
-        {selectedWorkOrder && productions.length === 0 && (
-          <Card className="bg-card border-border">
-            <CardContent className="py-8">
-              <div className="text-center text-muted-foreground">
-                <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No hay producciones asociadas a esta orden</p>
-                <p className="text-sm mt-1">Las producciones se crean automáticamente al aprobar la orden</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+      {/* No productions message */}
+      {selectedWorkOrder && productions.length === 0 && (
+        <Card className="bg-card border-border">
+          <CardContent className="py-8">
+            <div className="text-center text-muted-foreground">
+              <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No hay producciones asociadas a esta orden</p>
+              <p className="text-sm mt-1">Las producciones se crean automáticamente al aprobar la orden</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Production Detail Dialog */}
-        <Dialog open={registerOpen} onOpenChange={(open) => {
-          setRegisterOpen(open);
-          if (!open) {
-            setSelectedProduction(null);
-            setGoodParts("");
-            setScrapParts("0");
-            setPauseReason("");
-          }
-        }}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedProduction?.status === 'pending' && "Iniciar Producción"}
-                {selectedProduction?.status === 'in_progress' && "Producción en Curso"}
-                {selectedProduction?.status === 'paused' && "Reanudar Producción"}
-                {selectedProduction?.status === 'completed' && "Producción Completada"}
-              </DialogTitle>
-              <DialogDescription>
-                {selectedWorkOrder?.productName} - Proceso: {selectedProduction?.process?.name || 'N/A'}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              {/* Production Info */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-                <div>
-                  <p className="text-xs text-muted-foreground">Secuencia</p>
-                  <p className="font-medium">{selectedProduction?.productProcess?.sequence || 1}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Estado</p>
-                  {getProductionStatusBadge(selectedProduction?.status || 'pending')}
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Calidad</p>
-                  {getQualityStatusBadge(selectedProduction?.quality_status)}
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Meta</p>
-                  <p className="font-medium">{selectedProduction?.targetParts || 0} piezas</p>
-                </div>
+      {/* Production Detail Dialog */}
+      <Dialog open={registerOpen} onOpenChange={(open) => {
+        setRegisterOpen(open);
+        if (!open) {
+          setSelectedProduction(null);
+          setGoodParts("");
+          setScrapParts("0");
+          setPauseReason("");
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedProduction?.status === 'pending' && "Iniciar Producción"}
+              {selectedProduction?.status === 'in_progress' && "Producción en Curso"}
+              {selectedProduction?.status === 'paused' && "Reanudar Producción"}
+              {selectedProduction?.status === 'completed' && "Producción Completada"}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedWorkOrder?.productName} - Proceso: {selectedProduction?.process?.name || 'N/A'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Production Info */}
+            <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+              <div>
+                <p className="text-xs text-muted-foreground">Secuencia</p>
+                <p className="font-medium">{selectedProduction?.productProcess?.sequence || 1}</p>
               </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Estado</p>
+                {getProductionStatusBadge(selectedProduction?.status || 'pending')}
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Calidad</p>
+                {getQualityStatusBadge(selectedProduction?.quality_status)}
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Meta</p>
+                <p className="font-medium">{selectedProduction?.targetParts || 0} piezas</p>
+              </div>
+            </div>
 
-              {/* Start Production - Select Machine & Operator */}
-              {selectedProduction?.status === 'pending' && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+            {/* Start Production - Select Machine (only if process requires it) */}
+            {selectedProduction?.status === 'pending' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  {/* Mostrar máquina solo si el proceso la requiere */}
+                  {selectedProduction?.process?.requiresMachine ? (
                     <div className="space-y-2">
                       <Label>Máquina *</Label>
                       <Select value={machineId} onValueChange={setMachineId}>
@@ -769,187 +789,175 @@ export default function OperadorProduccionPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Operador *</Label>
-                      <Select value={operatorId} onValueChange={setOperatorId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar operador" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {operators.map((op) => (
-                            <SelectItem key={op.id} value={String(op.id)}>
-                              {op.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+                  ) : (
+                    // Si no requiere máquina, aseguramos que machineId esté vacío
+                    <input type="hidden" value="" onChange={() => setMachineId("")} />
+                  )}
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* In Progress - Register Parts or Pause */}
-              {selectedProduction?.status === 'in_progress' && (
-                <div className="space-y-4">
-                  {/* Timer Visual */}
-                  <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
-                    <p className="text-sm text-blue-600 dark:text-blue-400 text-center mb-1">Tiempo Transcurrido</p>
-                    <p className="text-4xl font-bold text-blue-700 dark:text-blue-300 text-center font-mono">
-                      {formatElapsedTime(elapsedTime)}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Piezas Buenos *</Label>
-                      <Input
-                        type="number"
-                        value={goodParts}
-                        onChange={(e) => setGoodParts(e.target.value)}
-                        placeholder="0"
-                        min="0"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Scrap</Label>
-                      <Input
-                        type="number"
-                        value={scrapParts}
-                        onChange={(e) => setScrapParts(e.target.value)}
-                        placeholder="0"
-                        min="0"
-                      />
-                    </div>
-                  </div>
+            {/* In Progress - Register Parts or Pause */}
+            {selectedProduction?.status === 'in_progress' && (
+              <div className="space-y-4">
+                {/* Timer Visual */}
+                <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                  <p className="text-sm text-blue-600 dark:text-blue-400 text-center mb-1">Tiempo Transcurrido</p>
+                  <p className="text-4xl font-bold text-blue-700 dark:text-blue-300 text-center font-mono">
+                    {formatElapsedTime(elapsedTime)}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Razón de pausa (opcional)</Label>
+                    <Label>Piezas Buenos *</Label>
                     <Input
-                      value={pauseReason}
-                      onChange={(e) => setPauseReason(e.target.value)}
-                      placeholder="Razón si va a pausar..."
+                      type="number"
+                      value={goodParts}
+                      onChange={(e) => setGoodParts(e.target.value)}
+                      placeholder="0"
+                      min="0"
                     />
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Piezas registradas: Buenos {selectedProduction?.goodParts || 0}, Scrap {selectedProduction?.scrapParts || 0}
+                  <div className="space-y-2">
+                    <Label>Scrap</Label>
+                    <Input
+                      type="number"
+                      value={scrapParts}
+                      onChange={(e) => setScrapParts(e.target.value)}
+                      placeholder="0"
+                      min="0"
+                    />
                   </div>
                 </div>
-              )}
+                <div className="space-y-2">
+                  <Label>Razón de pausa (opcional)</Label>
+                  <Input
+                    value={pauseReason}
+                    onChange={(e) => setPauseReason(e.target.value)}
+                    placeholder="Razón si va a pausar..."
+                  />
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Piezas registradas: Buenos {selectedProduction?.goodParts || 0}, Scrap {selectedProduction?.scrapParts || 0}
+                </div>
+              </div>
+            )}
 
-              {/* Paused - Resume or Complete */}
-              {selectedProduction?.status === 'paused' && (
-                <div className="space-y-4">
-                  <div className="text-sm text-muted-foreground">
-                    <p>Razón de pausa: {selectedProduction?.pauseReason || 'No especificada'}</p>
-                    <p className="mt-2">Piezas registradas: Buenos {selectedProduction?.goodParts || 0}, Scrap {selectedProduction?.scrapParts || 0}</p>
+            {/* Paused - Resume or Complete */}
+            {selectedProduction?.status === 'paused' && (
+              <div className="space-y-4">
+                <div className="text-sm text-muted-foreground">
+                  <p>Razón de pausa: {selectedProduction?.pauseReason || 'No especificada'}</p>
+                  <p className="mt-2">Piezas registradas: Buenos {selectedProduction?.goodParts || 0}, Scrap {selectedProduction?.scrapParts || 0}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Piezas Buenos adicionales</Label>
+                    <Input
+                      type="number"
+                      value={goodParts}
+                      onChange={(e) => setGoodParts(e.target.value)}
+                      placeholder="0"
+                      min="0"
+                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Piezas Buenos adicionales</Label>
-                      <Input
-                        type="number"
-                        value={goodParts}
-                        onChange={(e) => setGoodParts(e.target.value)}
-                        placeholder="0"
-                        min="0"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Scrap adicional</Label>
-                      <Input
-                        type="number"
-                        value={scrapParts}
-                        onChange={(e) => setScrapParts(e.target.value)}
-                        placeholder="0"
-                        min="0"
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Scrap adicional</Label>
+                    <Input
+                      type="number"
+                      value={scrapParts}
+                      onChange={(e) => setScrapParts(e.target.value)}
+                      placeholder="0"
+                      min="0"
+                    />
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Completed - Show Summary */}
-              {selectedProduction?.status === 'completed' && (
-                <div className="space-y-2 p-4 bg-muted rounded-lg">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Piezas Buenos:</span>
-                    <span className="font-medium text-green-500">{selectedProduction?.goodParts || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Scrap:</span>
-                    <span className="font-medium text-red-500">{selectedProduction?.scrapParts || 0}</span>
-                  </div>
-                  {selectedProduction?.startTime && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Inició:</span>
-                      <span className="font-medium">{new Date(selectedProduction.startTime).toLocaleString()}</span>
-                    </div>
-                  )}
-                  {selectedProduction?.endTime && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Finalizó:</span>
-                      <span className="font-medium">{new Date(selectedProduction.endTime).toLocaleString()}</span>
-                    </div>
-                  )}
+            {/* Completed - Show Summary */}
+            {selectedProduction?.status === 'completed' && (
+              <div className="space-y-2 p-4 bg-muted rounded-lg">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Piezas Buenos:</span>
+                  <span className="font-medium text-green-500">{selectedProduction?.goodParts || 0}</span>
                 </div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setRegisterOpen(false)}>
-                Cerrar
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Scrap:</span>
+                  <span className="font-medium text-red-500">{selectedProduction?.scrapParts || 0}</span>
+                </div>
+                {selectedProduction?.startTime && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Inició:</span>
+                    <span className="font-medium">{new Date(selectedProduction.startTime).toLocaleString()}</span>
+                  </div>
+                )}
+                {selectedProduction?.endTime && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Finalizó:</span>
+                    <span className="font-medium">{new Date(selectedProduction.endTime).toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegisterOpen(false)}>
+              Cerrar
+            </Button>
+            
+            {/* Pending - Start Button */}
+            {selectedProduction?.status === 'pending' && (
+              <Button 
+                onClick={() => handleStartProduction(selectedProduction)} 
+                disabled={submitting || (selectedProduction?.process?.requiresMachine ? !machineId : false)}
+              >
+                {submitting ? "Iniciando..." : "Iniciar Producción"}
               </Button>
-              
-              {/* Pending - Start Button */}
-              {selectedProduction?.status === 'pending' && (
+            )}
+
+            {/* In Progress - Register/Pause Buttons */}
+            {selectedProduction?.status === 'in_progress' && (
+              <div className="flex gap-2">
                 <Button 
-                  onClick={() => handleStartProduction(selectedProduction)} 
-                  disabled={submitting || !machineId || !operatorId}
+                  variant="outline"
+                  onClick={handlePauseProduction}
+                  disabled={submitting}
                 >
-                  {submitting ? "Iniciando..." : "Iniciar Producción"}
+                  <Pause className="h-4 w-4 mr-1" />
+                  Pausar
                 </Button>
-              )}
+                <Button 
+                  onClick={handleRegisterParts}
+                  disabled={submitting || !goodParts}
+                >
+                  {submitting ? "Registrando..." : "Registrar Piezas"}
+                </Button>
+              </div>
+            )}
 
-              {/* In Progress - Register/Pause Buttons */}
-              {selectedProduction?.status === 'in_progress' && (
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline"
-                    onClick={handlePauseProduction}
-                    disabled={submitting}
-                  >
-                    <Pause className="h-4 w-4 mr-1" />
-                    Pausar
-                  </Button>
-                  <Button 
-                    onClick={handleRegisterParts}
-                    disabled={submitting || !goodParts}
-                  >
-                    {submitting ? "Registrando..." : "Registrar Piezas"}
-                  </Button>
-                </div>
-              )}
-
-              {/* Paused - Resume/Complete Buttons */}
-              {selectedProduction?.status === 'paused' && (
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={() => handleStartProduction(selectedProduction)}
-                    disabled={submitting}
-                  >
-                    <Play className="h-4 w-4 mr-1" />
-                    Reanudar
-                  </Button>
-                  <Button 
-                    onClick={handleCompleteProduction}
-                    disabled={submitting}
-                  >
-                    <CheckCircle className="h-4 w-4 mr-1" />
-                    Completar
-                  </Button>
-                </div>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </ERPLayout>
+            {/* Paused - Resume/Complete Buttons */}
+            {selectedProduction?.status === 'paused' && (
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => handleResumeProduction(selectedProduction)}
+                  disabled={submitting}
+                >
+                  <Play className="h-4 w-4 mr-1" />
+                  Reanudar
+                </Button>
+                <Button 
+                  onClick={handleCompleteProduction}
+                  disabled={submitting}
+                >
+                  <CheckCircle className="h-4 w-4 mr-1" />
+                  Completar
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>    
   );
 }

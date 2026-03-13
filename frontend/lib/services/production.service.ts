@@ -187,22 +187,38 @@ export const productionService = {
 
   // Pausar producción
   async pause(id: number, reason: string): Promise<Production> {
-    return this.updateStatus(id, 'paused', { pauseReason: reason });
+    try {
+      const response = await api.post(`/productions/${id}/pause`, { reason });
+      return extractData(response);
+    } catch (error: any) {
+      console.error('Error pausing production:', error?.message || error);
+      throw error;
+    }
   },
 
   // Reanudar producción
   async resume(id: number): Promise<Production> {
-    return this.updateStatus(id, 'in_progress');
+    try {
+      const response = await api.post(`/productions/${id}/resume`, {});
+      return extractData(response);
+    } catch (error: any) {
+      console.error('Error resuming production:', error?.message || error);
+      throw error;
+    }
   },
 
   // Completar producción
   async complete(id: number, goodParts: number, scrapParts: number = 0): Promise<Production> {
-    return this.update(id, {
-      goodParts,
-      scrapParts,
-      status: 'completed',
-      endTime: new Date().toISOString(),
-    });
+    try {
+      const response = await api.post(`/productions/${id}/complete`, {
+        good_parts: goodParts,
+        scrap_parts: scrapParts,
+      });
+      return extractData(response);
+    } catch (error: any) {
+      console.error('Error completing production:', error?.message || error);
+      throw error;
+    }
   },
 
   // Cancelar producción

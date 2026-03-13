@@ -28,6 +28,7 @@ return new class extends Migration
 
             $table->enum('status', [
                 'draft',
+                'paid',
                 'pending',
                 'approved',
                 'ordered',
@@ -45,7 +46,6 @@ return new class extends Migration
 
             $table->string('requested_by');
             $table->string('approved_by')->nullable();
-
             $table->date('expected_date')->nullable();
             $table->timestamps();
         });
