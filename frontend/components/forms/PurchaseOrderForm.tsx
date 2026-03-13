@@ -154,7 +154,7 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
                       if (material) {
                         form.setValue('material_name', material.name);
                         if (material.cost) {
-                          form.setValue('unit_price', material.unit_price);
+                          form.setValue('unit_price', material.cost);
                           calculateTotals();
                         }
                       }

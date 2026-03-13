@@ -40,7 +40,7 @@ class SupplierStatementController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $perPage = $request->integer('per_page', 15);
-        $items = SupplierStatement::with(['supplier'])->orderByDesc('date')->paginate($perPage);
+        $items = SupplierStatement::with(['supplier', 'payments'])->orderByDesc('date')->paginate($perPage);
         return response()->json($items);
     }
 

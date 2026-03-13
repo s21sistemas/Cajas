@@ -112,7 +112,7 @@ class PurchaseOrderController extends Controller
         
         // Crear registro en el estado de cuenta del proveedor al crear la orden
         // Solo si el estado es diferente de draft (draft es pendiente de aprobación)
-        if ($purchaseOrder->status === 'approved') {
+        if ($purchaseOrder->status !== 'draft') {
             $this->createSupplierStatementFromOrder($purchaseOrder);
         }
         
@@ -284,12 +284,12 @@ class PurchaseOrderController extends Controller
                 'balance' => $newBalance,
                 'status' => $newBalance <= 0 ? 'paid' : 'pending',
             ]);
-        }
 
-        // Verificar si la orden está completamente pagada
-        $totalPaid = $purchaseOrder->payments()->sum('amount');
-        if ($totalPaid >= $purchaseOrder->total) {
-            $purchaseOrder->update(['status' => 'paid']);
+            // Verificar si la orden está completamente pagada
+            $totalPaid = $purchaseOrder->payments()->sum('amount');
+            if ($totalPaid >= $purchaseOrder->total) {
+                $purchaseOrder->update(['status' => 'paid']);
+            }
         }
 
         return response()->json($payment->load(['purchaseOrder', 'bankAccount']), 201);

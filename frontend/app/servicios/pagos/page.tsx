@@ -128,7 +128,7 @@ export default function PaymentsPage() {
         
         const ordersData = ordersRes?.data || [];
         const creditOrders = ordersData.filter((o: PurchaseOrder) => 
-          o.status === 'approved'
+          (o.status === 'approved' || o.status === 'ordered' || o.status === 'partial')
         ).map((o: PurchaseOrder) => ({
           ...o,
           balance: o.balance ?? (o.total - (o.paid ?? 0)),
@@ -141,6 +141,7 @@ export default function PaymentsPage() {
         const allPayments: Payment[] = [];
         
         accountRes?.data?.forEach((item: any) => {
+          console.log(item);
           if (item.payments?.length > 0) {
             item.payments.forEach((p: any) => {
               allPayments.push({
@@ -162,6 +163,7 @@ export default function PaymentsPage() {
         supplierRes?.data?.forEach((item: any) => {
           if (item.payments?.length > 0) {
             item.payments.forEach((p: any) => {
+              console.log(p);
               allPayments.push({
                 id: p.id,
                 code: p.code || `PAGO-${p.id}`,
@@ -172,7 +174,7 @@ export default function PaymentsPage() {
                 paymentDate: p.paymentDate,
                 status: p.status || 'completed',
                 supplierName: item.supplierName || item.supplier_name,
-                purchase_order_code: item.invoiceNumber || item.invoice_number,
+                purchase_order_code: item.code || item.invoice_number,
               });
             });
           }
