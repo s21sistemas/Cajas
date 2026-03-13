@@ -39,6 +39,10 @@ export interface WorkOrder extends BaseEntity {
   // Campos de pago
   paymentType: PaymentType;
   creditDays: number;
+  client?: {
+    id: number;
+    name: string;
+  }
 }
 
 export interface WorkOrderItem extends BaseEntity {

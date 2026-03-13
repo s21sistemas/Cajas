@@ -8,36 +8,36 @@ export interface Vehicle extends BaseEntity {
   typeVehicle: VehicleType;
   brand: string;
   model: string;
-  color: string;
+  color?: string;
   licensePlate: string;
   status: VehicleStatus;
-  vehiclePhotos: string;
-  labeled: YesNo;
-  gps: YesNo;
-  taxesPaid: YesNo;
-  insuranceCompany: string;
-  insuranceCompanyPhone: string;
-  insuranceFile: string;
-  policyNumber: string;
-  expirationDate: string;
+  vehiclePhotos?: string;
+  labeled?: YesNo;
+  gps?: YesNo;
+  taxesPaid?: YesNo;
+  insuranceCompany?: string;
+  insuranceCompanyPhone?: string;
+  insuranceFile?: string;
+  policyNumber?: string;
+  expirationDate?: string;
 }
 
 export interface CreateVehicleDto {
   typeVehicle: VehicleType;
   brand: string;
   model: string;
-  color: string;
   licensePlate: string;
+  color?: string | null;
   status?: VehicleStatus;
   vehiclePhotos?: string;
-  labeled: YesNo;
-  gps: YesNo;
-  taxesPaid: YesNo;
-  insuranceCompany: string;
-  insuranceCompanyPhone: string;
+  labeled?: YesNo | null;
+  gps?: YesNo | null;
+  taxesPaid?: YesNo | null;
+  insuranceCompany?: string | null;
+  insuranceCompanyPhone?: string | null;
   insuranceFile?: string;
-  policyNumber: string;
-  expirationDate: string;
+  policyNumber?: string | null;
+  expirationDate?: string | null;
 }
 
 export interface UpdateVehicleDto extends Partial<CreateVehicleDto> {}

@@ -153,7 +153,7 @@ class ProductionMovement extends Model
     /**
      * Registrar completado de proceso
      */
-    public static function recordProcessCompleted(Production $production): self {
+    public static function recordProductionCompleted(Production $production): self {
         return self::create([
             'work_order_id' => $production->work_order_id,
             'production_id' => $production->id,

@@ -30,6 +30,7 @@ export { discountTypesService, type DiscountType, type CreateDiscountTypeDto, ty
 export { loanTypesService, type LoanType, type CreateLoanTypeDto, type UpdateLoanTypeDto } from './loan-types.service';
 export { processTypesService, type ProcessType, type CreateProcessTypeDto, type UpdateProcessTypeDto } from './process-types.service';
 export { notificationsService } from './notifications.service';
+export { logisticsService } from './logistics.service';
 
 // Re-export auth API functions
 export { authApi } from '../api';

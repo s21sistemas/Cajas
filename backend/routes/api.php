@@ -28,6 +28,7 @@ use App\Http\Controllers\QuoteItemController;
 use App\Http\Controllers\QRItemController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\GasolineReceiptController;
 use App\Http\Controllers\WarehouseLocationController;
 use App\Http\Controllers\WarehouseMovementController;
 use App\Http\Controllers\InventoryItemController;
@@ -295,6 +296,9 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Vehicles
     Route::apiResource('vehicles', VehicleController::class);
+
+    // Gasoline Receipts
+    Route::apiResource('gasoline-receipts', GasolineReceiptController::class);
     
     // Deliveries
     Route::apiResource('deliveries', DeliveryController::class);

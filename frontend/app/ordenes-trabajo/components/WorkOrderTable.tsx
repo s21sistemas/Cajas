@@ -102,7 +102,7 @@ export function WorkOrderTable({
                     <span className="font-mono text-sm">{order.code}</span>
                   </TableCell>
                   <TableCell>{order.productName}</TableCell>
-                  <TableCell>{order.clientName}</TableCell>
+                  <TableCell>{order.client?.name}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-semibold">{order.quantity}</span>

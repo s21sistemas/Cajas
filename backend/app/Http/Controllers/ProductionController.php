@@ -337,7 +337,7 @@ class ProductionController extends Controller implements HasMiddleware
             }
             
             // Registrar completado del proceso
-            ProductionMovement::recordProcessCompleted($production);
+            ProductionMovement::recordProductionCompleted($production);
         }
 
         // Actualizar estado de máquina al iniciar o detener producción
@@ -383,13 +383,11 @@ class ProductionController extends Controller implements HasMiddleware
             }
         }
 
-        // Sincronizar con WorkOrder si existe (compatibilidad legacy)
-        if ($production->work_order_id) {
-            $workOrder = WorkOrder::find($production->work_order_id);
-            if ($workOrder) {
-                $workOrder->syncProgressFromProductions();
-            }
-        }
+        // Sincronizar con WorkOrder si existe (compatibilidad legacy)        
+        $workOrder = WorkOrder::find($production->workOrder);
+        if ($workOrder) {
+            $workOrder->syncProgressFromProductions();
+        }       
 
         return response()->json([
             'success' => true,
@@ -484,30 +482,12 @@ class ProductionController extends Controller implements HasMiddleware
             ProductionMovement::recordScrap($production, $scrapParts);
         }
 
-        // Si tiene proceso asociado, actualizarlo
-        if ($production->process_id) {
-            $production->registerInProcess();
-            
-            $process = $production->process;
-            $process->refresh();
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Producción completada exitosamente',
-                'data' => [
-                    'production' => $production->fresh(['process', 'machine', 'operator', 'workOrder']),
-                    'process_metrics' => null,
-                ]
-            ]);
+        // Sincronizar con WorkOrder (compatibilidad legacy)       
+        $workOrder = $production->workOrder;
+        if ($workOrder) {
+            $workOrder->syncProgressFromProductions();
         }
-
-        // Sincronizar con WorkOrder (compatibilidad legacy)
-        if ($production->work_order_id) {
-            $workOrder = WorkOrder::find($production->work_order_id);
-            if ($workOrder) {
-                $workOrder->syncProgressFromProductions();
-            }
-        }
+        
 
         return response()->json([
             'success' => true,

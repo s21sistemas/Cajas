@@ -147,8 +147,8 @@ class Production extends Model
             }
             
             // Inicializar fecha_inicio solo si la columna existe
-            if (Schema::hasColumn('productions', 'fecha_inicio') && empty($production->fecha_inicio)) {
-                $production->fecha_inicio = $production->start_time ?? now();
+            if (Schema::hasColumn('productions', 'start_time') && empty($production->start_time)) {
+                $production->start_time = $production->start_time ?? now();
             }
         });
     }
@@ -158,9 +158,9 @@ class Production extends Model
      */
     public function registerInProcess(): bool
     {
-        $process = $this->process;
+        $production = $this->production;
         
-        if (!$process) {
+        if (!$production) {
             return false;
         }
 
@@ -168,14 +168,11 @@ class Production extends Model
         $quantityProduced = $this->good_parts ?? 0;
         $quantityScrap = $this->scrap_parts ?? 0;
 
-        // Registrar en el proceso
-        $process->registerProduction($quantityProduced, $quantityScrap);
-
         // Registrar movimiento de trazabilidad
-        ProductionMovement::recordProduction($process, $quantityProduced, $this);
+        ProductionMovement::recordProduction($production, $quantityProduced);
         
         if ($quantityScrap > 0) {
-            ProductionMovement::recordScrap($process, $quantityScrap, $this);
+            ProductionMovement::recordScrap($production, $quantityScrap);
         }
 
         // Actualizar acumulados en la orden
@@ -207,14 +204,11 @@ class Production extends Model
         if (Schema::hasColumn('productions', 'quantity_scrap')) {
             $this->quantity_scrap = $this->scrap_parts;
         }
-        if (Schema::hasColumn('productions', 'fecha_fin')) {
-            $this->fecha_fin = now();
+        if (Schema::hasColumn('productions', 'end_time')) {
+            $this->end_time = now();
         }
         
         $this->save();
-        
-        // Registrar en el proceso
-        $this->registerInProcess();
     }
 
     /**

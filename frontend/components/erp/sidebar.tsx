@@ -106,6 +106,12 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    title: "Logistica",
+    items: [
+      { title: "Vehículos", href: "/vehiculos", icon: <Truck className="h-5 w-5" />, permission: "vehicles.view" },
+    ],
+  },
+  {
     title: "Comercial",
     items: [
       {
@@ -187,21 +193,6 @@ const navSections: NavSection[] = [
     title: "Mantenimiento",
     items: [
       { title: "Mantenimiento", href: "/mantenimiento", icon: <Wrench className="h-5 w-5" />, permission: "maintenanceorders.view" },
-    ],
-  },
-  {
-    title: "Logistica",
-    items: [
-      {
-        title: "Logistica",
-        icon: <Truck className="h-5 w-5" />,
-        permission: "vehicles.view",
-        badge: 2,
-        subItems: [
-          { title: "Vehiculos", href: "/vehiculos" },
-          { title: "Entregas", href: "/entregas" },
-        ],
-      },
     ],
   },
   {

@@ -9,6 +9,7 @@ import { CheckCircle, XCircle, RefreshCcw, Clock, Package, AlertCircle } from 'l
 import { qualityService, QUALITY_DECISIONS, QualityEvaluation } from '@/lib/services/quality.service';
 import { ERPLayout } from '@/components/erp/erp-layout';
 import { ProtectedRoute } from '@/components/auth/protected-route';
+import { QualityEvaluationDialog } from './components/QualityEvaluationDialog';
 
 interface PendingProduction {
   id: number;
@@ -34,6 +35,8 @@ export default function QualityPage() {
   const [pendingProductions, setPendingProductions] = useState<PendingProduction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedProduction, setSelectedProduction] = useState<PendingProduction | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const fetchPendingEvaluations = useCallback(async () => {
     try {
@@ -150,6 +153,7 @@ export default function QualityPage() {
                   <TableHead className="text-right">Scrap</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Fecha</TableHead>
+                  <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
                 <TableBody>
@@ -165,6 +169,17 @@ export default function QualityPage() {
                       <TableCell>
                         {new Date(production.created_at).toLocaleDateString('es-MX')}
                       </TableCell>
+                      <TableCell>
+                        <Button 
+                          size="sm" 
+                          onClick={() => {
+                            setSelectedProduction(production);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          Evaluar
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -174,6 +189,14 @@ export default function QualityPage() {
       </Card>
         </div>
       </ERPLayout>
+
+      {/* Dialog de evaluación de calidad */}
+      <QualityEvaluationDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        production={selectedProduction as any}
+        onEvaluated={fetchPendingEvaluations}
+      />
     </ProtectedRoute>
   );
 }

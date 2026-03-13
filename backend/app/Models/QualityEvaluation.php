@@ -74,7 +74,7 @@ class QualityEvaluation extends Model
 
         switch ($this->decision) {
             case self::DECISION_APPROVED:
-                // Mantener cantidades actuales, actualizar estado de calidad
+                // Mantener quantities as approved, actualizar estado de calidad
                 $production->update([
                     'quality_status' => 'APPROVED',
                 ]);
@@ -85,13 +85,18 @@ class QualityEvaluation extends Model
                 return [
                     'success' => true,
                     'message' => 'Proceso aprobado y siguiente proceso liberado',
-                    'next_process_released' => $nextProcess ? true : false,
                 ];
 
             case self::DECISION_SCRAP:
-                // Descontar del available_quantity
-                $process->decrement('available_quantity', $this->quantity_scrap);
-                $process->increment('scrap_quantity', $this->quantity_scrap);
+                // Actualizar las partes buenas y scrap en la producción
+                $newGoodParts = max(0, $production->good_parts - $this->quantity_scrap);
+                $newScrapParts = $production->scrap_parts + $this->quantity_scrap;
+                
+                $production->update([
+                    'quality_status' => 'SCRAP',
+                    'good_parts' => $newGoodParts,
+                    'scrap_parts' => $newScrapParts,
+                ]);
                 
                 // Acumular scrap en la orden
                 if ($workOrder) {
@@ -107,35 +112,25 @@ class QualityEvaluation extends Model
                 ];
 
             case self::DECISION_REWORK:
-                // Registrar rework y regresar al proceso anterior
-                $process->increment('rework_quantity', $this->quantity_rework);
+                // Actualizar las partes para rework en la producción
+                $production->update([
+                    'quality_status' => 'REWORK',
+                ]);
                 
                 // Buscar proceso anterior o proceso de reproceso
-                $targetProcess = $this->findReworkTargetProcess($process);
+                // Por ahora, registramos el rework sin buscar proceso objetivo
                 
-                if ($targetProcess) {
-                    // Agregar cantidad disponible al proceso objetivo
-                    $targetProcess->available_quantity += $this->quantity_rework;
-                    $targetProcess->save();
-                    
-                    // Registrar movimiento de retorno
-                    $this->createMovement('QUALITY_REWORK', $this->quantity_rework, $process->id, $targetProcess->id);
-                    
-                    // Acumular rework en la orden
-                    if ($workOrder) {
-                        $workOrder->increment('total_rework', $this->quantity_rework);
-                    }
-                    
-                    return [
-                        'success' => true,
-                        'message' => 'Reproceso registrado y enviado al proceso anterior',
-                        'target_process_id' => $targetProcess->id,
-                    ];
+                // Registrar movimiento de retorno
+                $this->createMovement('QUALITY_REWORK', $this->quantity_rework);
+                
+                // Acumular rework en la orden
+                if ($workOrder) {
+                    $workOrder->increment('total_rework', $this->quantity_rework);
                 }
                 
                 return [
-                    'success' => false,
-                    'message' => 'No se encontró proceso objetivo para reproceso',
+                    'success' => true,
+                    'message' => 'Reproceso registrado',
                 ];
 
             default:
