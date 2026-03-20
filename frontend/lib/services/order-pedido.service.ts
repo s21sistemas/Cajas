@@ -58,11 +58,82 @@ export const orderPedidoService = {
     return api.get<{ data: OrderPedido[], meta: any }>(`/order-pedidos/my-orders${query ? `?${query}` : ''}`);
   },
 
-  create: async (data: CreateOrderPedidoDto) => {
+  create: async (data: CreateOrderPedidoDto & { evidenceFile?: File }) => {
+    // Check if there's an evidence file to upload
+    if (data.evidenceFile) {
+      const formData = new FormData();
+      
+      // Add regular fields to form data
+      if (data.client_id) formData.append('client_id', data.client_id.toString());
+      if (data.delivery_address) formData.append('delivery_address', data.delivery_address);
+      if (data.notes) formData.append('notes', data.notes);
+      if (data.sale_id) formData.append('sale_id', data.sale_id.toString());
+      if (data.branch_id) formData.append('branch_id', data.branch_id.toString());
+      if (data.pickup_date) formData.append('pickup_date', data.pickup_date);
+      if (data.delivery_date) formData.append('delivery_date', data.delivery_date);
+      if (data.supplier_name) formData.append('supplier_name', data.supplier_name);
+      
+      // Add items
+      if (data.items && data.items.length > 0) {
+        data.items.forEach((item, index) => {
+          formData.append(`items[${index}][product_id]`, item.product_id?.toString() || '');
+          formData.append(`items[${index}][product_name]`, item.product_name);
+          formData.append(`items[${index}][product_code]`, item.product_code || '');
+          formData.append(`items[${index}][quantity]`, item.quantity.toString());
+          formData.append(`items[${index}][unit]`, item.unit || '');
+        });
+      }
+      
+      // Add the evidence file
+      formData.append('evidence', data.evidenceFile);
+      
+      return api.post<OrderPedido>('/order-pedidos', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    }
+    
     return api.post<OrderPedido>('/order-pedidos', data);
   },
 
-  update: async (id: number, data: Partial<CreateOrderPedidoDto>) => {
+  update: async (id: number, data: Partial<CreateOrderPedidoDto> & { evidenceFile?: File }) => {
+    // Check if there's an evidence file to upload
+    if (data.evidenceFile) {
+      const formData = new FormData();
+      
+      // Add regular fields to form data
+      if (data.client_id) formData.append('client_id', data.client_id.toString());
+      if (data.delivery_address) formData.append('delivery_address', data.delivery_address);
+      if (data.notes) formData.append('notes', data.notes);
+      if (data.sale_id) formData.append('sale_id', data.sale_id.toString());
+      if (data.branch_id) formData.append('branch_id', data.branch_id.toString());
+      if (data.pickup_date) formData.append('pickup_date', data.pickup_date);
+      if (data.delivery_date) formData.append('delivery_date', data.delivery_date);
+      if (data.supplier_name) formData.append('supplier_name', data.supplier_name);
+      // if (data.status) formData.append('status', data.status);
+      
+      // Add items
+      if (data.items && data.items.length > 0) {
+        data.items.forEach((item, index) => {
+          formData.append(`items[${index}][product_id]`, item.product_id?.toString() || '');
+          formData.append(`items[${index}][product_name]`, item.product_name);
+          formData.append(`items[${index}][product_code]`, item.product_code || '');
+          formData.append(`items[${index}][quantity]`, item.quantity.toString());
+          formData.append(`items[${index}][unit]`, item.unit || '');
+        });
+      }
+      
+      // Add the evidence file
+      formData.append('evidence', data.evidenceFile);
+      
+      return api.post<OrderPedido>(`/order-pedidos/${id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    }
+    
     return api.put<OrderPedido>(`/order-pedidos/${id}`, data);
   },
 

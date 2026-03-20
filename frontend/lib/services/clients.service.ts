@@ -65,6 +65,15 @@ export const clientsService = {
     return api.get<PaginatedResponse<Branch>>('/branches', params);
   },
 
+  getBranchesList: (): Promise<Branch[]> => {
+     return api.get<Branch[]>('/branches');
+  },
+
+  getBranchSelectList: (clientId?: number): Promise<Branch[]> => {
+    const queryParams = clientId ? `?client_id=${clientId}` : '';
+    return api.get<Branch[]>(`/branches/select-list${queryParams}`);
+  },
+
   getBranchById: (id: number): Promise<Branch> => {
     return api.get<Branch>(`/branches/${id}`);
   },

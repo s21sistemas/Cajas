@@ -27,6 +27,7 @@ export default function OrdenesTrabajo() {
   const [showDialog, setShowDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPipelineDialog, setShowPipelineDialog] = useState(false);
+  const [submitError, setSubmitError] = useState<any>(null);
   
   const [editingOrder, setEditingOrder] = useState<WorkOrder | null>(null);
   const [deletingOrder, setDeletingOrder] = useState<WorkOrder | null>(null);
@@ -76,11 +77,18 @@ export default function OrdenesTrabajo() {
       }
       setShowDialog(false);
       setEditingOrder(null);
+      setSubmitError(null);
       // Refresh list
       const response = await workOrdersService.getAll();
       setWorkOrders(response?.data || []);
     } catch (err: any) {
-      showToast("error", "Error", err?.message || "No se pudo guardar la orden");
+      // Check if it's a validation error with field errors
+      if (err?.response?.data?.errors || err?.errors) {
+        setSubmitError(err);
+        // Don't close modal, show field errors
+      } else {
+        showToast("error", "Error", err?.message || "No se pudo guardar la orden");
+      }
     }
   };
 
@@ -118,6 +126,7 @@ export default function OrdenesTrabajo() {
     setShowDialog(open);
     if (!open) {
       setEditingOrder(null);
+      setSubmitError(null);
     }
   };
 
@@ -161,11 +170,12 @@ export default function OrdenesTrabajo() {
         {/* Dialogs */}
         <WorkOrderDialog
           open={showDialog}
-          onOpenChange={handleDialogClose}
+          onOpenChange={(open) => { handleDialogClose(open); }}
           workOrder={editingOrder}
           onSubmit={handleCreate}
           products={products}
           isLoading={false}
+          error={submitError}
         />
 
         <DeleteWorkOrderDialog

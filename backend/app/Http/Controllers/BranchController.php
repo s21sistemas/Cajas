@@ -71,6 +71,20 @@ class BranchController extends Controller implements HasMiddleware
         return response()->json($query->paginate($perPage));
     }
 
+    public function selectList(Request $request){
+        $clientId = $request->get('client_id');
+        
+        $query = Branch::select('id', 'name', 'address', 'city', 'client_id');
+        
+        if ($clientId) {
+            $query->where('client_id', $clientId);
+        }
+        
+        $query->where('status', 'active')->orderBy('name', 'asc');
+        
+        return response()->json($query->get());
+    }
+
     public function stats()
     {
         $stats = [

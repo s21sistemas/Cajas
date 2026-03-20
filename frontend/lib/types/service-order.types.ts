@@ -1,4 +1,8 @@
 import { BaseEntity, BaseFilters, DateRangeFilter } from './api.types';
+import type { PaymentType } from './work-order.types';
+
+// Re-export PaymentType para compatibilidad
+export type { PaymentType };
 
 // Service Order types
 export type ServiceOrderStatus = 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
@@ -48,78 +52,39 @@ export interface ServiceOrderFilters extends BaseFilters, DateRangeFilter {
 }
 
 // Account Statement types (client account balances)
-export type AccountStatementStatus = 'paid' | 'pending' | 'overdue' | 'partial';
+// export type AccountStatementStatus = 'paid' | 'pending' | 'overdue' | 'partial';
 
-export interface AccountStatement extends BaseEntity {
-  invoiceNumber: string;
-  clientId: number;
-  clientName: string;
-  date: string;
-  dueDate: string;
-  amount: number;
-  paid: number;
-  balance: number;
-  status: AccountStatementStatus;
-  concept: string;
-}
+// export interface AccountStatement extends BaseEntity {
+//   invoiceNumber: string;
+//   clientId: number;
+//   clientName: string;
+//   date: string;
+//   dueDate: string;
+//   amount: number;
+//   paid: number;
+//   balance: number;
+//   status: AccountStatementStatus;
+//   concept: string;
+// }
 
-export interface CreateAccountStatementDto {
-  clientId: number;
-  invoiceNumber: string;
-  date: string;
-  dueDate?: string;
-  amount: number;
-  paid?: number;
-  status?: AccountStatementStatus;
-  concept: string;
-}
+// export interface CreateAccountStatementDto {
+//   clientId: number;
+//   invoiceNumber: string;
+//   date: string;
+//   dueDate?: string;
+//   amount: number;
+//   paid?: number;
+//   status?: AccountStatementStatus;
+//   concept: string;
+// }
 
-export interface AccountStatementFilters extends BaseFilters {
-  status?: AccountStatementStatus;
-  clientId?: number;
-}
+// export interface AccountStatementFilters extends BaseFilters {
+//   status?: AccountStatementStatus;
+//   clientId?: number;
+// }
 
-// Quote types
-export type QuoteStatus = 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
-
-export interface Quote extends BaseEntity {
-  code: string;
-  clientId: number;
-  clientName: string;
-  title: string;
-  items: string | null;
-  subtotal: number | null;
-  tax: number | null;
-  total: number | null;
-  status: QuoteStatus;
-  validUntil: string | null;
-  createdBy: string | null;
-}
-
-export interface CreateQuoteDto {
-  clientId: number;
-  title: string;
-  items?: string;
-  subtotal?: number;
-  tax?: number;
-  total?: number;
-  status?: QuoteStatus;
-  validUntil?: string;
-  createdBy?: string;
-}
-
-export interface UpdateQuoteDto extends Partial<CreateQuoteDto> {
-  code?: string;
-}
-
-export interface QuoteFilters extends BaseFilters, DateRangeFilter {
-  status?: QuoteStatus;
-  clientId?: number;
-}
-
-// Sale types
+// Sale types - definido localmente ya que es diferente al de ventas
 export type SaleStatus = 'pending' | 'paid' | 'overdue' | 'cancelled';
-export type PaymentType = 'cash' | 'credit';
 
 interface SaleItemForm {
   id?: number;
@@ -174,39 +139,6 @@ export interface UpdateSaleDto extends Partial<CreateSaleDto> {}
 
 export interface SaleFilters extends BaseFilters, DateRangeFilter {
   status?: SaleStatus;
-  clientId?: number;
-}
-
-// Branch types
-export type BranchStatus = 'active' | 'inactive';
-
-export interface Branch extends BaseEntity {
-  code: string;
-  name: string;
-  clientId: number;
-  clientName: string;
-  address: string;
-  city: string;
-  state: string;
-  phone: string | null;
-  contact: string | null;
-  status: BranchStatus;
-}
-
-export interface CreateBranchDto {
-  code?: string;
-  name: string;
-  clientId: number;
-  address: string;
-  city: string;
-  state: string;
-  phone?: string;
-  contact?: string;
-  status?: BranchStatus;
-}
-
-export interface BranchFilters extends BaseFilters {
-  status?: BranchStatus;
   clientId?: number;
 }
 

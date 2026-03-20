@@ -25,6 +25,14 @@ class ProcessTypesService {
     return await api.get<ProcessType[]>(this.resource);
   }
 
+  async selectList(): Promise<{ value: number; label: string }[]> {
+    const data = await this.getAll();
+    return data.map(item => ({
+      value: item.id,
+      label: item.name
+    }));
+  }
+
   async getById(id: number): Promise<ProcessType> {
     return await api.get<ProcessType>(`${this.resource}/${id}`);
   }

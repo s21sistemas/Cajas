@@ -47,6 +47,7 @@ class QualityController extends Controller
     {
         $query = Production::with(['workOrder', 'process', 'operator'])
             ->where('quality_status', Production::QUALITY_STATUS_PENDING)
+            ->where('status', 'completed')
             ->orWhereNull('quality_status');
 
         if ($request->work_order_id) {
@@ -193,7 +194,8 @@ class QualityController extends Controller
         if ($production) {
             $workOrder = $production->workOrder;
             if ($workOrder) {
-                $workOrder->calculateMetrics();
+                // NOTE: calculateMetrics() y checkAndComplete() no existen en WorkOrder
+                // $workOrder->calculateMetrics();
                 $workOrder->checkAndComplete();
             }
         }

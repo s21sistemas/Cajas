@@ -33,7 +33,7 @@ interface ProcessFormProps {
 }
 
 export function ProcessForm({ defaultValues, onSubmit, isLoading, errors }: ProcessFormProps) {
-  const [processTypes, setProcessTypes] = useState<ProcessType[]>([]);
+  const [processTypes, setProcessTypes] = useState<{ value: number; label: string }[]>([]);
   
   const form = useForm<ProcessFormValues>({
     resolver: zodResolver(processSchema),
@@ -65,7 +65,7 @@ export function ProcessForm({ defaultValues, onSubmit, isLoading, errors }: Proc
   useEffect(() => {
     const fetchProcessTypes = async () => {
       try {
-        const data = await processTypesService.getAll();
+        const data = await processTypesService.selectList();
         setProcessTypes(data);
       } catch (error) {
         console.error('Error fetching process types:', error);
@@ -112,7 +112,7 @@ export function ProcessForm({ defaultValues, onSubmit, isLoading, errors }: Proc
                 <FormLabel>Tipo de Proceso *</FormLabel>
                 <Select 
                   onValueChange={(value) => field.onChange(parseInt(value))} 
-                  defaultValue={field.value?.toString() || ''}
+                  value={field.value ? field.value.toString() : undefined}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -121,8 +121,8 @@ export function ProcessForm({ defaultValues, onSubmit, isLoading, errors }: Proc
                   </FormControl>
                   <SelectContent>
                     {processTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.id.toString()}>
-                        {type.name}
+                      <SelectItem key={type.value} value={type.value.toString()}>
+                        {type.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

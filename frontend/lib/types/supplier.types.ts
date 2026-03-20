@@ -13,7 +13,7 @@ export interface Supplier extends BaseEntity {
   state: string | null;
   contact: string | null;
   category: string | null;
-  lead_time: number;
+  leadTime: number;
   rating: number;
   balance: number;
   status: SupplierStatus;

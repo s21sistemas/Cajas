@@ -34,6 +34,7 @@ import {
   Package,
   ClipboardList,
   Plus,
+  Minus,
   RefreshCw,
   AlertCircle,
   Loader2,
@@ -53,6 +54,10 @@ interface WorkOrder {
   priority: string;
   operator?: string;
   product_id?: number;
+  // Campos calculados en el frontend
+  productionCount?: number;
+  completedProductionCount?: number;
+  productionProgress?: number;
 }
 
 // Production del backend
@@ -72,7 +77,7 @@ interface Production {
   };
   work_order_id: number;
   status: 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
-  quality_status?: 'PENDING' | 'APPROVED' | 'SCRAP' | 'REWORK';
+  qualityStatus?: 'PENDING' | 'APPROVED' | 'SCRAP' | 'REWORK';
   targetParts: number;
   goodParts: number;
   scrapParts: number;
@@ -153,6 +158,31 @@ export default function OperadorProduccionPage() {
   const [pauseReason, setPauseReason] = useState("");
   const [elapsedTime, setElapsedTime] = useState(0); // Tiempo transcurrido en segundos
 
+  // Funciones para incrementar/decrementar piezas
+  const incrementGoodParts = () => {
+    const current = parseInt(goodParts) || 0;
+    setGoodParts((current + 1).toString());
+  };
+
+  const decrementGoodParts = () => {
+    const current = parseInt(goodParts) || 0;
+    if (current > 0) {
+      setGoodParts((current - 1).toString());
+    }
+  };
+
+  const incrementScrapParts = () => {
+    const current = parseInt(scrapParts) || 0;
+    setScrapParts((current + 1).toString());
+  };
+
+  const decrementScrapParts = () => {
+    const current = parseInt(scrapParts) || 0;
+    if (current > 0) {
+      setScrapParts((current - 1).toString());
+    }
+  };
+
   // Timer para actualizar el tiempo transcurrido
   useEffect(() => {
     if (selectedProduction?.status === 'in_progress' && selectedProduction?.startTime) {
@@ -190,7 +220,30 @@ export default function OperadorProduccionPage() {
       const response = await workOrdersService.getAssigned();
       // La API devuelve datos en snake_case
       const data = (response as any).data || [];
-      setWorkOrders(data);
+      
+      // Para cada work order, obtener sus producciones y calcular el progreso
+      const workOrdersWithProgress = await Promise.all(
+        data.map(async (wo: WorkOrder) => {
+          try {
+            const prods = await workOrdersService.getProductions(wo.id);
+            const productions = prods || [];
+            const totalProds = productions.length;
+            const completedProds = productions.filter((p: Production) => p.status === 'completed').length;
+            const prodProgress = totalProds > 0 ? Math.round((completedProds / totalProds) * 100) : wo.progress;
+            
+            return {
+              ...wo,
+              productionCount: totalProds,
+              completedProductionCount: completedProds,
+              productionProgress: prodProgress
+            };
+          } catch (e) {
+            return wo;
+          }
+        })
+      );
+      
+      setWorkOrders(workOrdersWithProgress);
     } catch (error: any) {
       toast.error(error?.message || "No se pudieron cargar las órdenes de trabajo");
     } finally {
@@ -234,8 +287,9 @@ export default function OperadorProduccionPage() {
     setSelectedProduction(production);
     setMachineId(production.machine?.id?.toString() || "");
     setOperatorId(production.operator?.id?.toString() || "");
-    setGoodParts("");
-    setScrapParts("0");
+    // Pre-fill with current values for in_progress/paused productions
+    setGoodParts(production.goodParts?.toString() || "");
+    setScrapParts(production.scrapParts?.toString() || "0");
     setRegisterOpen(true);
   };
 
@@ -270,7 +324,7 @@ export default function OperadorProduccionPage() {
       
       // Check if previous production passed quality
       const prevProd = sortedProductions[i - 1];
-      if (prevProd.quality_status === 'APPROVED') {
+      if (prevProd.qualityStatus === 'APPROVED') {
         return prod;
       }
       
@@ -297,7 +351,7 @@ export default function OperadorProduccionPage() {
     // Check previous production quality
     const prevProd = sortedProductions[currentIndex - 1];
     
-    if (prevProd.quality_status !== 'APPROVED') {
+    if (prevProd.qualityStatus !== 'APPROVED') {
       return { 
         canStart: false, 
         reason: `El proceso anterior (${prevProd.process?.name || 'Proceso'}) debe pasar control de calidad primero` 
@@ -326,8 +380,21 @@ export default function OperadorProduccionPage() {
         ...(requiresMachine && machineId ? { machineId: parseInt(machineId) } : {}),
       });
       toast.success("La producción ha iniciado");
+      
+      // Recargar producciones y abrir el modal automáticamente
       if (selectedWorkOrder) {
-        await fetchProductions(selectedWorkOrder.id);
+        const updatedProductions = await workOrdersService.getProductions(selectedWorkOrder.id);
+        setProductions(updatedProductions || []);
+        
+        // Buscar la producción que se acaba de iniciar
+        const startedProduction = (updatedProductions || []).find((p: Production) => p.id === production.id);
+        if (startedProduction) {
+          setSelectedProduction(startedProduction);
+          setGoodParts(startedProduction.goodParts?.toString() || "");
+          setScrapParts(startedProduction.scrapParts?.toString() || "0");
+          // Abrir el modal automáticamente
+          setRegisterOpen(true);
+        }
       }
     } catch (error: any) {
       toast.error(error?.message || "No se pudo iniciar la producción");
@@ -342,8 +409,18 @@ export default function OperadorProduccionPage() {
     try {
       await productionService.resume(production.id);
       toast.success("La producción ha sido reanudada");
+      
+      // Recargar las producciones para obtener el estado actualizado
       if (selectedWorkOrder) {
-        await fetchProductions(selectedWorkOrder.id);
+        const updatedProductions = await workOrdersService.getProductions(selectedWorkOrder.id);
+        setProductions(updatedProductions || []);
+        
+        // Buscar la producción que se acaba de reanudar
+        const resumedProduction = (updatedProductions || []).find((p: Production) => p.id === production.id);
+        if (resumedProduction) {
+          setSelectedProduction(resumedProduction);
+          // El modal se queda abierto y mostrará "Producción en Curso" porque el estado ahora es 'in_progress'
+        }
       }
     } catch (error: any) {
       toast.error(error?.message || "No se pudo reanudar la producción");
@@ -378,17 +455,29 @@ export default function OperadorProduccionPage() {
 
     setSubmitting(true);
     try {
+      const newGoodParts = parseInt(goodParts) || 0;
+      const newScrapParts = parseInt(scrapParts) || 0;
+      
       await productionService.registerParts(
         selectedProduction.id,
-        parseInt(goodParts) || 0,
-        parseInt(scrapParts) || 0
+        newGoodParts,
+        newScrapParts
       );
-      toast.success(`Buenas: ${goodParts}, Scrap: ${scrapParts}`);
-      setRegisterOpen(false);
-      setGoodParts("");
-      setScrapParts("0");
+      toast.success(`Buenas: ${newGoodParts}, Scrap: ${newScrapParts}`);
+      
+      // Actualizar las producciones sin cerrar el modal
       if (selectedWorkOrder) {
-        await fetchProductions(selectedWorkOrder.id);
+        const updatedProductions = await workOrdersService.getProductions(selectedWorkOrder.id);
+        setProductions(updatedProductions || []);
+        
+        // Actualizar la producción seleccionada con los nuevos valores
+        const updatedProduction = (updatedProductions || []).find((p: Production) => p.id === selectedProduction.id);
+        if (updatedProduction) {
+          setSelectedProduction(updatedProduction);
+          // Actualizar los campos con los nuevos valores (ya sumados en el backend)
+          setGoodParts(updatedProduction.goodParts?.toString() || "");
+          setScrapParts(updatedProduction.scrapParts?.toString() || "0");
+        }
       }
     } catch (error: any) {
       toast.error(error?.message || "No se pudieron registrar las piezas");
@@ -409,6 +498,8 @@ export default function OperadorProduccionPage() {
         parseInt(scrapParts) || 0
       );
       toast.success("La producción ha sido completada");
+      // Cerrar el modal al completar
+      setRegisterOpen(false);
       setCompleteOpen(false);
       setGoodParts("");
       setScrapParts("0");
@@ -496,7 +587,7 @@ export default function OperadorProduccionPage() {
   }
 
   return (    
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-100px)]">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -588,10 +679,10 @@ export default function OperadorProduccionPage() {
                       Cliente: {wo.clientName} | Cantidad: {wo.quantity}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
-                      <Progress value={wo.progress} className="flex-1 h-2" />
-                      <span className="text-sm font-medium">{wo.progress}%</span>
+                      <Progress value={wo.productionProgress ?? wo.progress} className="flex-1 h-2" />
+                      <span className="text-sm font-medium">{wo.productionProgress ?? wo.progress}%</span>
                       <span className="text-sm text-muted-foreground">
-                        ({wo.completed}/{wo.quantity})
+                        ({wo.completedProductionCount ?? 0}/{wo.productionCount ?? 0} procesos)
                       </span>
                     </div>
                   </div>
@@ -645,15 +736,25 @@ export default function OperadorProduccionPage() {
                           {index + 1}
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-medium">{production.process?.name || `Proceso ${production.process_id}`}</h4>
                             {getProductionStatusBadge(production.status)}
-                            {production.quality_status && getQualityStatusBadge(production.quality_status)}
+                            {production.qualityStatus && getQualityStatusBadge(production.qualityStatus)}
+                            {production.machine && (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                Máquina: {production.machine.name}
+                              </Badge>
+                            )}
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1 flex-wrap">
                             <span>Meta: {production.targetParts} piezas</span>
                             <span>Buenos: {production.goodParts || 0}</span>
                             <span>Scrap: {production.scrapParts || 0}</span>
+                            {production.process?.requiresMachine && (
+                              <span className="text-orange-600 text-xs">
+                                {production.machine ? 'Máquina asignada' : 'Requiere máquina'}
+                              </span>
+                            )}
                           </div>
                           {!canWork && production.status === 'pending' && (
                             <div className="flex items-center gap-1 text-xs text-orange-500 mt-1">
@@ -735,7 +836,7 @@ export default function OperadorProduccionPage() {
           setPauseReason("");
         }
       }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedProduction?.status === 'pending' && "Iniciar Producción"}
@@ -760,11 +861,23 @@ export default function OperadorProduccionPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Calidad</p>
-                {getQualityStatusBadge(selectedProduction?.quality_status)}
+                {getQualityStatusBadge(selectedProduction?.qualityStatus)}
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Meta</p>
                 <p className="font-medium">{selectedProduction?.targetParts || 0} piezas</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground">Máquina</p>
+                {selectedProduction?.machine ? (
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 mt-1">
+                    {selectedProduction.machine.name}
+                  </Badge>
+                ) : (
+                  <p className="text-sm text-orange-600 mt-1">
+                    {selectedProduction?.process?.requiresMachine ? 'Sin asignar - Seleccione una máquina' : 'No requiere máquina'}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -810,23 +923,65 @@ export default function OperadorProduccionPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Piezas Buenos *</Label>
-                    <Input
-                      type="number"
-                      value={goodParts}
-                      onChange={(e) => setGoodParts(e.target.value)}
-                      placeholder="0"
-                      min="0"
-                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={decrementGoodParts}
+                        disabled={submitting}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <Input
+                        type="number"
+                        value={goodParts}
+                        onChange={(e) => setGoodParts(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="text-center"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={incrementGoodParts}
+                        disabled={submitting}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Scrap</Label>
-                    <Input
-                      type="number"
-                      value={scrapParts}
-                      onChange={(e) => setScrapParts(e.target.value)}
-                      placeholder="0"
-                      min="0"
-                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={decrementScrapParts}
+                        disabled={submitting}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <Input
+                        type="number"
+                        value={scrapParts}
+                        onChange={(e) => setScrapParts(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="text-center"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={incrementScrapParts}
+                        disabled={submitting}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -853,23 +1008,65 @@ export default function OperadorProduccionPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Piezas Buenos adicionales</Label>
-                    <Input
-                      type="number"
-                      value={goodParts}
-                      onChange={(e) => setGoodParts(e.target.value)}
-                      placeholder="0"
-                      min="0"
-                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={decrementGoodParts}
+                        disabled={submitting}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <Input
+                        type="number"
+                        value={goodParts}
+                        onChange={(e) => setGoodParts(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="text-center"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={incrementGoodParts}
+                        disabled={submitting}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Scrap adicional</Label>
-                    <Input
-                      type="number"
-                      value={scrapParts}
-                      onChange={(e) => setScrapParts(e.target.value)}
-                      placeholder="0"
-                      min="0"
-                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={decrementScrapParts}
+                        disabled={submitting}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <Input
+                        type="number"
+                        value={scrapParts}
+                        onChange={(e) => setScrapParts(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        className="text-center"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={incrementScrapParts}
+                        disabled={submitting}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -927,12 +1124,34 @@ export default function OperadorProduccionPage() {
                   <Pause className="h-4 w-4 mr-1" />
                   Pausar
                 </Button>
-                <Button 
-                  onClick={handleRegisterParts}
-                  disabled={submitting || !goodParts}
-                >
-                  {submitting ? "Registrando..." : "Registrar Piezas"}
-                </Button>
+                {(() => {
+                  const currentGoodParts = selectedProduction?.goodParts || 0;
+                  const newParts = parseInt(goodParts) || 0;
+                  const totalAfterRegister = currentGoodParts + newParts;
+                  const targetParts = selectedProduction?.targetParts || 0;
+                  const reachedTarget = totalAfterRegister >= targetParts;
+                  
+                  return (
+                    <>
+                      <Button 
+                        onClick={handleRegisterParts}
+                        disabled={submitting || !goodParts}
+                      >
+                        {submitting ? "Registrando..." : "Registrar Piezas"}
+                      </Button>
+                      {reachedTarget && (
+                        <Button 
+                          onClick={handleCompleteProduction}
+                          disabled={submitting}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Completar
+                        </Button>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
 

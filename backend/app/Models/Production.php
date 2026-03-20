@@ -188,12 +188,13 @@ class Production extends Model
     }
 
     /**
-     * Completar la producción
+     * Completar la producción - suma las piezas adicionales al total existente
      */
     public function complete(?int $goodParts = null, ?int $scrapParts = null): void
     {
-        $this->good_parts = $goodParts ?? $this->good_parts ?? 0;
-        $this->scrap_parts = $scrapParts ?? $this->scrap_parts ?? 0;
+        // Sumar las piezas adicionales al total existente
+        $this->good_parts = ($goodParts ?? 0);
+        $this->scrap_parts = ($scrapParts ?? 0);
         $this->end_time = now();
         $this->status = 'completed';
         

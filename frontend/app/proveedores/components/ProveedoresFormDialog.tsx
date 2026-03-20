@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Supplier, CreateSupplierDto } from "@/lib/types";
+import { z } from "zod";
 
 interface ProveedoresFormDialogProps {
   open: boolean;
@@ -26,7 +28,34 @@ interface ProveedoresFormDialogProps {
   editingItem: Supplier | null;
   onSubmit: (data: CreateSupplierDto) => void;
   loading: boolean;
+  errors?: Record<string, string[]>;
 }
+
+// Schema de validación con Zod
+const supplierSchema = z.object({
+  code: z.string().min(1, "El código es requerido"),
+  name: z.string().min(1, "La razón social es requerida"),
+  rfc: z.string()
+    .optional()
+    .refine((val) => !val || val.length === 0 || val.length >= 12, {
+      message: "El RFC debe tener al menos 12 caracteres",
+    })
+    .refine((val) => !val || val.length <= 13, {
+      message: "El RFC no debe exceder 13 caracteres",
+    }),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  phone: z.string().optional(),
+  address: z.string().min(1, "La dirección es requerida"),
+  city: z.string().min(1, "La ciudad es requerida"),
+  state: z.string().optional(),
+  contact: z.string().optional(),
+  category: z.string().optional(),
+  lead_time: z.number().int().min(0, "El tiempo de entrega debe ser positivo").default(0),
+  rating: z.number().int().min(0).max(5, "La calificación debe estar entre 0 y 5").default(0),
+  status: z.enum(["active", "inactive", "pending"]).default("pending"),
+});
+
+type SupplierFormData = z.infer<typeof supplierSchema>;
 
 export function ProveedoresFormDialog({
   open,
@@ -34,7 +63,48 @@ export function ProveedoresFormDialog({
   editingItem,
   onSubmit,
   loading,
+  errors = {},
 }: ProveedoresFormDialogProps) {
+  // Limpiar errores Zod cuando se abre el diálogo o cambia el item
+  useEffect(() => {
+    if (open) {
+      setZodErrors({});
+    }
+  }, [open, editingItem]);
+  // Estado para errores de validación de Zod
+  const [zodErrors, setZodErrors] = useState<Record<string, string>>({});
+
+  const getFieldError = (field: string): string | undefined => {
+    // Primero verificar errores del servidor (Zod tiene prioridad)
+    if (zodErrors[field]) {
+      return zodErrors[field];
+    }
+    // Luego errores del servidor
+    if (errors[field] && errors[field].length > 0) {
+      return errors[field][0];
+    }
+    return undefined;
+  };
+
+  const validateForm = (data: SupplierFormData): boolean => {
+    try {
+      supplierSchema.parse(data);
+      setZodErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          const field = err.path[0] as string;
+          if (!fieldErrors[field]) {
+            fieldErrors[field] = err.message;
+          }
+        });
+        setZodErrors(fieldErrors);
+      }
+      return false;
+    }
+  };
   const getInitialData = (): CreateSupplierDto => {
     if (editingItem) {
       return {
@@ -48,7 +118,7 @@ export function ProveedoresFormDialog({
         state: editingItem.state || undefined,
         contact: editingItem.contact || undefined,
         category: editingItem.category || undefined,
-        lead_time: editingItem.lead_time,
+        lead_time: editingItem.leadTime,
         rating: editingItem.rating,
         status: editingItem.status,
       };
@@ -90,6 +160,13 @@ export function ProveedoresFormDialog({
       rating: parseInt(form.get("rating") as string) || 0,
       status: (form.get("status") as "active" | "inactive" | "pending") || "pending",
     };
+    
+    // Validar con Zod antes de enviar
+    const isValid = validateForm(data as SupplierFormData);
+    if (!isValid) {
+      return;
+    }
+    
     onSubmit(data);
   };
 
@@ -117,7 +194,11 @@ export function ProveedoresFormDialog({
                   defaultValue={formData.code}
                   placeholder="PRV-XXX"
                   required
+                  className={getFieldError('code') ? "border-destructive" : ""}
                 />
+                {getFieldError('code') && (
+                  <p className="text-sm text-destructive">{getFieldError('code')}</p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="rfc">RFC</Label>
@@ -126,7 +207,11 @@ export function ProveedoresFormDialog({
                   name="rfc"
                   defaultValue={formData.rfc}
                   placeholder="XAXX010101000"
+                  className={getFieldError('rfc') ? "border-destructive" : ""}
                 />
+                {getFieldError('rfc') && (
+                  <p className="text-sm text-destructive">{getFieldError('rfc')}</p>
+                )}
               </div>
             </div>
 
@@ -138,7 +223,11 @@ export function ProveedoresFormDialog({
                 defaultValue={formData.name}
                 placeholder="Nombre del proveedor"
                 required
+                className={getFieldError('name') ? "border-destructive" : ""}
               />
+              {getFieldError('name') && (
+                <p className="text-sm text-destructive">{getFieldError('name')}</p>
+              )}
             </div>
 
             <div className="grid gap-2">
@@ -149,7 +238,11 @@ export function ProveedoresFormDialog({
                 type="email"
                 defaultValue={formData.email}
                 placeholder="correo@empresa.com"
+                className={getFieldError('email') ? "border-destructive" : ""}
               />
+              {getFieldError('email') && (
+                <p className="text-sm text-destructive">{getFieldError('email')}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -244,7 +337,11 @@ export function ProveedoresFormDialog({
 
             <div className="grid gap-2">
               <Label htmlFor="status">Estado</Label>
-              <Select value={formData.status} onValueChange={(v: "active" | "inactive" | "pending") => {}}>
+              <Select defaultValue={formData.status} onValueChange={(v) => {
+                // Actualizar el valor del input hidden
+                const input = document.getElementById('status-input') as HTMLInputElement;
+                if (input) input.value = v;
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -254,6 +351,7 @@ export function ProveedoresFormDialog({
                   <SelectItem value="inactive">Inactivo</SelectItem>
                 </SelectContent>
               </Select>
+              <input type="hidden" id="status-input" name="status" value={formData.status} />
             </div>
           </div>
         </div>

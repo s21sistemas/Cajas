@@ -3,9 +3,9 @@ export type OrderPedidoStatus = 'pending' | 'assigned' | 'picked_up' | 'in_trans
 export interface OrderPedidoItem {
   id: number;
   order_pedido_id: number;
-  product_id: number | null;
-  product_name: string;
-  product_code: string | null;
+  productId: number | null;
+  productName: string;
+  productCode: string | null;
   quantity: number;
   unit: string | null;
   created_at: string;
@@ -13,22 +13,16 @@ export interface OrderPedidoItem {
 
 export interface OrderPedido {
   id: number;
-  order_number: string;
-  client_id: number | null;
-  client_name: string | null;
-  delivery_address: string | null;
-  branch_id: number | null;
-  branch_name: string | null;
-  supplier_user_id: number | null;
-  supplier?: {
-    id: number;
-    name: string;
-    email: string;
-  };
+  orderNumber: string;
+  clientId: number | null;
+  clientName: string | null;
+  deliveryAddress: string | null;
+  branchId: number | null;
+  branchName: string | null;
   status: OrderPedidoStatus;
   picked_up_at: string | null;
-  delivered_at: string | null;
-  delivery_photo: string | null;
+  deliveredAt: string | null;
+  deliveryPhoto: string | null;
   notes: string | null;
   created_by: number | null;
   created_at: string;
@@ -42,6 +36,11 @@ export interface OrderPedido {
     id: number;
     name: string;
   };
+  saleId?: number;
+  sale?: {
+    id: number;
+    code: string;
+  };
 }
 
 export interface CreateOrderPedidoDto {
@@ -50,7 +49,11 @@ export interface CreateOrderPedidoDto {
   delivery_address?: string;
   branch_id?: number;
   branch_name?: string;
+  sale_id?: number;
   notes?: string;
+  pickup_date?: string;
+  delivery_date?: string;
+  supplier_name?: string;
   items: {
     product_id?: number;
     product_name: string;

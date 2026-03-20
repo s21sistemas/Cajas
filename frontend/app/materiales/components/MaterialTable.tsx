@@ -114,7 +114,7 @@ export function MaterialTable({
                     <TableCell className="text-foreground">{material.name}</TableCell>
                     <TableCell className="text-foreground">{categoryLabels[material.category || ''] || material.category || '-'}</TableCell>
                     <TableCell className="text-foreground">
-                      <span className={material.stock <= material.minStock ? "text-red-500 font-medium" : ""}>
+                      <span className={material.stock <= (material.minStock ?? 0) ? "text-red-500 font-medium" : ""}>
                         {material.stock}
                       </span>
                     </TableCell>
@@ -126,24 +126,32 @@ export function MaterialTable({
                       {material.cost ? `${Number(material.cost).toFixed(2)}` : '-'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => onEdit(material)}>
-                            <Edit className="h-4 w-4 mr-2" /> Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onRestock(material)}>
-                            <ShoppingCart className="h-4 w-4 mr-2" /> Surtir
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => onDelete(material)}>
-                            <Trash2 className="h-4 w-4 mr-2" /> Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => onRestock(material)}
+                          className="h-8 gap-1 text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
+                        >
+                          <ShoppingCart className="h-4 w-4" />
+                          Surtir
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => onEdit(material)}>
+                              <Edit className="h-4 w-4 mr-2" /> Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => onDelete(material)}>
+                              <Trash2 className="h-4 w-4 mr-2" /> Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

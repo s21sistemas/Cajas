@@ -48,7 +48,7 @@ class DisabilityController extends Controller implements HasMiddleware
     {
         $validator = Validator::make($request->all(), [
             'employee_id' => 'required|exists:employees,id',
-            'type' => 'required|in:imss,accident,maternity,illness',
+            'type' => 'required',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
             'days' => 'required|integer|min:1',
@@ -83,7 +83,7 @@ class DisabilityController extends Controller implements HasMiddleware
     public function update(Request $request, Disability $disability)
     {
         $validator = Validator::make($request->all(), [
-            'type' => 'sometimes|in:imss,accident,maternity,illness',
+            'type' => 'sometimes',
             'start_date' => 'sometimes|date',
             'end_date' => 'sometimes|date|after_or_equal:start_date',
             'days' => 'sometimes|integer|min:1',

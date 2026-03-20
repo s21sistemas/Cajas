@@ -17,7 +17,8 @@ interface ProductionCardProps {
   onRegisterParts: (p: Production) => void;
   onEdit: (p: Production) => void;
   onDelete: (p: Production) => void;
-  loadingAction?: string | null;
+  // Función para verificar si una acción específica está cargando para esta producción
+  isLoadingAction?: (action: string) => boolean;
 }
 
 const STATUS_CONFIG: Record<ProductionStatus, { label: string; color: string }> = {
@@ -38,7 +39,7 @@ export function ProductionCard({
   onRegisterParts,
   onEdit,
   onDelete,
-  loadingAction,
+  isLoadingAction = () => false,
 }: ProductionCardProps) {
   const progress = production.targetParts
     ? Math.min(100, Math.round(((production.goodParts || 0) / production.targetParts) * 100))
@@ -46,6 +47,15 @@ export function ProductionCard({
 
   const isEditable = production.status === 'pending' || production.status === 'paused';
   const isDeletable = production.status !== 'completed';
+
+  // Funciones helper para verificar estado de carga
+  const isStarting = isLoadingAction('start');
+  const isPausing = isLoadingAction('pause');
+  const isCompleting = isLoadingAction('complete');
+  const isResuming = isLoadingAction('resume');
+  const isCancelling = isLoadingAction('cancel');
+  const isRegisteringParts = isLoadingAction('registerParts');
+  const isAnyLoading = isStarting || isPausing || isCompleting || isResuming || isCancelling || isRegisteringParts;
 
   return (
     <Card className="bg-card border-border">
@@ -135,7 +145,7 @@ export function ProductionCard({
         )}
         
         {/* Indicador de proceso padre */}
-        {production.parentProductionId && (
+        {production.parentProductionId && production.parentProcess?.qualityStatus !== 'APPROVED' && (
           <div className="text-xs text-amber-600 flex items-center gap-1">
             <span className="i-lucide-link" />
             Proceso encadenado (debe esperar aprobación del anterior)
@@ -145,8 +155,8 @@ export function ProductionCard({
         {/* Acciones principales */}
         <div className="flex flex-col gap-2 pt-2">
           {production.status === 'pending' && (
-            <Button size="sm" className="w-full bg-green-600 hover:bg-green-700" onClick={() => onStart(production)} disabled={!!loadingAction}>
-              {loadingAction === 'start' ? (
+            <Button size="sm" className="w-full bg-green-600 hover:bg-green-700" onClick={() => onStart(production)} disabled={isAnyLoading}>
+              {isStarting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Play className="h-4 w-4" />
@@ -156,22 +166,22 @@ export function ProductionCard({
           
           {production.status === 'in_progress' && (
             <div className="grid grid-cols-3 gap-2">
-              <Button size="icon" variant="outline" onClick={() => onPause(production)} disabled={!!loadingAction} title="Pausar">
-                {loadingAction === 'pause' ? (
+              <Button size="icon" variant="outline" onClick={() => onPause(production)} disabled={isAnyLoading} title="Pausar">
+                {isPausing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Pause className="h-4 w-4" />
                 )}
               </Button>
-              <Button size="icon" className="bg-green-600 hover:bg-green-700" onClick={() => onComplete(production)} disabled={!!loadingAction} title="Completar">
-                {loadingAction === 'complete' ? (
+              <Button size="icon" className="bg-green-600 hover:bg-green-700" onClick={() => onComplete(production)} disabled={isAnyLoading} title="Completar">
+                {isCompleting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Check className="h-4 w-4" />
                 )}
               </Button>
-              <Button size="icon" variant="secondary" onClick={() => onRegisterParts(production)} disabled={!!loadingAction} title="Registrar Piezas">
-                {loadingAction === 'registerParts' ? (
+              <Button size="icon" variant="secondary" onClick={() => onRegisterParts(production)} disabled={isAnyLoading} title="Registrar Piezas">
+                {isRegisteringParts ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <PackagePlus className="h-4 w-4" />
@@ -183,28 +193,28 @@ export function ProductionCard({
           {production.status === 'paused' && (
             <>
               <div className="grid grid-cols-2 gap-2 justify-items-center">
-                <Button size="icon" onClick={() => onResume(production)} disabled={!!loadingAction} title="Reanudar">
-                  {loadingAction === 'resume' ? (
+                <Button size="icon" onClick={() => onResume(production)} disabled={isAnyLoading} title="Reanudar">
+                  {isResuming ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Play className="h-4 w-4" />
                   )}
                 </Button>
-                <Button size="icon" variant="destructive" onClick={() => onCancel(production)} disabled={!!loadingAction} title="Cancelar">
-                  {loadingAction === 'cancel' ? (
+                <Button size="icon" variant="destructive" onClick={() => onCancel(production)} disabled={isAnyLoading} title="Cancelar">
+                  {isCancelling ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <XCircle className="h-4 w-4" />
                   )}
                 </Button>
               </div>
-              <Button size="sm" variant="secondary" className="w-full" onClick={() => onRegisterParts(production)} disabled={!!loadingAction}>
-                {loadingAction === 'registerParts' ? (
+              <Button size="sm" variant="secondary" className="w-full" onClick={() => onRegisterParts(production)} disabled={isAnyLoading}>
+                {isRegisteringParts ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <PackagePlus className="h-4 w-4 mr-2" />
                 )}
-                {loadingAction === 'registerParts' ? 'Registrando...' : 'Registrar Piezas'}
+                {isRegisteringParts ? 'Registrando...' : 'Registrar Piezas'}
               </Button>
             </>
           )}

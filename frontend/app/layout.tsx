@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { Inter, Geist_Mono } from 'next/font/google'
 import { AuthProvider } from '@/contexts/auth.context'
 import { Toaster } from '@/components/ui/sonner'
+import { ToastProvider } from '@/components/erp/action-toast'
 import './globals.css'
 
 const _inter = Inter({ subsets: ["latin"] });
@@ -40,8 +41,10 @@ export default function RootLayout({
     <html lang="es">
       <body className={`font-sans antialiased`}>
         <AuthProvider>
-          {children}
-          <Toaster />
+          <ToastProvider>
+            {children}
+            <Toaster />
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>

@@ -76,6 +76,31 @@ class SaleController extends Controller implements HasMiddleware
         return response()->json($sales);
     }
 
+    /**
+     * Lista de ventas para órdenes de pedido
+     * Excluye ventas que ya tienen una orden de pedido asociada
+     */
+    public function selectListForOrderPedido()
+    {
+        $sales = Sale::with(['client:id,name'])
+            ->whereDoesntHave('orderPedidos')
+            ->select('id', 'code', 'client_id', 'client_name', 'total', 'status')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function ($sale) {
+                return [
+                    'id' => $sale->id,
+                    'code' => $sale->code,
+                    'client_id' => $sale->client_id,
+                    'client_name' => $sale->client->name ?? $sale->client_name,
+                    'total' => $sale->total,
+                    'status' => $sale->status,
+                ];
+            });
+
+        return response()->json($sales);
+    }
+
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [

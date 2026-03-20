@@ -14,7 +14,7 @@ import type {
 interface WorkOrder {
   id: number;
   code: string;
-  product_name: string;
+  productName: string;
   client_name: string;
   quantity: number;
   completed?: number;
@@ -95,13 +95,15 @@ function extractDataArray<T>(response: any): T[] {
 
 export const productionService = {
   // Obtener todas las producciones (paginado) con filtros
-  async getAll(filters?: { client_id?: number; sale_id?: number; status?: string }): Promise<Production[]> {
+  async getAll(filters?: { client_id?: number; sale_id?: number; status?: string; work_order_id?: number; search?: string }): Promise<Production[]> {
     try {
       // Construir query params
       const params = new URLSearchParams();
       if (filters?.client_id) params.append('client_id', String(filters.client_id));
       if (filters?.sale_id) params.append('sale_id', String(filters.sale_id));
+      if (filters?.work_order_id) params.append('work_order_id', String(filters.work_order_id));
       if (filters?.status && filters.status !== 'all') params.append('status', filters.status);
+      if (filters?.search) params.append('search', filters.search);
       
       const queryString = params.toString();
       const url = queryString ? `/productions?${queryString}` : '/productions';
@@ -230,9 +232,9 @@ export const productionService = {
     });
   },
 
-  // Registrar partes
+  // Registrar partes (sumar a las existentes)
   async registerParts(id: number, goodParts: number, scrapParts: number = 0): Promise<Production> {
-    return this.update(id, { goodParts, scrapParts });
+    return this.update(id, { goodParts, scrapParts, incrementParts: true });
   },
 
   // Obtener procesos disponibles (selectList)

@@ -71,7 +71,7 @@ export interface Disability extends BaseEntity {
   employeeId: number;
   employeeName: string;
   department: string;
-  type: 'imss' | 'accident' | 'maternity' | 'illness';
+  type: string;
   startDate: string;
   endDate: string;
   days: number;

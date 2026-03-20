@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ClientAuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
@@ -58,10 +59,27 @@ use App\Http\Controllers\NotificationController;
 //     return $request->user();
 // })->middleware('auth:sanctum');
 Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->name('login');
+
+// Ruta de login para API (para redirigir errores de autenticación)
+Route::get('/login', function () {
+    return response()->json(['message' => 'Unauthenticated'], 401);
+})->name('login')->withoutMiddleware(['auth']);
 
 // Login de operadores - público sin autenticación
 Route::post('/operator/login', [AuthController::class, 'operatorLogin']);
+
+// Rutas de autenticación de clientes (públicas)
+Route::post('/client/login', [ClientAuthController::class, 'login']);
+Route::post('/client/set-password', [ClientAuthController::class, 'setPassword']);
+Route::get('/client/approval-info', [ClientAuthController::class, 'getApprovalInfo']);
+Route::post('/client/approve-document', [ClientAuthController::class, 'approveDocument']);
+
+// Generar link de aprobación (requiere autenticación de sistema)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/client/generate-approval-link', [ClientAuthController::class, 'generateApprovalLink']);
+    Route::post('/client/set-password-direct', [ClientAuthController::class, 'setPasswordDirect']);
+});
 
 // Rutas de operador protegidas
 Route::middleware('auth:sanctum')->group(function () {
@@ -69,6 +87,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/operator/user', [AuthController::class, 'getOperatorUser']);
 });
 
+// Rutas públicas - sin autenticación requerida
+
+Route::get('/productions', [ProductionController::class, 'index']);
+Route::get('/work-orders/select-list', [WorkOrderController::class, 'selectListWorkOrders']);
+Route::get('/clients/select-list-client', [ClientController::class, 'selectListClient']);
+Route::get('/sales/select-list', [SaleController::class, 'selectList']);
+Route::get('/processes/select-list', [ProcessController::class, 'selectList']);
+Route::get('/machines/select-list', [MachineController::class, 'selectList']);
+Route::get('/operators/select-list', [OperatorController::class, 'selectList']);
+Route::get('/products/select-list', [ProductController::class, 'selectListProducts']);
+
+// Rutas protegidas
 Route::middleware('auth:sanctum')->group(function () {
     // Core auth / users / roles / permissions
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -77,7 +107,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('roles', RoleController::class);  
     Route::apiResource('users', UserController::class);
     
-    // Production / Manufacturing
+    // Production / Manufacturing - rutas que requieren auth
     Route::get('/materials/select-list-materials', [MaterialController::class, 'selectListMaterials']);
     Route::apiResource('materials', MaterialController::class);
     Route::get('/materials/stats', [MaterialController::class, 'stats']);
@@ -131,6 +161,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/inventory', [ReportController::class, 'inventory']);
     Route::get('/reports/finance', [ReportController::class, 'finance']);
     Route::get('/reports/executive', [ReportController::class, 'executive']);
+    Route::get('/reports/options', [ReportController::class, 'options']);
+    Route::get('/reports/cost-trend', [ReportController::class, 'costTrend']);
 
     // La ruta de login no debe tener middleware de autenticacion
     Route::get('/operators/my-productions', [OperatorController::class, 'myProductions'])->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
@@ -163,6 +195,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/clients/select-list-client', [ClientController::class, 'selectListClient']);
     Route::apiResource('clients', ClientController::class);
     Route::get('/branches/stats', [BranchController::class, 'stats']);
+    Route::get('/branches/select-list', [BranchController::class, 'selectList']);
     Route::apiResource('branches', BranchController::class);
     // Quotes - rutas específicas para cotizaciones por cliente
     Route::get('/quotes/by-client/{client_id}', [QuoteController::class, 'getByClient'])
@@ -196,6 +229,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/sales/{sale}/items/{item}', [SaleController::class, 'deleteItem']);
     Route::get('/sales/stats', [SaleController::class, 'stats']);
     Route::get('/sales/select-list', [SaleController::class, 'selectList']);
+    Route::get('/sales/select-list-for-order-pedido', [SaleController::class, 'selectListForOrderPedido']);
     Route::apiResource('sales', SaleController::class);
     
     // Warehouse - Almacén
@@ -306,7 +340,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Órdenes de Pedido
     Route::get('/order-pedidos/stats', [OrderPedidoController::class, 'stats']);
     Route::get('/order-pedidos/available', [OrderPedidoController::class, 'available']);
-    Route::get('/order-pedidos/my-orders', [OrderPedidoController::class, 'myOrders']);
     Route::post('/order-pedidos/{id}/assign', [OrderPedidoController::class, 'assign']);
     Route::post('/order-pedidos/{id}/pick-up', [OrderPedidoController::class, 'pickUp']);
     Route::post('/order-pedidos/{id}/deliver', [OrderPedidoController::class, 'deliver']);

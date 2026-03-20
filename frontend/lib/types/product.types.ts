@@ -1,5 +1,6 @@
 import { BaseEntity, ProductStatus, BaseFilters } from './api.types';
 import { Material } from './material.types';
+import { Machine } from './machine.types';
 
 export interface Product extends BaseEntity {
   code: string;
@@ -40,12 +41,12 @@ export interface ProductProcess {
   requiresMachine: boolean;
 }
 
-export interface Machine {
-  id: number;
-  code: string;
-  name: string;
-  status: string;
-}
+// export interface Machine {
+//   id: number;
+//   code: string;
+//   name: string;
+//   status: string;
+// }
 
 export interface CreateProductDto {
   code: string;

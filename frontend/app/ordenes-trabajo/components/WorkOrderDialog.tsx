@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import type { CreateWorkOrderDto } from "@/lib/types/work-order.types";
 import type { WorkOrder } from "@/lib/types";
 import { salesService } from "@/lib/services/sales.service";
 import { workOrdersService } from "@/lib/services/work-orders.service";
+import { productsService } from "@/lib/services";
 
 // Tipo para las ventas
 interface Sale {
@@ -48,6 +49,7 @@ interface WorkOrderDialogProps {
   onSubmit: (data: CreateWorkOrderDto) => void;
   products: { id: number; name: string }[];
   isLoading: boolean;
+  error?: any;
 }
 
 const defaultFormData: CreateWorkOrderDto = {
@@ -68,12 +70,25 @@ export function WorkOrderDialog({
   onSubmit,
   products,
   isLoading,
+  error,
 }: WorkOrderDialogProps) {
   const [formData, setFormData] = useState<CreateWorkOrderDto>(defaultFormData);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loadingSales, setLoadingSales] = useState(false);
   const [saleProducts, setSaleProducts] = useState<SaleProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  // Usar ref para evitar dependencias de array en useEffect
+  const allProductsRef = useRef<SaleProduct[]>([]);
+  const allProducts = allProductsRef.current;
+  const setAllProducts = (products: SaleProduct[]) => {
+    allProductsRef.current = products;
+  };
+
+  console.log(error);
+
+  // Obtener errores del prop o del formato de error de Laravel
+  const fieldErrors = error?.response?.data?.errors || error?.errors || {};
 
   // Cargar todas las ventas al abrir el diálogo (para nueva orden)
   useEffect(() => {
@@ -99,68 +114,110 @@ export function WorkOrderDialog({
     fetchAllSales();
   }, [open, workOrder]);
 
-  // Cargar productos de la venta cuando cambia la venta
+  // Cargar productos al abrir el diálogo - solo una petición inicial
+  useEffect(() => {
+    async function fetchProducts() {
+      if (!open || productsLoaded) return;
+      
+      setLoadingProducts(true);
+      setProductsLoaded(true);
+      try {
+        // Cargar todos los productos activos al abrir
+        const response = await productsService.selectList();
+        if (response && Array.isArray(response)) {
+          // Transformar al formato esperado
+          const products = response.map((p: any) => ({
+            id: p.id,
+            saleItemId: 0,
+            productId: p.id,
+            productName: p.name,
+            quantity: 1,
+            unitPrice: p.price || 0,
+            subtotal: p.price || 0,
+          }));
+          setAllProducts(products);
+          // Inicialmente mostrar todos los productos
+          setSaleProducts(products);
+        } else {
+          setAllProducts([]);
+          setSaleProducts([]);
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        setAllProducts([]);
+        setSaleProducts([]);
+      } finally {
+        setLoadingProducts(false);
+      }
+    }
+    
+    fetchProducts();
+  }, [open, productsLoaded]);
+
+  // Cargar los productos de la venta seleccionada
   useEffect(() => {
     async function fetchSaleProducts() {
-      if (formData.sale_id) {
-        setLoadingProducts(true);
-        try {
-          const response = await workOrdersService.getAvailableProducts(formData.sale_id);
-          // Verificar que response sea un objeto con data como array
-          if (response && Array.isArray(response.data)) {
-            setSaleProducts(response.data);
-          } else if (Array.isArray(response)) {
-            // Si la respuesta es directamente un array
-            setSaleProducts(response);
-          } else {
-            setSaleProducts([]);
-          }
-        } catch (error) {
-          console.error('Error fetching sale products:', error);
-          setSaleProducts([]);
-        } finally {
-          setLoadingProducts(false);
-        }
-      } else {
-        setSaleProducts([]);
-        setFormData(prev => ({ ...prev, product_id: null, quantity: 1 }));
+      // Usar el ref directamente para evitar dependencia de array
+      const products = allProductsRef.current;
+      
+      // No ejecutar si no hay productos cargados o si es la carga inicial
+      if (products.length === 0 || !open) {
+        return;
       }
-    }
-    fetchSaleProducts();
-  }, [formData.sale_id]);
 
-  // Reset form when dialog opens
-  useEffect(() => {
-    if (open) {
-      if (workOrder) {
-        setFormData({
-          product_id: workOrder.productId ?? null,
-          client_id: workOrder.clientId ?? null,
-          sale_id: (workOrder as any).saleId ?? null,
-          quantity: workOrder.quantity || 0,
-          priority: workOrder.priority || 'medium',
-          start_date: workOrder.startDate || '',
-          due_date: workOrder.dueDate || '',
-          notes: workOrder.notes || '',
-        });
-      } else {
-        setFormData(defaultFormData);
-        setSaleProducts([]);
+      if (!formData.sale_id) {
+        // Si no hay venta seleccionada, mostrar todos los productos
+        setSaleProducts(products);
+        return;
+      }
+
+      setLoadingProducts(true);
+      try {
+        // Cargar los items de la venta
+        const response = await salesService.getItems(formData.sale_id);
+        console.log('Sale items response:', response);
+        
+        // El API devuelve { success: true, data: [...] }
+        const items = response?.data || response;
+        
+        if (Array.isArray(items) && items.length > 0) {
+          // Transformar los items de la venta al formato esperado
+          setSaleProducts(items.map((item: any) => ({
+            id: item.product?.id || item.product_id || 0,
+            saleItemId: item.id,
+            productId: item.product?.id || item.product_id || 0,
+            productName: item.product?.name || item.description || 'Producto sin nombre',
+            quantity: item.quantity || 1,
+            unitPrice: item.unit_price || item.price || 0,
+            subtotal: item.subtotal || (item.quantity * (item.unit_price || item.price || 0)),
+          })));
+        } else {
+          // Si no hay items, mostrar todos los productos
+          console.log('No items found in sale, showing all products');
+          setSaleProducts(products);
+        }
+      } catch (error) {
+        console.error('Error fetching sale products:', error);
+        setSaleProducts(products);
+      } finally {
+        setLoadingProducts(false);
       }
     }
-  }, [open, workOrder]);
+
+    fetchSaleProducts();
+  }, [formData.sale_id, open]);
 
   // Cuando se selecciona una venta, autocompletar el cliente
   const handleSaleChange = (saleId: string) => {
     const sale = sales.find(s => s.id === parseInt(saleId));
     setFormData({ 
       ...formData, 
-      sale_id: saleId ? parseInt(saleId) : null,
+      sale_id: saleId === "none" ? null : parseInt(saleId),
       client_id: sale?.clientId ?? null,
       product_id: null,
       quantity: 1
     });
-    setSaleProducts([]);
+    // Los productos se cargan automáticamente por el useEffect
   };
 
   // Cuando se selecciona un producto, autocompletar la cantidad
@@ -200,6 +257,9 @@ export function WorkOrderDialog({
                   placeholder={loadingSales ? "Cargando..." : "Seleccionar venta"} />
                 </SelectTrigger>
                 <SelectContent className="max-w-md">
+                  <SelectItem value="none">
+                    Ninguna venta
+                  </SelectItem>
                   {sales.map((s) => (
                     <SelectItem key={s.id} value={s.id.toString()}>
                       <span className="block truncate">
@@ -215,11 +275,11 @@ export function WorkOrderDialog({
               <Select
                 value={formData.product_id?.toString() || ""}
                 onValueChange={handleProductChange}
-                disabled={!formData.sale_id || loadingProducts}
+                disabled={loadingProducts}
               >
-                <SelectTrigger className="w-full bg-secondary border-border">
+                <SelectTrigger className={`w-full bg-secondary border-border ${fieldErrors.product_id ? 'border-red-500' : ''}`}>
                   <SelectValue className="truncate"
-                  placeholder={loadingProducts ? "Cargando..." : formData.sale_id ? (saleProducts.length === 0 ? "No hay productos disponibles" : "Seleccionar producto") : "Seleccione una venta primero"} />
+                  placeholder={loadingProducts ? "Cargando..." : (saleProducts.length === 0 ? "No hay productos disponibles" : "Seleccionar producto")} />
                 </SelectTrigger>
                 <SelectContent>
                   {saleProducts.map((p) => (
@@ -231,8 +291,8 @@ export function WorkOrderDialog({
                   ))}
                 </SelectContent>
               </Select>
-              {formData.sale_id && saleProducts.length === 0 && !loadingProducts && (
-                <p className="text-xs text-muted-foreground mt-1">Todos los productos ya tienen orden de trabajo</p>
+              {fieldErrors.product_id && (
+                <p className="text-sm text-red-500 mt-1">{fieldErrors.product_id[0]}</p>
               )}
             </div>
             <div>

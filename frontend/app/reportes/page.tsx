@@ -42,7 +42,6 @@ import {
   Calendar,
   Loader2,
 } from "lucide-react";
-import { api } from "@/lib/mock-data";
 import { reportsService } from "@/lib/services";
 
 const COLORS = ["#4ade80", "#60a5fa", "#fbbf24", "#f87171", "#a78bfa"];
@@ -51,12 +50,35 @@ export default function ReportesPage() {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<{
     production: { label: string; produced: number; target: number }[];
-    machines: { id: string; name: string; status: string; utilization: number }[];
+    machines: { id: string | number; name: string; status: string; utilization: number }[];
     employees: { id: string; name: string; department: string; efficiency?: number }[];
-    inventory: { id: string; name: string; currentStock: number; category: string }[];
+    inventory: { id: string | number; name: string; currentStock: number; category: string }[];
   } | null>(null);
 
   const [selectedPeriod, setSelectedPeriod] = useState("month");
+
+  // Opciones dinámicas para filtros
+  const [filterOptions, setFilterOptions] = useState<{
+    machines: { id: number; name: string; status: string }[];
+    products: { id: number; name: string }[];
+    clients: { id: number; name: string }[];
+    operators: { id: number; name: string }[];
+    categories: { value: string; label: string }[];
+  }>({
+    machines: [],
+    products: [],
+    clients: [],
+    operators: [],
+    categories: [
+      { value: 'materia_prima', label: 'Materia Prima' },
+      { value: 'producto_term', label: 'Producto Terminado' },
+      { value: 'embalaje', label: 'Embalaje' },
+      { value: 'insumos', label: 'Insumos' },
+    ],
+  });
+
+  // Cost trend data
+  const [costTrendData, setCostTrendData] = useState<{ month: string; materiales: number; manoObra: number; servicios: number }[]>([]);
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -75,24 +97,61 @@ export default function ReportesPage() {
     type: '',
     category: '',
     role_id: '',
+    low_stock: '',
   });
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [production, machines, employees, inventory] = await Promise.all([
-        api.getProductionData(),
-        api.getMachines(),
-        api.getEmployees(),
-        api.getInventory(),
-      ]);
-      setDashboardData({
-        production,
-        machines,
-        employees,
-        inventory,
-      });
-      setLoading(false);
+      try {
+        // Fetch dashboard data
+        const dashboard = await reportsService.getDashboard();
+        setDashboardData({
+          production: [{ 
+            label: 'Producción', 
+            produced: dashboard.production?.total || 0, 
+            target: (dashboard.production?.total || 0) + (dashboard.production?.scrap || 0) 
+          }],
+          machines: dashboard.machines?.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            status: m.status,
+            utilization: m.utilization || 0
+          })) || [],
+          employees: dashboard.employees?.by_department ? Object.entries(dashboard.employees.by_department).map(([department, count]) => ({
+            id: String(Math.random()),
+            name: department,
+            department: department,
+            efficiency: 0
+          })) : [],
+          inventory: dashboard.inventory?.items ? dashboard.inventory.items.map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            currentStock: item.currentStock || 0,
+            category: item.category
+          })) : []
+        });
+
+        // Fetch filter options
+        try {
+          const options = await reportsService.getOptions();
+          setFilterOptions(options);
+        } catch (e) {
+          console.error('Error fetching filter options:', e);
+        }
+
+        // Fetch cost trend
+        try {
+          const trend = await reportsService.getCostTrend(6);
+          setCostTrendData(trend);
+        } catch (e) {
+          console.error('Error fetching cost trend:', e);
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);
@@ -109,36 +168,37 @@ export default function ReportesPage() {
     try {
       let blob: Blob | null = null;
       const filterParams = {
-        startDate: filters.startDate,
-        endDate: filters.endDate,
+        start_date: filters.startDate,
+        end_date: filters.endDate,
       };
 
       switch (selectedReport) {
         case 'machines':
           blob = await reportsService.downloadMachinesPDF({
             ...filterParams,
-            machine_id: filters.machine_id || undefined,
+            machine_id: filters.machine_id ? Number(filters.machine_id) : undefined,
             status: filters.status || undefined,
           });
           break;
         case 'production':
           blob = await reportsService.downloadProductionPDF({
             ...filterParams,
-            product_id: filters.product_id || undefined,
-            operator_id: filters.operator_id || undefined,
+            product_id: filters.product_id ? Number(filters.product_id) : undefined,
+            operator_id: filters.operator_id ? Number(filters.operator_id) : undefined,
             status: filters.status || undefined,
           });
           break;
         case 'sales':
           blob = await reportsService.downloadSalesPDF({
             ...filterParams,
-            client_id: filters.client_id || undefined,
+            client_id: filters.client_id ? Number(filters.client_id) : undefined,
             status: filters.status || undefined,
           });
           break;
         case 'inventory':
           blob = await reportsService.downloadInventoryPDF({
             category: filters.category || undefined,
+            low_stock: filters.low_stock === 'true' ? true : filters.low_stock === 'false' ? false : undefined,
           });
           break;
         case 'finance':
@@ -149,16 +209,10 @@ export default function ReportesPage() {
           });
           break;
         case 'executive':
-          // Get executive report as JSON and show in new window
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/executive?start_date=${filters.startDate}&end_date=${filters.endDate}&format=pdf`,
-            {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              },
-            }
-          );
-          blob = await response.blob();
+          blob = await reportsService.downloadExecutivePDF({
+            ...filterParams,
+            role_id: filters.role_id ? Number(filters.role_id) : undefined,
+          });
           break;
       }
 
@@ -189,18 +243,47 @@ export default function ReportesPage() {
       switch (selectedReport) {
         case 'machines':
           blob = await reportsService.downloadMachinesCSV({
-            startDate: filters.startDate,
-            endDate: filters.endDate,
-            machine_id: filters.machine_id || undefined,
+            start_date: filters.startDate,
+            end_date: filters.endDate,
+            machine_id: filters.machine_id ? Number(filters.machine_id) : undefined,
             status: filters.status || undefined,
           });
           break;
-        // Add other report types as needed
+        case 'production':
+          blob = await reportsService.downloadProductionCSV({
+            start_date: filters.startDate,
+            end_date: filters.endDate,
+            product_id: filters.product_id ? Number(filters.product_id) : undefined,
+            operator_id: filters.operator_id ? Number(filters.operator_id) : undefined,
+            status: filters.status || undefined,
+          });
+          break;
+        case 'sales':
+          blob = await reportsService.downloadSalesCSV({
+            start_date: filters.startDate,
+            end_date: filters.endDate,
+            client_id: filters.client_id ? Number(filters.client_id) : undefined,
+            status: filters.status || undefined,
+          });
+          break;
+        case 'inventory':
+          blob = await reportsService.downloadInventoryCSV({
+            category: filters.category || undefined,
+            low_stock: filters.low_stock === 'true' ? true : filters.low_stock === 'false' ? false : undefined,
+          });
+          break;
+        case 'finance':
+          blob = await reportsService.downloadFinanceCSV({
+            start_date: filters.startDate,
+            end_date: filters.endDate,
+            type: filters.type || undefined,
+            category: filters.category || undefined,
+          });
+          break;
         default:
-          // For other reports, download as PDF and rename to .xlsx (not ideal but works)
-          blob = await reportsService.downloadMachinesPDF({
-            startDate: filters.startDate,
-            endDate: filters.endDate,
+          blob = await reportsService.downloadMachinesCSV({
+            start_date: filters.startDate,
+            end_date: filters.endDate,
           });
           break;
       }
@@ -236,12 +319,14 @@ export default function ReportesPage() {
   // Generate report data
   const productionEfficiency = dashboardData.production.map((p) => ({
     ...p,
-    efficiency: Math.round((p.produced / p.target) * 100),
+    produced: p.produced || 0,
+    target: p.target || 1,
+    efficiency: p.target && p.produced ? Math.round((p.produced / p.target) * 100) : 0,
   }));
 
   const machineUtilization = dashboardData.machines.map((m) => ({
     name: m.name,
-    utilization: m.utilization,
+    utilization: m.utilization || 0,
   }));
 
   const machineStatusData = [
@@ -261,19 +346,23 @@ export default function ReportesPage() {
 
   const inventoryByCategory = Object.entries(
     dashboardData.inventory.reduce((acc, item) => {
-      acc[item.category] = (acc[item.category] || 0) + item.currentStock;
+      if (item.category && item.currentStock) {
+        acc[item.category] = (acc[item.category] || 0) + item.currentStock;
+      }
       return acc;
     }, {} as Record<string, number>)
   ).map(([name, value]) => ({ name, value }));
 
   const employeeByDepartment = Object.entries(
     dashboardData.employees.reduce((acc, emp) => {
-      acc[emp.department] = (acc[emp.department] || 0) + 1;
+      if (emp.department) {
+        acc[emp.department] = (acc[emp.department] || 0) + 1;
+      }
       return acc;
     }, {} as Record<string, number>)
   ).map(([name, value]) => ({ name, value }));
 
-  const costTrend = [
+  const costTrend = costTrendData.length > 0 ? costTrendData : [
     { month: "Ene", materiales: 45000, manoObra: 32000, servicios: 8000 },
     { month: "Feb", materiales: 48000, manoObra: 33000, servicios: 7500 },
     { month: "Mar", materiales: 42000, manoObra: 31000, servicios: 9000 },
@@ -776,11 +865,121 @@ export default function ReportesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas las máquinas</SelectItem>
-                    <SelectItem value="1">Máquina 1</SelectItem>
-                    <SelectItem value="2">Máquina 2</SelectItem>
+                    {filterOptions.machines.map((machine) => (
+                      <SelectItem key={machine.id} value={String(machine.id)}>
+                        {machine.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
+            )}
+
+            {/* Production filters */}
+            {selectedReport === 'production' && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="product">Producto</Label>
+                  <Select
+                    value={filters.product_id || 'all'}
+                    onValueChange={(value) => setFilters({ ...filters, product_id: value === 'all' ? '' : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos los productos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los productos</SelectItem>
+                      {filterOptions.products.map((product) => (
+                        <SelectItem key={product.id} value={String(product.id)}>
+                          {product.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="operator">Operador</Label>
+                  <Select
+                    value={filters.operator_id || 'all'}
+                    onValueChange={(value) => setFilters({ ...filters, operator_id: value === 'all' ? '' : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos los operadores" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los operadores</SelectItem>
+                      {filterOptions.operators.map((operator) => (
+                        <SelectItem key={operator.id} value={String(operator.id)}>
+                          {operator.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            {/* Sales filters */}
+            {selectedReport === 'sales' && (
+              <div className="grid gap-2">
+                <Label htmlFor="client">Cliente</Label>
+                <Select
+                  value={filters.client_id || 'all'}
+                  onValueChange={(value) => setFilters({ ...filters, client_id: value === 'all' ? '' : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los clientes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los clientes</SelectItem>
+                    {filterOptions.clients.map((client) => (
+                      <SelectItem key={client.id} value={String(client.id)}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Inventory filters */}
+            {selectedReport === 'inventory' && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="category">Categoría</Label>
+                  <Select
+                    value={filters.category || 'all'}
+                    onValueChange={(value) => setFilters({ ...filters, category: value === 'all' ? '' : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas las categorías" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las categorías</SelectItem>
+                      {filterOptions.categories.map((cat) => (
+                        <SelectItem key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="lowStock">Solo Bajo Stock</Label>
+                  <Select
+                    value={filters.low_stock || 'all'}
+                    onValueChange={(value) => setFilters({ ...filters, low_stock: value === 'all' ? '' : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos los items" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los items</SelectItem>
+                      <SelectItem value="true">Solo bajo stock</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
 
             {/* Status filter */}

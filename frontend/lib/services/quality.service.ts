@@ -120,19 +120,6 @@ export const qualityService = {
   },
 
   /**
-   * Obtener métricas del proceso
-   */
-  async getProcessMetrics(processId: number): Promise<QualityMetrics> {
-    try {
-      const response = await api.get(`/quality/process/${processId}/metrics`);
-      return extractData(response);
-    } catch (error: any) {
-      console.error('Error fetching process metrics:', error?.message || error);
-      throw error;
-    }
-  },
-
-  /**
    * Obtener historial de movimientos de trazabilidad
    */
   async getMovements(params?: {

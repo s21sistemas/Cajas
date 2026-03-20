@@ -179,6 +179,25 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Other Login Options */}
+            <div className="mt-6 space-y-2">
+              <p className="text-sm text-muted-foreground text-center">Otros accesos:</p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" asChild>
+                  <Link href="/operador">
+                    <Users className="h-4 w-4 mr-2" />
+                    Operador
+                  </Link>
+                </Button>
+                <Button variant="outline" className="flex-1" asChild>
+                  <Link href="/cliente">
+                    <Box className="h-4 w-4 mr-2" />
+                    Cliente
+                  </Link>
+                </Button>
+              </div>
+            </div>
+
             {/* Operator Login Link */}
             <div className="mt-4 text-center">
               <Link 

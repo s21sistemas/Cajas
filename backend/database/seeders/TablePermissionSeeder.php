@@ -21,13 +21,13 @@ class TablePermissionSeeder extends Seeder
             'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
             'permissions.view', 'permissions.create', 'permissions.edit', 'permissions.delete',
             
-            // General
-            'branches.view', 'branches.create', 'branches.edit', 'branches.delete',
+            // General            
             'settings.view', 'settings.create', 'settings.edit', 'settings.delete',
             'reports.view', 'reports.create', 'reports.edit', 'reports.delete',
             
             // Ventas
             'clients.view', 'clients.create', 'clients.edit', 'clients.delete',
+            'branches.view', 'branches.create', 'branches.edit', 'branches.delete',
             'quotes.view', 'quotes.create', 'quotes.edit', 'quotes.delete',
             'sales.view', 'sales.create', 'sales.edit', 'sales.delete',
             'serviceorders.view', 'serviceorders.create', 'serviceorders.edit', 'serviceorders.delete',

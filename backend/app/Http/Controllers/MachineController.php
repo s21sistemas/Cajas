@@ -123,7 +123,7 @@ class MachineController extends Controller implements HasMiddleware
             'code' => 'required|string|max:255|unique:machines,code',
             'name' => 'required|string|max:255',
             'type' => 'required|string|max:255',
-            'axes' => 'required|integer|min:1|max:255',
+            'axes' => 'integer|min:1|max:255',
             'status' => 'sometimes|string|max:255',
             'notes' => 'nullable|string',
         ]);
@@ -162,7 +162,7 @@ class MachineController extends Controller implements HasMiddleware
             'code' => 'sometimes|required|string|max:255|unique:machines,code,' . $machine->id,
             'name' => 'sometimes|required|string|max:255',
             'type' => 'sometimes|required|string|max:255',
-            'axes' => 'sometimes|required|integer|min:1|max:255',
+            'axes' => 'sometimes|integer|min:1|max:255',
             'status' => 'sometimes|string|max:255',
             'notes' => 'nullable|string',
         ]);

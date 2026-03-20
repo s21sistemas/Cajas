@@ -46,7 +46,7 @@ class BankAccountController extends Controller implements HasMiddleware
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'bank' => 'required|string|max:255',
+            'bank' => 'string|max:255',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:255',
@@ -80,7 +80,7 @@ class BankAccountController extends Controller implements HasMiddleware
     public function update(Request $request, BankAccount $bankAccount)
     {
         $validator = Validator::make($request->all(), [
-            'bank' => 'sometimes|required|string|max:255',
+            'bank' => 'sometimes|string|max:255',
             'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:255',

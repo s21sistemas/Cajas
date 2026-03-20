@@ -17,11 +17,11 @@ const materialSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido').max(255),
   description: z.string().optional().default(''),
   category: z.string().optional().default(''),
-  price: z.number().optional().nullable(),
-  cost: z.number().optional().nullable(),
-  unit: z.string().optional().default(''),
-  stock: z.number().int().min(0).default(0),
-  minStock: z.number().int().min(0).default(0),
+  price: z.coerce.number().optional().nullable(),
+  cost: z.coerce.number().optional().nullable(),
+  unit: z.coerce.string().optional().default(''),
+  stock: z.coerce.number().int().min(0).default(0),
+  minStock: z.coerce.number().int().min(0).default(0),
 });
 
 type MaterialFormValues = z.infer<typeof materialSchema>;

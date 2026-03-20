@@ -25,31 +25,31 @@ import { DEFAULT_FORM } from "./types";
 
 // Valores por defecto para datos mock (usados solo si falla el backend)
 const DEFAULT_PROCESSES: Process[] = [
-  { id: "1", name: "Corrugado", requiresMachine: true },
-  { id: "2", name: "Impresion Flexografica", requiresMachine: true },
-  { id: "3", name: "Troquelado", requiresMachine: true },
-  { id: "4", name: "Pegado Manual", requiresMachine: false },
-  { id: "5", name: "Pegado Automatico", requiresMachine: true },
-  { id: "6", name: "Ensamble Manual", requiresMachine: false },
-  { id: "7", name: "Ranurado (Slotter)", requiresMachine: true },
-  { id: "8", name: "Inspeccion de Calidad", requiresMachine: false },
-  { id: "9", name: "Empaque y Flejado", requiresMachine: false },
+  { id: 1, name: "Corrugado", requiresMachine: true },
+  { id: 2, name: "Impresion Flexografica", requiresMachine: true },
+  { id: 3, name: "Troquelado", requiresMachine: true },
+  { id: 4, name: "Pegado Manual", requiresMachine: false },
+  { id: 5, name: "Pegado Automatico", requiresMachine: true },
+  { id: 6, name: "Ensamble Manual", requiresMachine: false },
+  { id: 7, name: "Ranurado (Slotter)", requiresMachine: true },
+  { id: 8, name: "Inspeccion de Calidad", requiresMachine: false },
+  { id: 9, name: "Empaque y Flejado", requiresMachine: false },
 ];
 
 const DEFAULT_OPERATORS: Operator[] = [
-  { id: "1", name: "Carlos Mendoza" },
-  { id: "2", name: "Ana Rodriguez" },
-  { id: "3", name: "Miguel Torres" },
-  { id: "4", name: "Roberto Sanchez" },
-  { id: "5", name: "Luisa Garcia" },
+  { id: 1, name: "Carlos Mendoza" },
+  { id: 2, name: "Ana Rodriguez" },
+  { id: 3, name: "Miguel Torres" },
+  { id: 4, name: "Roberto Sanchez" },
+  { id: 5, name: "Luisa Garcia" },
 ];
 
 const DEFAULT_MACHINES: Machine[] = [
-  { id: "1", name: "Corrugadora BHS" },
-  { id: "2", name: "Flexo Ward 4 Tintas" },
-  { id: "3", name: "Troqueladora Bobst" },
-  { id: "4", name: "Pegadora Automatica" },
-  { id: "5", name: "Ranuradora" },
+  { id: 1, name: "Corrugadora BHS" },
+  { id: 2, name: "Flexo Ward 4 Tintas" },
+  { id: 3, name: "Troqueladora Bobst" },
+  { id: 4, name: "Pegadora Automatica" },
+  { id: 5, name: "Ranuradora" },
 ];
 
 export default function ProduccionPage() {
@@ -71,6 +71,12 @@ export default function ProduccionPage() {
   const [clients, setClients] = useState<{ id: number; name: string }[]>([]);
   const [sales, setSales] = useState<{ id: number; code: string }[]>([]);
   
+  // Estados para carga bajo demanda
+  const [loadingCreateData, setLoadingCreateData] = useState(false);
+  const [loadingFiltersData, setLoadingFiltersData] = useState(false);
+  const [createDataLoaded, setCreateDataLoaded] = useState(false);
+  const [filtersDataLoaded, setFiltersDataLoaded] = useState(false);
+  
   // Dialogs state
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -84,39 +90,35 @@ export default function ProduccionPage() {
   const [selectedProduction, setSelectedProduction] = useState<Production | null>(null);
   const [pauseReason, setPauseReason] = useState("");
   const [saving, setSaving] = useState(false);
-  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  // Loading por producción y acción - objeto con clave "productionId-accion"
+  const [loadingActions, setLoadingActions] = useState<Record<string, boolean>>({});
   
   const [form, setForm] = useState<CreateProductionForm>(DEFAULT_FORM);
 
-  // Cargar datos iniciales
+  // Cargar productions al inicio y filtros en background (sin await para no bloquear)
   useEffect(() => {
     async function loadData() {
       try {
-        const [productionsData, processesData, machinesData, operatorsData, workOrdersData, productsData, clientsData, salesData] = await Promise.all([
-          productionService.getAll().catch(() => []),
-          productionService.getProcesses().catch(() => DEFAULT_PROCESSES as any),
-          productionService.getMachines().catch(() => DEFAULT_MACHINES as any),
-          productionService.getOperators().catch(() => DEFAULT_OPERATORS as any),
-          productionService.getWorkOrders().catch(() => []),
-          productionService.getProducts().catch(() => []),
-          clientsService.selectList().catch(() => []),
-          salesService.getSelectList().catch(() => []),
-        ]);
-        
+        // Cargar productions (necesario para la UI)
+        const productionsData = await productionService.getAll().catch(() => []);
         setProductions(productionsData || []);
-        setProcesses(processesData || DEFAULT_PROCESSES);
-        setMachines(machinesData || DEFAULT_MACHINES);
-        setOperators(operatorsData || DEFAULT_OPERATORS);
-        setWorkOrders(workOrdersData || []);
-        setProducts(productsData || []);
         
-        // Extraer clientes y ventas de los datos paginados
-        const clientsList = clientsData || [];
-        const salesList = salesData || [];
-        setClients(clientsList.map((c: any) => ({ id: c.id, name: c.name })));
-        setSales(salesList.map((s: any) => ({ id: s.id, code: s.code || s.invoice || `Venta-${s.id}` })));
+        // Cargar filtros en background (sin bloquear)
+        // Se cargan aquí para que estén disponibles cuando se abran los dropdowns
+        if (!filtersDataLoaded) {
+          const [clientsData, salesData, workOrdersData] = await Promise.all([
+            clientsService.selectList().catch(() => []),
+            salesService.getSelectList().catch(() => []),
+            productionService.getWorkOrders().catch(() => []),
+          ]).catch(() => []);
+          
+          setClients(clientsData.map((c: any) => ({ id: c.id, name: c.name })));
+          setSales(salesData.map((s: any) => ({ id: s.id, code: s.code || s.invoice || `Venta-${s.id}` })));
+          setWorkOrders((workOrdersData || []) as any);
+          setFiltersDataLoaded(true);
+        }
       } catch (error) {
-        console.error("Error cargando datos:", error);
+        console.error("Error cargando productions:", error);
       } finally {
         setLoading(false);
       }
@@ -124,18 +126,94 @@ export default function ProduccionPage() {
     loadData();
   }, []);
 
-  // Recargar producciones cuando cambian los filtros
+  // Cargar datos para el diálogo de creación (bajo demanda)
+  // IMPORTANTE: Esta función se llama al hacer click en "Nueva Orden"
+  // Carga: procesos, máquinas, operadores, órdenes de trabajo y productos
+  const loadCreateData = async () => {
+    if (createDataLoaded) return;
+    setLoadingCreateData(true);
+    try {
+      // Cargar en paralelo todos los datos necesarios para el formulario de creación
+      const [processesData, machinesData, operatorsData, workOrdersData, productsData, clientsData] = await Promise.all([
+        productionService.getProcesses().catch(() => DEFAULT_PROCESSES as any),
+        productionService.getMachines().catch(() => DEFAULT_MACHINES as any),
+        productionService.getOperators().catch(() => DEFAULT_OPERATORS as any),
+        productionService.getWorkOrders().catch(() => []),
+        productionService.getProducts().catch(() => []),
+        clientsService.selectList().catch(() => []),
+      ]);
+      
+      setProcesses(processesData || DEFAULT_PROCESSES);
+      setMachines(machinesData || DEFAULT_MACHINES);
+      setOperators(operatorsData || DEFAULT_OPERATORS);
+      setWorkOrders((workOrdersData || []) as any);
+      setProducts((productsData || []) as any);
+      // También cargar clients por si se necesita para autocompletar
+      setClients(clientsData.map((c: any) => ({ id: c.id, name: c.name })));
+      setCreateDataLoaded(true);
+    } catch (error) {
+      console.error("Error cargando datos de creación:", error);
+    } finally {
+      setLoadingCreateData(false);
+    }
+  };
+
+  // Cargar datos para filtros (bajo demanda) - incluye también workOrders para el filtro
+  const loadFiltersData = async () => {
+    if (filtersDataLoaded) return;
+    setLoadingFiltersData(true);
+    try {
+      const [clientsData, salesData, workOrdersData] = await Promise.all([
+        clientsService.selectList().catch(() => []),
+        salesService.getSelectList().catch(() => []),
+        productionService.getWorkOrders().catch(() => []),
+      ]);
+      
+      setClients(clientsData.map((c: any) => ({ id: c.id, name: c.name })));
+      setSales(salesData.map((s: any) => ({ id: s.id, code: s.code || s.invoice || `Venta-${s.id}` })));
+      setWorkOrders((workOrdersData || []) as any);
+      setFiltersDataLoaded(true);
+    } catch (error) {
+      console.error("Error cargando datos de filtros:", error);
+    } finally {
+      setLoadingFiltersData(false);
+    }
+  };
+
+  // Recargar productions cuando cambian los filtros o la búsqueda
   useEffect(() => {
+    let isCancelled = false;
+    
     async function loadProductions() {
+      // Siempre recargar cuando cambie algo (filtros o búsqueda)
+      const hasFilters = filterStatus !== 'all' || filterClient !== 'all' || filterSale !== 'all' || filterWorkOrder !== 'all';
+      const hasSearch = searchTerm.trim().length > 0;
+      
+      if (!hasFilters && !hasSearch) {
+        // Sin filtros ni búsqueda, cargar todas las productions
+        try {
+          const productionsData = await productionService.getAll().catch(() => []);
+          if (!isCancelled) {
+            setProductions(productionsData || []);
+          }
+        } catch (error) {
+          console.error("Error recargando producciones:", error);
+        }
+        return;
+      }
+      
       try {
         const filters: any = {};
         if (filterStatus !== 'all') filters.status = filterStatus;
         if (filterClient !== 'all') filters.client_id = Number(filterClient);
         if (filterSale !== 'all') filters.sale_id = Number(filterSale);
         if (filterWorkOrder !== 'all') filters.work_order_id = Number(filterWorkOrder);
+        if (hasSearch) filters.search = searchTerm.trim();
         
         const productionsData = await productionService.getAll(filters).catch(() => []);
-        setProductions(productionsData || []);
+        if (!isCancelled) {
+          setProductions(productionsData || []);
+        }
       } catch (error) {
         console.error("Error recargando producciones:", error);
       }
@@ -145,25 +223,15 @@ export default function ProduccionPage() {
     if (!loading) {
       loadProductions();
     }
-  }, [filterStatus, filterClient, filterSale, filterWorkOrder, loading]);
+    
+    return () => {
+      isCancelled = true;
+    };
+  }, [filterStatus, filterClient, filterSale, filterWorkOrder, searchTerm, loading]);
 
-  // Filtrar producciones
-  const filtered = productions.filter((p) => {
-    const matchSearch =
-      p.workOrder?.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.code?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatus = filterStatus === "all" || p.status === filterStatus;
-    const matchClient = filterClient === "all" || 
-      (p.client?.id && Number(p.client.id) === Number(filterClient)) || 
-      (p.workOrder?.client?.id && Number(p.workOrder.client.id) === Number(filterClient));
-    const matchSale = filterSale === "all" || 
-      (p.sale?.id && Number(p.sale.id) === Number(filterSale)) || 
-      (p.workOrder?.sale?.id && Number(p.workOrder.sale.id) === Number(filterSale));
-    const matchWorkOrder = filterWorkOrder === "all" || 
-      (p.workOrderId && Number(p.workOrderId) === Number(filterWorkOrder)) || 
-      (p.workOrder?.id && Number(p.workOrder.id) === Number(filterWorkOrder));
-    return matchSearch && matchStatus && matchClient && matchSale && matchWorkOrder;
-  });
+  // Las productions ya vienen filtradas del backend (useEffect con filtros)
+  // No necesitamos filtrado local adicional
+  const filtered = productions;
 
   // Handlers de acciones
   async function handleCreate() {
@@ -206,7 +274,8 @@ export default function ProduccionPage() {
   }
 
   async function handleStart(p: Production) {
-    setLoadingAction('start');
+    const actionKey = `${p.id}-start`;
+    setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
     try {
       const updated = await productionService.start(p.id);
       setProductions(productions.map((prod) => (prod.id === p.id ? updated : prod)));
@@ -215,13 +284,14 @@ export default function ProduccionPage() {
       const errorMessage = error?.message || "No se pudo iniciar la producción";
       toast.error(errorMessage);
     } finally {
-      setLoadingAction(null);
+      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
     }
   }
 
   async function handlePause() {
     if (!selectedProduction) return;
-    setLoadingAction('pause');
+    const actionKey = `${selectedProduction.id}-pause`;
+    setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
     try {
       const updated = await productionService.pause(selectedProduction.id, pauseReason);
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
@@ -233,13 +303,14 @@ export default function ProduccionPage() {
       const errorMessage = error?.message || "No se pudo pausar";
       toast.error(errorMessage);
     } finally {
-      setLoadingAction(null);
+      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
     }
   }
 
   async function handleResume() {
     if (!selectedProduction) return;
-    setLoadingAction('resume');
+    const actionKey = `${selectedProduction.id}-resume`;
+    setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
     try {
       const updated = await productionService.resume(selectedProduction.id);
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
@@ -250,13 +321,14 @@ export default function ProduccionPage() {
       const errorMessage = error?.message || "No se pudo reanudar";
       toast.error(errorMessage);
     } finally {
-      setLoadingAction(null);
+      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
     }
   }
 
   async function handleComplete() {
     if (!selectedProduction) return;
-    setLoadingAction('complete');
+    const actionKey = `${selectedProduction.id}-complete`;
+    setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
     try {
       const updated = await productionService.complete(
         selectedProduction.id,
@@ -271,13 +343,14 @@ export default function ProduccionPage() {
       const errorMessage = error?.message || "No se pudo completar";
       toast.error(errorMessage);
     } finally {
-      setLoadingAction(null);
+      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
     }
   }
 
   async function handleCancel() {
     if (!selectedProduction) return;
-    setLoadingAction('cancel');
+    const actionKey = `${selectedProduction.id}-cancel`;
+    setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
     try {
       const updated = await productionService.cancel(selectedProduction.id, "Cancelado por usuario");
       setProductions(productions.map((p) => (p.id === selectedProduction.id ? updated : p)));
@@ -288,7 +361,7 @@ export default function ProduccionPage() {
       const errorMessage = error?.message || "No se pudo cancelar";
       toast.error(errorMessage);
     } finally {
-      setLoadingAction(null);
+      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
     }
   }
 
@@ -301,7 +374,8 @@ export default function ProduccionPage() {
   // Handler para registrar piezas
   async function handleRegisterParts(goodParts: number, scrapParts: number) {
     if (!selectedProduction) return;
-    setLoadingAction('registerParts');
+    const actionKey = `${selectedProduction.id}-registerParts`;
+    setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
     try {
       const updated = await productionService.registerParts(
         selectedProduction.id,
@@ -316,7 +390,7 @@ export default function ProduccionPage() {
       const errorMessage = error?.message || "No se pudieron registrar las piezas";
       toast.error(errorMessage);
     } finally {
-      setLoadingAction(null);
+      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
     }
   }
 
@@ -435,16 +509,19 @@ export default function ProduccionPage() {
             onSearchChange={setSearchTerm}
             filterStatus={filterStatus}
             onFilterStatusChange={setFilterStatus}
-            onCreateClick={() => setShowCreateDialog(true)}
+            onCreateClick={async () => {
+              await loadCreateData();
+              setShowCreateDialog(true);
+            }}
             clients={clients}
             selectedClient={filterClient}
-            onClientChange={setFilterClient}
+            onClientChange={(value) => setFilterClient(value)}
             sales={sales}
             selectedSale={filterSale}
-            onSaleChange={setFilterSale}
+            onSaleChange={(value) => setFilterSale(value)}
             workOrders={workOrders.map((wo: any) => ({ id: wo.id, code: wo.code }))}
             selectedWorkOrder={filterWorkOrder}
-            onWorkOrderChange={setFilterWorkOrder}
+            onWorkOrderChange={(value) => setFilterWorkOrder(value)}
           />
 
           {/* Production Cards */}
@@ -461,7 +538,7 @@ export default function ProduccionPage() {
                 onRegisterParts={openRegisterPartsDialog}
                 onEdit={openEditDialog}
                 onDelete={openDeleteDialog}
-                loadingAction={loadingAction}
+                isLoadingAction={(action: string) => loadingActions[`${p.id}-${action}`] || false}
               />
             ))}
             {filtered.length === 0 && <EmptyProductionList />}

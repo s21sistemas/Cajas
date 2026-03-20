@@ -17,7 +17,7 @@ class GasolineReceiptController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'vehicle_id' => 'required|exists:vehicles,id|unique:gasoline_receipts,vehicle_id',
+            'vehicle_id' => 'required|exists:vehicles,id',
             'mileage' => 'required|numeric|min:0',
             'liters' => 'required|numeric|min:0',
             'cost_per_liter' => 'required|numeric|min:0',
@@ -38,7 +38,7 @@ class GasolineReceiptController extends Controller
     public function update(Request $request, GasolineReceipt $gasolineReceipt)
     {
         $validated = $request->validate([
-            'vehicle_id' => 'required|exists:vehicles,id|unique:gasoline_receipts,vehicle_id,' . $gasolineReceipt->id,
+            'vehicle_id' => 'required|exists:vehicles,id',
             'mileage' => 'required|numeric|min:0',
             'liters' => 'required|numeric|min:0',
             'cost_per_liter' => 'required|numeric|min:0',

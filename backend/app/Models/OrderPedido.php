@@ -12,6 +12,7 @@ class OrderPedido extends Model
 
     protected $fillable = [
         'order_number',
+        'sale_id',
         'client_id',
         'client_name',
         'delivery_address',
@@ -24,6 +25,7 @@ class OrderPedido extends Model
         'delivery_photo',
         'notes',
         'created_by',
+        'evidence',
     ];
 
     protected $casts = [
@@ -34,6 +36,11 @@ class OrderPedido extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderPedidoItem::class, 'order_pedido_id');
+    }
+
+    public function sale()
+    {
+        return $this->belongsTo(Sale::class, 'sale_id');
     }
 
     public function client()

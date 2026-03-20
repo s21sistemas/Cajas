@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { ERPLayout } from "@/components/erp/erp-layout";
-import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { materialsService, purchaseOrdersService, suppliersService } from "@/lib/services";
@@ -17,21 +16,10 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { useApiQuery } from "@/hooks/use-api-query";
-import { useApiMutation } from "@/hooks/use-api-mutation";
-import type { CreateMaterialDto, Material, PaginatedResponse } from "@/lib/types";
+import type { Material } from "@/lib/types";
 
 export default function MaterialesPage() {
-  return (
-    <ProtectedRoute requiredPermission="materials.view">
-      <MaterialesPageInner />
-    </ProtectedRoute>
-  );
-}
-
-function MaterialesPageInner() {
   const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -45,18 +33,11 @@ function MaterialesPageInner() {
   const [restockDialogOpen, setRestockDialogOpen] = useState(false);
   const [restockMaterial, setRestockMaterial] = useState<Material | null>(null);
 
-  // Fetch suppliers and materials for the form (prefetch once)
-  const { data: suppliersData, loading: suppliersLoading } = useApiQuery(
-    () => suppliersService.getAll({ perPage: 1000 }),
-    { enabled: true }
-  );
-  const { data: materialsData, loading: materialsLoading } = useApiQuery(
-    () => materialsService.selectList(),
-    { enabled: true }
-  );
-
-  const suppliers = suppliersData?.data || [];
-  const materialsForOrder = materialsData || [];
+  // Estado para suppliers y materials del formulario
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [materialsForOrder, setMaterialsForOrder] = useState<any[]>([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(true);
+  const [materialsLoading, setMaterialsLoading] = useState(true);
 
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -103,6 +84,26 @@ function MaterialesPageInner() {
     
     fetchMaterials("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cargar suppliers y materials para el formulario de orden de compra
+  useEffect(() => {
+    const fetchFormData = async () => {
+      try {
+        const [suppliersRes, materialsRes] = await Promise.all([
+          suppliersService.selectList(),
+          materialsService.selectList(),
+        ]);
+        setSuppliers(suppliersRes || []);
+        setMaterialsForOrder(materialsRes || []);
+      } catch (error) {
+        console.error("Error loading form data:", error);
+      } finally {
+        setSuppliersLoading(false);
+        setMaterialsLoading(false);
+      }
+    };
+    fetchFormData();
   }, []);
 
   // Búsqueda con debounce
@@ -172,23 +173,21 @@ function MaterialesPageInner() {
   };
 
   // Crear orden de compra
-  const { mutate: createPurchaseOrder, loading: creatingOrder } = useApiMutation(
-    (data: any) => purchaseOrdersService.create(data),
-    {
-      onSuccess: () => {
-        showToast("success", "Orden creada", "La orden de compra se ha creado correctamente");
-        setRestockDialogOpen(false);
-        setRestockMaterial(null);
-      },
-      onError: (error: any) => {
-        showToast("error", "Error", error?.message || "No se pudo crear la orden");
-      },
-    }
-  );
+  const [creatingOrder, setCreatingOrder] = useState(false);
 
-  // Manejar envío del formulario de orden de compra
   const handlePurchaseOrderSubmit = async (data: any) => {
-    createPurchaseOrder(data);
+    setCreatingOrder(true);
+    try {
+      await purchaseOrdersService.create(data);
+      showToast("success", "Orden creada", "La orden de compra se ha creado correctamente");
+      setRestockDialogOpen(false);
+      setRestockMaterial(null);
+    } catch (error: any) {
+      const errorMessage = error?.message || "No se pudo crear la orden";
+      showToast("error", "Error", errorMessage);
+    } finally {
+      setCreatingOrder(false);
+    }
   };
 
   return (
@@ -279,8 +278,8 @@ function MaterialesPageInner() {
           </DialogHeader>
           <PurchaseOrderForm
             defaultValues={{
-              product_id: restockMaterial?.id,
-              product_name: restockMaterial?.name,
+              material_id: restockMaterial?.id,
+              material_name: restockMaterial?.name,
               unit_price: restockMaterial?.cost || 0,
               quantity: 1,
               iva_percentage: 16,

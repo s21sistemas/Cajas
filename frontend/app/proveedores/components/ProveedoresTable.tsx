@@ -77,7 +77,7 @@ export function ProveedoresTable({
                 <TableHead className="text-muted-foreground">Proveedor</TableHead>
                 <TableHead className="text-muted-foreground">Categoría</TableHead>
                 <TableHead className="text-muted-foreground">Contacto</TableHead>
-                <TableHead className="text-muted-foreground">Lead Time</TableHead>
+                <TableHead className="text-muted-foreground">Tiempo de Entrega</TableHead>
                 <TableHead className="text-muted-foreground">Saldo</TableHead>
                 <TableHead className="text-muted-foreground">Estado</TableHead>
                 <TableHead className="text-muted-foreground text-right">Acciones</TableHead>
@@ -124,7 +124,7 @@ export function ProveedoresTable({
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>{item.lead_time} días</TableCell>
+                    <TableCell>{item.leadTime} días</TableCell>
                     <TableCell>{formatCurrency(item.balance)}</TableCell>
                     <TableCell>
                       <Badge className={statusConfig[item.status]?.class}>

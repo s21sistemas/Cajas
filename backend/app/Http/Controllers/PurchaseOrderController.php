@@ -112,7 +112,7 @@ class PurchaseOrderController extends Controller
         
         // Crear registro en el estado de cuenta del proveedor al crear la orden
         // Solo si el estado es diferente de draft (draft es pendiente de aprobación)
-        if ($purchaseOrder->status !== 'draft') {
+        if ($purchaseOrder->status === 'ordered') {
             $this->createSupplierStatementFromOrder($purchaseOrder);
         }
         
@@ -174,16 +174,16 @@ class PurchaseOrderController extends Controller
         
         // Si el estado cambia a "ordered", procesar según tipo de pago
         if ($newStatus === 'ordered' && $previousStatus !== 'ordered') {
-            $this->createSupplierStatementFromOrder($purchaseOrder);
+            $this->createOrUpdateSupplierStatementFromOrder($purchaseOrder);
         }
         
         return response()->json($purchaseOrder->load('supplier'));
     }
     
     /**
-     * Crea un registro en el estado de cuenta del proveedor cuando la orden se marca como ordenada
+     * Crea o actualiza un registro en el estado de cuenta del proveedor cuando la orden se marca como ordenada
      */
-    private function createSupplierStatementFromOrder(PurchaseOrder $order): void
+    private function createOrUpdateSupplierStatementFromOrder(PurchaseOrder $order): void
     {
         $supplier = $order->supplier;
         if (!$supplier) {
@@ -198,24 +198,44 @@ class PurchaseOrderController extends Controller
             $dueDate = now()->addDays(30); // Default 30 días
         }
         
-        // Crear registro en el estado de cuenta
-        SupplierStatement::create([
-            'code' => $order->code,
-            'purchase_order_id' => $order->id,
-            'supplier_id' => $order->supplier_id,
-            'supplier_name' => $order->supplier_name,
-            'date' => now()->toDateString(),
-            'due_date' => $dueDate instanceof \Carbon\Carbon ? $dueDate->toDateString() : $dueDate,
-            'amount' => $order->total,
-            'paid' => 0,
-            'balance' => $order->total,
-            'status' => 'pending',
-            'concept' => 'Orden de compra - ' . ($order->material_name ?? 'Material'),
-        ]);
+        // Buscar si ya existe un supplier statement para esta orden
+        $supplierStatement = \App\Models\SupplierStatement::where('purchase_order_id', $order->id)->first();
         
-        // Actualizar el saldo del proveedor
-        $supplier->balance = ($supplier->balance ?? 0) + $order->total;
-        $supplier->save();
+        if ($supplierStatement) {
+            // Actualizar existente
+            $oldBalance = $supplierStatement->balance;
+            $supplierStatement->update([
+                'code' => $order->code,
+                'supplier_name' => $order->supplier_name,
+                'due_date' => $dueDate instanceof \Carbon\Carbon ? $dueDate->toDateString() : $dueDate,
+                'amount' => $order->total,
+                'balance' => $order->total - $supplierStatement->paid,
+                'concept' => 'Orden de compra - ' . ($order->material_name ?? 'Material'),
+            ]);
+            
+            // Ajustar el saldo del proveedor
+            $supplier->balance = ($supplier->balance ?? 0) - $oldBalance + $supplierStatement->balance;
+            $supplier->save();
+        } else {
+            // Crear nuevo registro
+            \App\Models\SupplierStatement::create([
+                'code' => $order->code,
+                'purchase_order_id' => $order->id,
+                'supplier_id' => $order->supplier_id,
+                'supplier_name' => $order->supplier_name,
+                'date' => now()->toDateString(),
+                'due_date' => $dueDate instanceof \Carbon\Carbon ? $dueDate->toDateString() : $dueDate,
+                'amount' => $order->total,
+                'paid' => 0,
+                'balance' => $order->total,
+                'status' => 'pending',
+                'concept' => 'Orden de compra - ' . ($order->material_name ?? 'Material'),
+            ]);
+            
+            // Actualizar el saldo del proveedor
+            $supplier->balance = ($supplier->balance ?? 0) + $order->total;
+            $supplier->save();
+        }
     }
 
     /**

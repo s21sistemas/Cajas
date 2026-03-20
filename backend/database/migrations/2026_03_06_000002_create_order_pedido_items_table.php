@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('order_pedido_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('order_pedido_id')->constrained('order_pedidos')->cascadeOnDelete();
-            $table->foreignId('product_id')->nullable()->constrained('inventory_items')->nullOnDelete();
+            $table->foreignId('product_id')->nullable()->constrained('products')->nullOnDelete();
             $table->string('product_name')->nullable();
             $table->string('product_code')->nullable();
             $table->integer('quantity')->default(1);

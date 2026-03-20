@@ -84,11 +84,11 @@ class VehicleController extends Controller implements HasMiddleware
             'labeled' => 'sometimes|required|in:YES,NO',
             'gps' => 'sometimes|required|in:YES,NO',
             'taxes_paid' => 'sometimes|required|in:YES,NO',
-            'insurance_company' => 'sometimes|required|string|max:50',
-            'insurance_company_phone' => 'sometimes|required|string|max:15',
+            'insurance_company' => 'sometimes|nullable|string|max:50',
+            'insurance_company_phone' => 'sometimes|nullable|string|max:15',
             'insurance_file' => 'sometimes|nullable|string',
-            'policy_number' => 'sometimes|required|string',
-            'expiration_date' => 'sometimes|required|date',
+            'policy_number' => 'sometimes|nullable|string',
+            'expiration_date' => 'sometimes|nullable|date',
         ]);
 
         $vehicle->update($validated);

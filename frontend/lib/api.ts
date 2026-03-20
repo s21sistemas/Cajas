@@ -76,6 +76,7 @@ apiClient.interceptors.request.use(
     
     // Prefer operator token for operator routes
     const token = operatorToken || authToken;
+    console.log('[API Request]', config.url, 'Token:', token ? token.substring(0, 20) + '...' : 'Missing');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -122,20 +123,27 @@ apiClient.interceptors.response.use(
         // Check if it's an operator session
         const isOperator = window.location.pathname.startsWith('/operador');
         
-        // Clear auth data
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('operator_token');
-        localStorage.removeItem('operator_user');
+        // Only clear auth data and redirect if there's a token (meaning user was logged in)
+        const hasAuthToken = localStorage.getItem('auth_token');
+        const hasOperatorToken = localStorage.getItem('operator_token');
         
-        // Redirect to appropriate login
-        if (typeof window !== 'undefined') {
-          if (isOperator) {
-            window.location.href = '/operador/login';
-          } else if (!window.location.pathname.includes('/login')) {
-            window.location.href = '/login';
+        if (hasAuthToken || hasOperatorToken) {
+          // Clear auth data only if user had a token (was logged in)
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('operator_token');
+          localStorage.removeItem('operator_user');
+          
+          // Redirect to appropriate login
+          if (typeof window !== 'undefined') {
+            if (isOperator) {
+              window.location.href = '/operador/login';
+            } else if (!window.location.pathname.includes('/login')) {
+              window.location.href = '/login';
+            }
           }
         }
+        // If no token, it means user was trying to access a public route without auth - don't redirect
       }
       
       // Server responded with error status

@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('delivery_address')->nullable();
             $table->foreignId('branch_id')->nullable()->constrained('branches')->nullOnDelete();
             $table->string('branch_name')->nullable();
-            $table->foreignId('supplier_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('supplier_name')->nullable();
             $table->enum('status', ['pending', 'assigned', 'picked_up', 'in_transit', 'delivered', 'cancelled'])->default('pending');
             $table->timestamp('picked_up_at')->nullable();
             $table->timestamp('delivered_at')->nullable();
@@ -30,7 +30,6 @@ return new class extends Migration
 
             $table->index('status');
             $table->index('order_number');
-            $table->index('supplier_user_id');
             $table->index('client_id');
         });
     }

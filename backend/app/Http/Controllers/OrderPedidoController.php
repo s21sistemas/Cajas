@@ -9,6 +9,7 @@ use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 
 class OrderPedidoController extends Controller implements HasMiddleware
 {
@@ -39,7 +40,7 @@ class OrderPedidoController extends Controller implements HasMiddleware
      */
     public function index(Request $request)
     {
-        $query = OrderPedido::with(['client', 'branch', 'supplier', 'items']);
+        $query = OrderPedido::with(['client', 'branch', 'supplier', 'items', 'sale']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -106,26 +107,7 @@ class OrderPedidoController extends Controller implements HasMiddleware
 
         return response()->json($query->orderByDesc('created_at')->paginate($perPage));
     }
-
-    /**
-     * Órdenes del proveedor actual
-     */
-    public function myOrders(Request $request)
-    {
-        $user = $request->user();
-
-        $query = OrderPedido::with(['client', 'branch', 'items'])
-            ->where('supplier_user_id', $user->id);
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        $perPage = $request->integer('per_page', 50);
-
-        return response()->json($query->orderByDesc('created_at')->paginate($perPage));
-    }
-
+    
     /**
      * Crear nueva orden
      */
@@ -137,9 +119,14 @@ class OrderPedidoController extends Controller implements HasMiddleware
             'delivery_address' => 'nullable|string|max:500',
             'branch_id' => 'nullable|exists:branches,id',
             'branch_name' => 'nullable|string|max:255',
+            'sale_id' => 'nullable|exists:sales,id',
             'notes' => 'nullable|string',
+            'pickup_date' => 'nullable|date',
+            'delivery_date' => 'nullable|date',
+            'supplier_name' => 'nullable|string|max:255',
+            'evidence' => 'nullable|file|mimes:jpeg,png,jpg,gif,pdf|max:5120',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'nullable|exists:inventory_items,id',
+            'items.*.product_id' => 'nullable|exists:products,id',
             'items.*.product_name' => 'required|string|max:255',
             'items.*.product_code' => 'nullable|string|max:100',
             'items.*.quantity' => 'required|integer|min:1',
@@ -179,6 +166,15 @@ class OrderPedidoController extends Controller implements HasMiddleware
         $data['created_by'] = $request->user()->id;
         $data['status'] = 'pending';
 
+        // Procesar archivo de evidencia si existe
+        if ($request->hasFile('evidence')) {
+            $file = $request->file('evidence');
+            $filename = 'evidence-' . time() . '-' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $path = 'evidence';
+            $file->storeAs($path, $filename, 'public');
+            $data['delivery_photo'] = asset('storage/' . $path . '/' . $filename);
+        }
+
         // Crear orden
         $order = OrderPedido::create($data);
 
@@ -195,7 +191,7 @@ class OrderPedidoController extends Controller implements HasMiddleware
         }
 
         return response()->json(
-            OrderPedido::with(['client', 'branch', 'supplier', 'items'])->find($order->id),
+            OrderPedido::with(['client', 'branch', 'supplier', 'items', 'sale'])->find($order->id),
             201
         );
     }
@@ -227,6 +223,10 @@ class OrderPedidoController extends Controller implements HasMiddleware
             'branch_id' => 'nullable|exists:branches,id',
             'branch_name' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
+            'pickup_date' => 'nullable|date',
+            'delivery_date' => 'nullable|date',
+            'supplier_name' => 'nullable|string|max:255',
+            'evidence' => 'nullable|file|mimes:jpeg,png,jpg,gif,pdf|max:5120',
             'status' => 'sometimes|in:pending,assigned,picked_up,in_transit,delivered,cancelled',
         ]);
 
@@ -234,7 +234,18 @@ class OrderPedidoController extends Controller implements HasMiddleware
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $order->update($validator->validated());
+        $data = $validator->validated();
+
+        // Procesar archivo de evidencia si existe
+        if ($request->hasFile('evidence')) {
+            $file = $request->file('evidence');
+            $filename = 'evidence-' . time() . '-' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $path = 'evidence';
+            $file->storeAs($path, $filename, 'public');
+            $data['delivery_photo'] = asset('storage/' . $path . '/' . $filename);
+        }
+
+        $order->update($data);
 
         return response()->json(OrderPedido::with(['client', 'branch', 'supplier', 'items'])->find($order->id));
     }

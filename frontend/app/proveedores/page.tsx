@@ -30,6 +30,7 @@ export default function ProveedoresPage() {
   const [editingItem, setEditingItem] = useState<Supplier | null>(null);
   const [deletingItem, setDeletingItem] = useState<Supplier | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string[]>>({});
   const [stats, setStats] = useState<SupplierStats>({
     total: 0,
     active: 0,
@@ -140,6 +141,7 @@ export default function ProveedoresPage() {
 
   const handleSubmit = async (data: CreateSupplierDto) => {
     setSubmitting(true);
+    setFormErrors({});
     try {
       if (editingItem) {
         await suppliersService.update(editingItem.id, data);
@@ -153,8 +155,26 @@ export default function ProveedoresPage() {
       fetchItems(search);
       fetchStats();
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
-      showToast("error", "Error", errorMessage);
+      console.log('Full error:', error);
+      
+      // El error tiene formato: {message, errors, status}
+      // Buscar errores de validación
+      const validationErrors = error?.errors;
+      const errorStatus = error?.status;
+      
+      console.log('validationErrors:', validationErrors);
+      console.log('errorStatus:', errorStatus);
+      
+      if (errorStatus === 422 && validationErrors && typeof validationErrors === 'object') {
+        console.log('Setting form errors:', validationErrors);
+        setFormErrors(validationErrors);
+        const firstErrorKey = Object.keys(validationErrors)[0];
+        const firstErrorMessage = validationErrors[firstErrorKey]?.[0] || "Error de validación";
+        showToast("warning", "Error de validación", firstErrorMessage);
+      } else {
+        const errorMessage = error?.message || "Error en la petición";
+        showToast("error", "Error", errorMessage);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -193,11 +213,13 @@ export default function ProveedoresPage() {
       </div>
 
       <ProveedoresFormDialog
+        key={formErrors ? 'with-errors' : 'no-errors'}
         open={modalOpen}
-        onOpenChange={(open) => { setModalOpen(open); if (!open) setEditingItem(null); }}
+        onOpenChange={(open) => { setModalOpen(open); if (!open) { setEditingItem(null); setFormErrors({}); } }}
         editingItem={editingItem}
         onSubmit={handleSubmit}
         loading={submitting}
+        errors={formErrors}
       />
 
       <ProveedoresViewDialog

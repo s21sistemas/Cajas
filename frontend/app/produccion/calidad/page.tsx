@@ -19,7 +19,7 @@ interface PendingProduction {
   process?: {
     name: string;
   };
-  work_order?: {
+  workOrder?: {
     product_name: string;
   };
   operator?: {
@@ -161,7 +161,7 @@ export default function QualityPage() {
                     <TableRow key={production.id}>
                       <TableCell className="font-medium">{production.code}</TableCell>
                       <TableCell>{production.process?.name || '-'}</TableCell>
-                      <TableCell>{production.work_order?.product_name || '-'}</TableCell>
+                      <TableCell>{production.workOrder?.product_name || '-'}</TableCell>
                       <TableCell>{production.operator?.name || '-'}</TableCell>
                       <TableCell className="text-right">{production.good_parts}</TableCell>
                       <TableCell className="text-right">{production.scrap_parts}</TableCell>

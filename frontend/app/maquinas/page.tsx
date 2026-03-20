@@ -49,6 +49,25 @@ import {
 import { machinesService, settingsService } from "@/lib/services";
 import type { Machine, CreateMachineDto } from "@/lib/types/machine.types";
 import { cn } from "@/lib/utils";
+import { z } from "zod";
+
+// Schema de validación con Zod
+const machineSchema = z.object({
+  code: z.string().min(1, "El código es requerido"),
+  name: z.string().min(1, "El nombre es requerido"),
+  type: z.string().min(1, "El tipo es requerido"),
+  brand: z.string().optional(),
+  model: z.string().optional(),
+  location: z.string().optional(),
+  notes: z.string().optional(),
+  axes: z.string()
+    .optional()
+    .refine((val) => !val || !isNaN(parseInt(val)), {
+      message: "Debe ser un número válido",
+    }),
+});
+
+type MachineFormData = z.infer<typeof machineSchema>;
 
 type MachineStatus = "running" | "available" | "maintenance" | "offline";
 
@@ -108,7 +127,8 @@ export default function MaquinasPage() {
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
   const [machinesDeletePin, setMachinesDeletePin] = useState<string | null>(null);
 
-  const [newForm, setNewForm] = useState({ code: "", name: "", type: "", brand: "", model: "", location: "", notes: "" });
+  const [newForm, setNewForm] = useState({ code: "", name: "", type: "", brand: "", model: "", location: "", notes: "", axes: "" });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [configForm, setConfigForm] = useState({ name: "", type: "", brand: "", model: "", location: "", notes: "" });
   const [maintenanceForm, setMaintenanceForm] = useState({ type: "preventive", notes: "", scheduledDate: "" });
 
@@ -201,10 +221,26 @@ export default function MaquinasPage() {
   };
 
   const handleCreate = async () => {
-    if (!newForm.code || !newForm.name || !newForm.type) {
-      showToast("error", "Campos requeridos", "Código, nombre y tipo son obligatorios");
-      return;
+    // Validar con Zod
+    try {
+      machineSchema.parse(newForm);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          const field = err.path[0] as string;
+          if (!fieldErrors[field]) {
+            fieldErrors[field] = err.message;
+          }
+        });
+        setFormErrors(fieldErrors);
+        const firstError = Object.values(fieldErrors)[0];
+        showToast("warning", "Error de validación", firstError);
+        return;
+      }
     }
+    
+    setFormErrors({});
     setActionLoading(-1);
     try {
       const data: CreateMachineDto = {
@@ -215,15 +251,29 @@ export default function MaquinasPage() {
         model: newForm.model || undefined,
         location: newForm.location || undefined,
         notes: newForm.notes || undefined,
+        axes: newForm.axes ? parseInt(newForm.axes) : undefined,
       };
       await machinesService.create(data);
       showToast("success", "Máquina registrada", `${newForm.code} - ${newForm.name}`);
       setNewMachineOpen(false);
-      setNewForm({ code: "", name: "", type: "", brand: "", model: "", location: "", notes: "" });
+      setNewForm({ code: "", name: "", type: "", brand: "", model: "", location: "", notes: "", axes: "" });
       fetchMachines(searchTerm);
       fetchStats();
     } catch (error: any) {
-      showToast("error", "Error", error?.message || "No se pudo crear la máquina");
+      // Manejar errores de validación del servidor
+      const serverErrors = error?.errors;
+      const errorStatus = error?.status;
+      
+      if (errorStatus === 422 && serverErrors && typeof serverErrors === 'object') {
+        const fieldErrors: Record<string, string> = {};
+        Object.keys(serverErrors).forEach((key) => {
+          fieldErrors[key] = serverErrors[key][0];
+        });
+        setFormErrors(fieldErrors);
+        showToast("warning", "Error de validación", Object.values(fieldErrors)[0]);
+      } else {
+        showToast("error", "Error", error?.message || "No se pudo crear la máquina");
+      }
     } finally {
       setActionLoading(null);
     }
@@ -566,26 +616,44 @@ export default function MaquinasPage() {
       </div>
 
       {/* New Machine Dialog */}
-      <Dialog open={newMachineOpen} onOpenChange={setNewMachineOpen}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={newMachineOpen} onOpenChange={(open) => { setNewMachineOpen(open); if (!open) setFormErrors({}); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Nueva Maquina</DialogTitle>
             <DialogDescription>Registra una nueva maquina en el sistema</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 overflow-y-auto max-h-[60vh] pr-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Codigo *</Label>
-                <Input placeholder="MAQ-007" value={newForm.code} onChange={(e) => setNewForm({ ...newForm, code: e.target.value })} />
+                <Input 
+                  placeholder="MAQ-007" 
+                  value={newForm.code} 
+                  onChange={(e) => { setNewForm({ ...newForm, code: e.target.value }); setFormErrors({ ...formErrors, code: "" }); }} 
+                  className={formErrors.code ? "border-destructive" : ""}
+                />
+                {formErrors.code && <p className="text-sm text-destructive">{formErrors.code}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Tipo *</Label>
-                <Input placeholder="Ej: Troqueladora, Pegadora" value={newForm.type} onChange={(e) => setNewForm({ ...newForm, type: e.target.value })} />
+                <Input 
+                  placeholder="Ej: Troqueladora, Pegadora" 
+                  value={newForm.type} 
+                  onChange={(e) => { setNewForm({ ...newForm, type: e.target.value }); setFormErrors({ ...formErrors, type: "" }); }} 
+                  className={formErrors.type ? "border-destructive" : ""}
+                />
+                {formErrors.type && <p className="text-sm text-destructive">{formErrors.type}</p>}
               </div>
             </div>
             <div className="space-y-2">
               <Label>Nombre *</Label>
-              <Input placeholder="Nombre de la maquina" value={newForm.name} onChange={(e) => setNewForm({ ...newForm, name: e.target.value })} />
+              <Input 
+                placeholder="Nombre de la maquina" 
+                value={newForm.name} 
+                onChange={(e) => { setNewForm({ ...newForm, name: e.target.value }); setFormErrors({ ...formErrors, name: "" }); }} 
+                className={formErrors.name ? "border-destructive" : ""}
+              />
+              {formErrors.name && <p className="text-sm text-destructive">{formErrors.name}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -604,6 +672,16 @@ export default function MaquinasPage() {
             <div className="space-y-2">
               <Label>Notas</Label>
               <Textarea placeholder="Notas adicionales" value={newForm.notes} onChange={(e) => setNewForm({ ...newForm, notes: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Ejes</Label>
+              <Input 
+                placeholder="Número de ejes" 
+                value={newForm.axes} 
+                onChange={(e) => { setNewForm({ ...newForm, axes: e.target.value }); setFormErrors({ ...formErrors, axes: "" }); }} 
+                className={formErrors.axes ? "border-destructive" : ""}
+              />
+              {formErrors.axes && <p className="text-sm text-destructive">{formErrors.axes}</p>}
             </div>
           </div>
           <DialogFooter>

@@ -33,6 +33,7 @@ type PurchaseOrderFormValues = z.infer<typeof purchaseOrderSchema>;
 
 interface PurchaseOrderFormProps {
   order?: any;
+  defaultValues?: Partial<PurchaseOrderFormValues>;
   onSubmit: (data: PurchaseOrderFormValues) => Promise<void>;
   isLoading?: boolean;
   suppliers?: any[];
@@ -41,7 +42,7 @@ interface PurchaseOrderFormProps {
   materialsLoading?: boolean;
 }
 
-export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initialSuppliers, materials: initialMaterials, suppliersLoading: initialSuppliersLoading, materialsLoading: initialMaterialsLoading }: PurchaseOrderFormProps) {
+export function PurchaseOrderForm({ order, defaultValues, onSubmit, isLoading, suppliers: initialSuppliers, materials: initialMaterials, suppliersLoading: initialSuppliersLoading, materialsLoading: initialMaterialsLoading }: PurchaseOrderFormProps) {
   const suppliers = initialSuppliers || [];
   const materials = initialMaterials || [];
   const isSuppliersLoading = initialSuppliersLoading ?? false;
@@ -50,21 +51,21 @@ export function PurchaseOrderForm({ order, onSubmit, isLoading, suppliers: initi
   const form = useForm<PurchaseOrderFormValues>({
     resolver: zodResolver(purchaseOrderSchema),
     defaultValues: {
-      supplier_id: order?.supplierId ?? 0,
-      material_id: order?.materialId ?? 0,
-      material_name: order?.materialName ?? '',
-      quantity: order?.quantity ?? 1,
-      unit_price: order?.unitPrice ?? 0,
-      subtotal: order?.subtotal ?? 0,
-      iva_percentage: order?.ivaPercentage ?? 16,
-      iva: order?.iva ?? 0,
-      total: order?.total ?? 0,
-      payment_type: order?.paymentType ?? 'cash',
-      credit_days: order?.creditDays ?? 0,
-      status: order?.status ?? 'draft',
-      priority: order?.priority ?? 'medium',
-      expected_date: order?.expectedDate?.split('T')[0] ?? '',
-      due_date: order?.dueDate?.split('T')[0] ?? '',
+      supplier_id: defaultValues?.supplier_id ?? order?.supplierId ?? 0,
+      material_id: defaultValues?.material_id ?? order?.materialId ?? 0,
+      material_name: defaultValues?.material_name ?? order?.materialName ?? '',
+      quantity: defaultValues?.quantity ?? order?.quantity ?? 1,
+      unit_price: defaultValues?.unit_price ?? order?.unitPrice ?? 0,
+      subtotal: defaultValues?.subtotal ?? order?.subtotal ?? 0,
+      iva_percentage: defaultValues?.iva_percentage ?? order?.ivaPercentage ?? 16,
+      iva: defaultValues?.iva ?? order?.iva ?? 0,
+      total: defaultValues?.total ?? order?.total ?? 0,
+      payment_type: defaultValues?.payment_type ?? order?.paymentType ?? 'cash',
+      credit_days: defaultValues?.credit_days ?? order?.creditDays ?? 0,
+      status: defaultValues?.status ?? order?.status ?? 'draft',
+      priority: defaultValues?.priority ?? order?.priority ?? 'medium',
+      expected_date: defaultValues?.expected_date ?? order?.expectedDate?.split('T')[0] ?? '',
+      due_date: defaultValues?.due_date ?? order?.dueDate?.split('T')[0] ?? '',
     },
   });
 

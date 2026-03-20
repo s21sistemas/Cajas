@@ -92,7 +92,6 @@ const navSections: NavSection[] = [
           { title: "Materiales", href: "/almacen/materiales" },
           { title: "Producto Terminado", href: "/almacen/producto-terminado" },
           { title: "Movimientos", href: "/almacen/movimientos" },
-          { title: "Órdenes de Pedido", href: "/almacen/ordenes-pedido" },
         ],
       },
       { title: "Ordenes de Compra", href: "/ordenes-compra", icon: <ShoppingCart className="h-5 w-5" />, permission: "purchaseorders.view" },
@@ -109,6 +108,7 @@ const navSections: NavSection[] = [
     title: "Logistica",
     items: [
       { title: "Vehículos", href: "/vehiculos", icon: <Truck className="h-5 w-5" />, permission: "vehicles.view" },
+      { title: "Órdenes de Pedido", href: "/ordenes-pedido", icon: <ClipboardList className="h-5 w-5" />, permission: "ordenes_pedido.view" },
     ],
   },
   {

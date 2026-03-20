@@ -18,12 +18,7 @@ return new class extends Migration
 
             $table->string('department');
 
-            $table->enum('type', [
-                'imss',
-                'accident',
-                'maternity',
-                'illness'
-            ]);
+            $table->string('type');
 
             $table->date('start_date');
             $table->date('end_date');

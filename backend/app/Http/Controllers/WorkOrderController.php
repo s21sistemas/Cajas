@@ -103,7 +103,7 @@ class WorkOrderController extends Controller implements HasMiddleware
         $workOrders = WorkOrder::select('id', 'code', 'product_id', 'client_id', 'product_name', 'client_name', 'quantity', 'completed', 'progress', 'status', 'priority')
             ->with(['productions:id,work_order_id,status,process_id,product_id', 'client'])
             ->whereHas('productions', function ($query) use ($operatorId) {
-                $query->whereIn('status', ['pending', 'in_progress', 'paused'])
+                $query->whereIn('status', ['pending', 'in_progress', 'paused', 'completed'])
                     ->where('operator_id', $operatorId);
             })
             ->orderByRaw("FIELD(priority, 'urgent', 'high', 'medium', 'low')")
@@ -114,7 +114,7 @@ class WorkOrderController extends Controller implements HasMiddleware
                     'id' => $wo->id,
                     'code' => $wo->code,
                     'product_name' => $wo->product_name,
-                    'client_name' => $wo->client->name,
+                    'client_name' => $wo->client?->name ?? $wo->client_name ?? 'Sin cliente',
                     'quantity' => $wo->quantity,
                     'completed' => $wo->completed,
                     'progress' => $wo->progress,
@@ -134,31 +134,6 @@ class WorkOrderController extends Controller implements HasMiddleware
      */
     public function getProductions(WorkOrder $workOrder)
     {
-        // $productions = Production::where('work_order_id', $workOrder->id)
-        //     ->with(['process:id,name', 'machine:id,name', 'operator:id,name'])
-        //     ->orderBy('id')
-        //     ->get()
-        //     ->map(function ($prod) {
-        //         return [
-        //             'id' => $prod->id,
-        //             'code' => $prod->code,
-        //             'process_id' => $prod->process_id,
-        //             'process' => $prod->process,
-        //             'product_process_id' => $prod->product_process_id,
-        //             'work_order_id' => $prod->work_order_id,
-        //             'status' => $prod->status,
-        //             'quality_status' => $prod->quality_status,
-        //             'target_parts' => $prod->target_parts,
-        //             'good_parts' => $prod->good_parts,
-        //             'scrap_parts' => $prod->scrap_parts,
-        //             'start_time' => $prod->start_time,
-        //             'end_time' => $prod->end_time,
-        //             'pause_reason' => $prod->pause_reason,
-        //             'machine' => $prod->machine,
-        //             'operator' => $prod->operator,
-        //         ];
-        //     });
-
         $operatorId = auth()->id();
 
         $productions = Production::query()
@@ -253,6 +228,22 @@ class WorkOrderController extends Controller implements HasMiddleware
         }
 
         $data = $validator->validated();
+
+        // Validar que el producto tenga procesos o materiales configurados
+        if (!empty($data['product_id'])) {
+            $product = \App\Models\Product::with(['productProcesses', 'materials'])->find($data['product_id']);
+            
+            $hasProcesses = $product->productProcesses->count() > 0;
+            $hasMaterials = $product->materials->count() > 0;
+            
+            if (!$hasProcesses && !$hasMaterials) {
+                return response()->json([
+                    'errors' => [
+                        'product_id' => ['El producto no tiene configuración de procesos ni materiales. Por favor configure la receta del producto antes de crear la orden de trabajo.']
+                    ]
+                ], 422);
+            }
+        }
 
         // Generar código si no se proporciona
         if (empty($data['code'])) {
@@ -371,6 +362,22 @@ class WorkOrderController extends Controller implements HasMiddleware
 
         $data = $validator->validated();
         
+        // Validar que el producto tenga procesos o materiales configurados
+        if (isset($data['product_id']) && !empty($data['product_id'])) {
+            $product = \App\Models\Product::with(['productProcesses', 'materials'])->find($data['product_id']);
+            
+            $hasProcesses = $product->productProcesses->count() > 0;
+            $hasMaterials = $product->materials->count() > 0;
+            
+            if (!$hasProcesses && !$hasMaterials) {
+                return response()->json([
+                    'errors' => [
+                        'product_id' => ['El producto no tiene configuración de procesos ni materiales. Por favor configure la receta del producto antes de actualizar la orden de trabajo.']
+                    ]
+                ], 422);
+            }
+        }
+        
         // Actualizar nombre del producto si cambió
         if (isset($data['product_id'])) {
             $product = \App\Models\Product::find($data['product_id']);
@@ -465,6 +472,7 @@ class WorkOrderController extends Controller implements HasMiddleware
             'running' => 0,
             'paused' => 0,
             'completed' => 0,
+            'total' => 0,
         ];
         
         foreach ($productions as $production) {
@@ -473,6 +481,8 @@ class WorkOrderController extends Controller implements HasMiddleware
                 $pipelineStatus[$status]++;
             }
         }
+
+        $pipelineStatus['total_processes'] = count($productions);
         
         return response()->json([
             'success' => true,

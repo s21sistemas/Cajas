@@ -60,6 +60,11 @@ class Sale extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function orderPedidos()
+    {
+        return $this->hasMany(OrderPedido::class);
+    }
+
     public function recalculateTotals(float $taxRate = 16): void
     {
         $items = $this->saleItems()->get();

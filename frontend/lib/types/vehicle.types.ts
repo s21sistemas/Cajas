@@ -20,6 +20,7 @@ export interface Vehicle extends BaseEntity {
   insuranceFile?: string;
   policyNumber?: string;
   expirationDate?: string;
+  notes?: string;
 }
 
 export interface CreateVehicleDto {

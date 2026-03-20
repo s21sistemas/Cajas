@@ -1,28 +1,44 @@
 // Tipos para el módulo de Producción
-// Todos los tipos relacionados con producción en un solo lugar
+// Definimos tipos locales mínimos para el módulo de producción
 
 export type ProductionStatus = 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
 
+// Tipos locales con campos mínimos - no importamos de lib/types para evitar conflictos
 export interface Process {
-  id: string;
+  id: number;
+  code?: string;
   name: string;
+  processType?: string;
   requiresMachine?: boolean;
+  description?: string | null;
+  machineId?: number | null;
 }
 
 export interface Operator {
-  id: string;
+  id: number;
+  employeeCode?: string;
   name: string;
+  shift?: string;
+  specialty?: string;
+  active?: boolean;
 }
 
 export interface Machine {
-  id: string;
+  id: number;
+  code?: string;
   name: string;
+  type?: string;
+  status?: string;
 }
 
 export interface Product {
   id: number;
   name: string;
   code?: string;
+  description?: string | null;
+  category?: string | null;
+  price?: number | null;
+  cost?: number | null;
 }
 
 // Tipo para el formulario de creación
@@ -71,16 +87,16 @@ export const DEFAULT_FORM: CreateProductionForm = {
   parentProductionId: 0,
 };
 
-// Tipo para WorkOrder (del módulo de Órdenes de Trabajo)
+// WorkOrder tipo específico para producción (del módulo de Órdenes de Trabajo)
 export interface WorkOrder {
   id: number;
   code: string;
-  product_name: string;
-  client_name: string;
-  quantity: number;
+  product_name?: string;
+  client_name?: string;
+  quantity?: number;
   completed?: number;
   progress?: number;
-  status: 'draft' | 'in_progress' | 'completed' | 'cancelled' | 'on_hold';
+  status?: 'draft' | 'in_progress' | 'completed' | 'cancelled' | 'on_hold';
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   due_date?: string;
 }

@@ -2,57 +2,90 @@
  * Servicio de Reportes
  * Consume los endpoints de reportes del backend Laravel
  */
-import { apiClient } from "../api";
+import { api } from '../api';
+import {
+  ReportFilters,
+  DashboardResponse,
+  MachineReport,
+  ProductionReport,
+  SalesReportResponse,
+  InventoryReportResponse,
+  FinanceReportResponse,
+} from '../types';
 
-export interface ReportFilters {
-  startDate?: string;
-  endDate?: string;
-  [key: string]: any;
+function extractData<T>(response: any): T {
+  if (response && typeof response === 'object' && 'data' in response) {
+    return response.data;
+  }
+  return response;
+}
+
+function paramsToString(filters: ReportFilters): string {
+  const params = new URLSearchParams();
+  if (filters.start_date) params.set('start_date', filters.start_date);
+  if (filters.end_date) params.set('end_date', filters.end_date);
+  if (filters.machine_id) params.set('machine_id', String(filters.machine_id));
+  if (filters.status) params.set('status', filters.status);
+  if (filters.product_id) params.set('product_id', String(filters.product_id));
+  if (filters.operator_id) params.set('operator_id', String(filters.operator_id));
+  if (filters.client_id) params.set('client_id', String(filters.client_id));
+  if (filters.type) params.set('type', filters.type);
+  if (filters.category) params.set('category', filters.category);
+  return params.toString();
 }
 
 export const reportsService = {
   /**
-   * Generar reporte de máquinas
+   * Obtener datos del dashboard
    */
-  async getMachinesReport(filters: ReportFilters & { format?: string }) {
-    const params = new URLSearchParams();
-    if (filters.startDate) params.set('start_date', filters.startDate);
-    if (filters.endDate) params.set('end_date', filters.endDate);
-    if (filters.machine_id) params.set('machine_id', filters.machine_id);
-    if (filters.status) params.set('status', filters.status);
-    if (filters.format) params.set('format', filters.format);
+  async getDashboard(filters?: ReportFilters): Promise<DashboardResponse> {
+    const query = filters ? paramsToString(filters) : '';
+    const response = await api.get<DashboardResponse>(`/reports/dashboard${query ? `?${query}` : ''}`);
+    return extractData(response);
+  },
 
-    const query = params.toString();
-    return apiClient.get(`/reports/machines${query ? `?${query}` : ''}`);
+  /**
+   * Reporte de máquinas
+   */
+  async getMachines(filters?: ReportFilters): Promise<MachineReport[]> {
+    const query = filters ? paramsToString(filters) : '';
+    const response = await api.get<MachineReport[]>(`/reports/machines${query ? `?${query}` : ''}`);
+    return extractData(response);
   },
 
   /**
    * Descargar reporte de máquinas en PDF
    */
-  async downloadMachinesPDF(filters: ReportFilters) {
+  async downloadMachinesPDF(filters: ReportFilters): Promise<Blob> {
     const params = new URLSearchParams();
-    if (filters.startDate) params.set('start_date', filters.startDate);
-    if (filters.endDate) params.set('end_date', filters.endDate);
-    if (filters.machine_id) params.set('machine_id', filters.machine_id);
+    if (filters.start_date) params.set('start_date', filters.start_date);
+    if (filters.end_date) params.set('end_date', filters.end_date);
+    if (filters.machine_id) params.set('machine_id', String(filters.machine_id));
     if (filters.status) params.set('status', filters.status);
     params.set('format', 'pdf');
 
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/machines?${params.toString()}`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
       },
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    
     return response.blob();
   },
 
   /**
-   * Descargar reporte de máquinas en CSV/Excel
+   * Descargar reporte de máquinas en CSV
    */
-  async downloadMachinesCSV(filters: ReportFilters) {
+  async downloadMachinesCSV(filters: ReportFilters): Promise<Blob> {
     const params = new URLSearchParams();
-    if (filters.startDate) params.set('start_date', filters.startDate);
-    if (filters.endDate) params.set('end_date', filters.endDate);
-    if (filters.machine_id) params.set('machine_id', filters.machine_id);
+    if (filters.start_date) params.set('start_date', filters.start_date);
+    if (filters.end_date) params.set('end_date', filters.end_date);
+    if (filters.machine_id) params.set('machine_id', String(filters.machine_id));
     if (filters.status) params.set('status', filters.status);
     params.set('format', 'csv');
 
@@ -61,151 +94,296 @@ export const reportsService = {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
       },
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    
     return response.blob();
   },
 
   /**
-   * Generar reporte de producción
+   * Reporte de producción
    */
-  async getProductionReport(filters: ReportFilters & { format?: string }) {
-    const params = new URLSearchParams();
-    if (filters.startDate) params.set('start_date', filters.startDate);
-    if (filters.endDate) params.set('end_date', filters.endDate);
-    if (filters.product_id) params.set('product_id', filters.product_id);
-    if (filters.operator_id) params.set('operator_id', filters.operator_id);
-    if (filters.status) params.set('status', filters.status);
-    if (filters.format) params.set('format', filters.format);
-
-    const query = params.toString();
-    return apiClient.get(`/reports/production${query ? `?${query}` : ''}`);
+  async getProduction(filters?: ReportFilters): Promise<ProductionReport[]> {
+    const query = filters ? paramsToString(filters) : '';
+    const response = await api.get<ProductionReport[]>(`/reports/production${query ? `?${query}` : ''}`);
+    return extractData(response);
   },
 
   /**
    * Descargar reporte de producción en PDF
    */
-  async downloadProductionPDF(filters: ReportFilters) {
+  async downloadProductionPDF(filters: ReportFilters): Promise<Blob> {
     const params = new URLSearchParams();
-    if (filters.startDate) params.set('start_date', filters.startDate);
-    if (filters.endDate) params.set('end_date', filters.endDate);
-    if (filters.product_id) params.set('product_id', filters.product_id);
-    if (filters.operator_id) params.set('operator_id', filters.operator_id);
+    if (filters.start_date) params.set('start_date', filters.start_date);
+    if (filters.end_date) params.set('end_date', filters.end_date);
+    if (filters.product_id) params.set('product_id', String(filters.product_id));
+    if (filters.operator_id) params.set('operator_id', String(filters.operator_id));
     if (filters.status) params.set('status', filters.status);
     params.set('format', 'pdf');
 
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/production?${params.toString()}`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
       },
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    
     return response.blob();
   },
 
   /**
-   * Generar reporte de ventas
+   * Reporte de ventas
    */
-  async getSalesReport(filters: ReportFilters & { format?: string }) {
-    const params = new URLSearchParams();
-    if (filters.startDate) params.set('start_date', filters.startDate);
-    if (filters.endDate) params.set('end_date', filters.endDate);
-    if (filters.client_id) params.set('client_id', filters.client_id);
-    if (filters.status) params.set('status', filters.status);
-    if (filters.format) params.set('format', filters.format);
-
-    const query = params.toString();
-    return apiClient.get(`/reports/sales${query ? `?${query}` : ''}`);
+  async getSales(filters?: ReportFilters): Promise<SalesReportResponse> {
+    const query = filters ? paramsToString(filters) : '';
+    const response = await api.get<SalesReportResponse>(`/reports/sales${query ? `?${query}` : ''}`);
+    return extractData(response);
   },
 
   /**
    * Descargar reporte de ventas en PDF
    */
-  async downloadSalesPDF(filters: ReportFilters) {
+  async downloadSalesPDF(filters: ReportFilters): Promise<Blob> {
     const params = new URLSearchParams();
-    if (filters.startDate) params.set('start_date', filters.startDate);
-    if (filters.endDate) params.set('end_date', filters.endDate);
-    if (filters.client_id) params.set('client_id', filters.client_id);
+    if (filters.start_date) params.set('start_date', filters.start_date);
+    if (filters.end_date) params.set('end_date', filters.end_date);
+    if (filters.client_id) params.set('client_id', String(filters.client_id));
     if (filters.status) params.set('status', filters.status);
     params.set('format', 'pdf');
 
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/sales?${params.toString()}`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
       },
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    
     return response.blob();
   },
 
   /**
-   * Generar reporte de inventario
+   * Reporte de inventario
    */
-  async getInventoryReport(filters: ReportFilters & { format?: string }) {
-    const params = new URLSearchParams();
-    if (filters.category) params.set('category', filters.category);
-    if (filters.low_stock) params.set('low_stock', filters.low_stock);
-    if (filters.format) params.set('format', filters.format);
-
-    const query = params.toString();
-    return apiClient.get(`/reports/inventory${query ? `?${query}` : ''}`);
+  async getInventory(filters?: ReportFilters): Promise<InventoryReportResponse> {
+    const query = filters ? paramsToString(filters) : '';
+    const response = await api.get<InventoryReportResponse>(`/reports/inventory${query ? `?${query}` : ''}`);
+    return extractData(response);
   },
 
   /**
    * Descargar reporte de inventario en PDF
    */
-  async downloadInventoryPDF(filters: ReportFilters) {
+  async downloadInventoryPDF(filters?: ReportFilters): Promise<Blob> {
     const params = new URLSearchParams();
-    if (filters.category) params.set('category', filters.category);
-    if (filters.low_stock) params.set('low_stock', filters.low_stock);
+    if (filters?.category) params.set('category', filters.category);
+    if (filters?.low_stock) params.set('low_stock', 'true');
     params.set('format', 'pdf');
 
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/inventory?${params.toString()}`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
       },
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    
     return response.blob();
   },
 
   /**
-   * Generar reporte financiero
+   * Reporte financiero
    */
-  async getFinanceReport(filters: ReportFilters & { format?: string }) {
-    const params = new URLSearchParams();
-    if (filters.startDate) params.set('start_date', filters.startDate);
-    if (filters.endDate) params.set('end_date', filters.endDate);
-    if (filters.type) params.set('type', filters.type);
-    if (filters.category) params.set('category', filters.category);
-    if (filters.format) params.set('format', filters.format);
-
-    const query = params.toString();
-    return apiClient.get(`/reports/finance${query ? `?${query}` : ''}`);
+  async getFinance(filters?: ReportFilters): Promise<FinanceReportResponse> {
+    const query = filters ? paramsToString(filters) : '';
+    const response = await api.get<FinanceReportResponse>(`/reports/finance${query ? `?${query}` : ''}`);
+    return extractData(response);
   },
 
   /**
    * Descargar reporte financiero en PDF
    */
-  async downloadFinancePDF(filters: ReportFilters) {
+  async downloadFinancePDF(filters: ReportFilters): Promise<Blob> {
     const params = new URLSearchParams();
-    if (filters.startDate) params.set('start_date', filters.startDate);
-    if (filters.endDate) params.set('end_date', filters.endDate);
+    if (filters.start_date) params.set('start_date', filters.start_date);
+    if (filters.end_date) params.set('end_date', filters.end_date);
     if (filters.type) params.set('type', filters.type);
     if (filters.category) params.set('category', filters.category);
     params.set('format', 'pdf');
 
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/finance?${params.toString()}`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
       },
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    
     return response.blob();
   },
 
   /**
-   * Obtener datos del dashboard
+   * Opciones para filtros de reportes
    */
-  async getDashboard(filters?: ReportFilters) {
+  async getOptions(): Promise<{
+    machines: { id: number; name: string; status: string }[];
+    products: { id: number; name: string }[];
+    clients: { id: number; name: string }[];
+    operators: { id: number; name: string }[];
+    categories: { value: string; label: string }[];
+  }> {
+    const response = await api.get('/reports/options');
+    return response;
+  },
+
+  /**
+   * Tendencias de costos
+   */
+  async getCostTrend(months: number = 6): Promise<{
+    month: string;
+    materiales: number;
+    manoObra: number;
+    servicios: number;
+  }[]> {
+    const response = await api.get(`/reports/cost-trend?months=${months}`);
+    return response;
+  },
+
+  /**
+   * Descargar reporte de producción en CSV
+   */
+  async downloadProductionCSV(filters: ReportFilters): Promise<Blob> {
     const params = new URLSearchParams();
-    if (filters?.startDate) params.set('start_date', filters.startDate);
-    if (filters?.endDate) params.set('end_date', filters.endDate);
-    const query = params.toString();
-    return apiClient.get(`/reports/dashboard${query ? `?${query}` : ''}`);
+    if (filters.start_date) params.set('start_date', filters.start_date);
+    if (filters.end_date) params.set('end_date', filters.end_date);
+    if (filters.product_id) params.set('product_id', String(filters.product_id));
+    if (filters.operator_id) params.set('operator_id', String(filters.operator_id));
+    if (filters.status) params.set('status', filters.status);
+    params.set('format', 'csv');
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/production?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    
+    return response.blob();
+  },
+
+  /**
+   * Descargar reporte de ventas en CSV
+   */
+  async downloadSalesCSV(filters: ReportFilters): Promise<Blob> {
+    const params = new URLSearchParams();
+    if (filters.start_date) params.set('start_date', filters.start_date);
+    if (filters.end_date) params.set('end_date', filters.end_date);
+    if (filters.client_id) params.set('client_id', String(filters.client_id));
+    if (filters.status) params.set('status', filters.status);
+    params.set('format', 'csv');
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/sales?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    
+    return response.blob();
+  },
+
+  /**
+   * Descargar reporte de inventario en CSV
+   */
+  async downloadInventoryCSV(filters: ReportFilters): Promise<Blob> {
+    const params = new URLSearchParams();
+    if (filters?.category) params.set('category', filters.category);
+    if (filters?.low_stock) params.set('low_stock', 'true');
+    params.set('format', 'csv');
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/inventory?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    return response.blob();
+  },
+
+  /**
+   * Descargar reporte financiero en CSV
+   */
+  async downloadFinanceCSV(filters: ReportFilters): Promise<Blob> {
+    const params = new URLSearchParams();
+    if (filters.start_date) params.set('start_date', filters.start_date);
+    if (filters.end_date) params.set('end_date', filters.end_date);
+    if (filters.type) params.set('type', filters.type);
+    if (filters.category) params.set('category', filters.category);
+    params.set('format', 'csv');
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/finance?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    
+    return response.blob();
+  },
+
+  /**
+   * Descargar reporte ejecutivo en PDF
+   */
+  async downloadExecutivePDF(filters: ReportFilters): Promise<Blob> {
+    const params = new URLSearchParams();
+    if (filters.start_date) params.set('start_date', filters.start_date);
+    if (filters.end_date) params.set('end_date', filters.end_date);
+    if (filters.role_id) params.set('role_id', String(filters.role_id));
+    params.set('format', 'pdf');
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/reports/executive?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    
+    return response.blob();
   },
 };

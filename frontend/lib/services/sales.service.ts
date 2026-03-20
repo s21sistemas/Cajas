@@ -42,7 +42,7 @@ export const salesService = {
   },
 
   getItems: async (saleId: number) => {
-    return api.get<any[]>(`/sales/${saleId}/items`);
+    return api.get<{ success: boolean; data: any[] }>(`/sales/${saleId}/items`);
   },
 
   addItem: async (saleId: number, data: any) => {
@@ -64,16 +64,8 @@ export const salesService = {
       
       // Crear un blob URL para descargar el PDF
       const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `cotizacion-${id}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode?.removeChild(link);
-      window.URL.revokeObjectURL(url);
       
-      return response;
+      return blob;
     
   },
 
@@ -92,5 +84,10 @@ export const salesService = {
   // Get all sales for select list (with client info)
   getSelectList: async (): Promise<any[]> => {
     return api.get<any[]>('/sales/select-list');
+  },
+
+  // Get sales for order pedido (excludes sales with existing order pedidos)
+  getSelectListForOrderPedido: async (): Promise<any[]> => {
+    return api.get<any[]>('/sales/select-list-for-order-pedido');
   }
 };

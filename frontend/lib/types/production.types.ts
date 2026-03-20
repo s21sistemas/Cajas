@@ -1,3 +1,13 @@
+import type { WorkOrder } from "./work-order.types";
+import type { Process } from "./process.types";
+import type { Machine } from "./machine.types";
+import type { Operator } from "./operator.types";
+import type { Product } from "./product.types";
+import type { Client } from "./client.types";
+
+// Re-exportar tipos importados para compatibilidad
+export type { WorkOrder, Process, Machine, Operator, Product, Client };
+
 // Tipos para Producción (respuesta del backend - usa snake_case)
 export interface Production {
   id: number;
@@ -16,6 +26,7 @@ export interface Production {
   createdAt?: string;
   updatedAt?: string;
   parentProductionId?: number | null;
+  parentProcess?: Production | null;
   qualityStatus?: 'PENDING' | 'APPROVED' | 'SCRAP' | 'REWORK';
   workOrderId?: number | null;
   productId?: number | null;
@@ -34,58 +45,11 @@ export interface Production {
 
 export type ProductionStatus = 'pending' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
 
-export interface Product {
-  id: number;
-  name: string;
-  code?: string;
-}
-
+// Sale type - definido localmente ya que no existe en otro archivo
 export interface Sale {
   id: number;
   code: string;
   invoice?: string;
-}
-
-export interface Client {
-  id: number;
-  name: string;
-}
-
-export interface WorkOrder {
-  id: number;
-  code?: string;
-  product_name?: string;
-  product?: Product;
-  client?: Client;
-  client_name?: string;
-  sale?: Sale;
-}
-
-export interface Process {
-  id: number;
-  code?: string;
-  name: string;
-  processType?: string;
-  requiresMachine?: boolean;
-  description?: string | null;
-  machineId?: number | null;
-}
-
-export interface Machine {
-  id: number;
-  code: string;
-  name: string;
-  type: string;
-  status?: string;
-}
-
-export interface Operator {
-  id: number;
-  employeeCode: string;
-  name: string;
-  shift?: string;
-  specialty?: string;
-  active?: boolean;
 }
 
 // Tipos para formularios
@@ -113,4 +77,5 @@ export interface UpdateProductionDTO {
   notes?: string | null;
   status?: ProductionStatus;
   pauseReason?: string;
+  incrementParts?: boolean;
 }

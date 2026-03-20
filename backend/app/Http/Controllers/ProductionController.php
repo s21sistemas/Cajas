@@ -7,6 +7,7 @@ use App\Models\WorkOrder;
 use App\Models\ProductionMovement;
 use App\Models\Machine;
 use App\Models\MachineMovement;
+use App\Models\Operator;
 use Illuminate\Http\Request;
 use \Spatie\Permission\Middleware\PermissionMiddleware;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -20,7 +21,7 @@ class ProductionController extends Controller implements HasMiddleware
         return [
             new Middleware(
                 PermissionMiddleware::using('productions.view'),
-                only: ['index', 'show']
+                only: ['show']
             ),
 
             new Middleware(
@@ -120,9 +121,14 @@ class ProductionController extends Controller implements HasMiddleware
             $query->whereDate('start_time', '<=', $request->end_date);
         }
 
-        // Búsqueda por código
+        // Búsqueda por código de producción o código de orden de trabajo
         if ($request->search) {
-            $query->where('code', 'like', '%' . $request->search . '%');
+            $query->where(function($q) use ($request) {
+                $q->where('code', 'like', '%' . $request->search . '%')
+                  ->orWhereHas('workOrder', function ($wq) use ($request) {
+                      $wq->where('code', 'like', '%' . $request->search . '%');
+                  });
+            });
         }
 
         $productions = $query->latest()->paginate(15);
@@ -208,13 +214,11 @@ class ProductionController extends Controller implements HasMiddleware
             ProductionMovement::recordProcessCompleted($production);
         }
 
-        // Sincronizar con WorkOrder si existe (compatibilidad legacy)
-        if ($production->work_order_id) {
-            $workOrder = WorkOrder::find($production->work_order_id);
-            if ($workOrder) {
-                $workOrder->syncProgressFromProductions();
-            }
-        }
+        // Sincronizar con WorkOrder si existe (compatibilidad legacy)        
+        $workOrder = $production->WorkOrder;
+        if ($workOrder) {
+            $workOrder->syncProgressFromProductions();
+        }        
 
         return response()->json([
             'success' => true,
@@ -278,7 +282,19 @@ class ProductionController extends Controller implements HasMiddleware
             'status' => 'nullable|string',
             'pause_reason' => 'nullable|string',
             'quality_status' => 'nullable|in:PENDING,APPROVED,SCRAP,REWORK',
+            'increment_parts' => 'nullable|boolean',
         ]);
+        
+        // Si se indica increment_parts, sumar a los valores existentes en lugar de reemplazar
+        $incrementParts = $request->boolean('increment_parts', false);
+        if ($incrementParts) {
+            if (isset($data['good_parts'])) {
+                $data['good_parts'] = ($production->good_parts ?? 0) + $data['good_parts'];
+            }
+            if (isset($data['scrap_parts'])) {
+                $data['scrap_parts'] = ($production->scrap_parts ?? 0) + $data['scrap_parts'];
+            }
+        }
 
         // Validación de calidad: no permitir iniciar producción si la producción padre no está completada y aprobada por calidad
         if (isset($data['status']) && $data['status'] === 'in_progress' && in_array($production->status, ['pending', null, ''])) {
@@ -384,7 +400,7 @@ class ProductionController extends Controller implements HasMiddleware
         }
 
         // Sincronizar con WorkOrder si existe (compatibilidad legacy)        
-        $workOrder = WorkOrder::find($production->workOrder);
+        $workOrder = $production->workOrder;
         if ($workOrder) {
             $workOrder->syncProgressFromProductions();
         }       
@@ -487,6 +503,25 @@ class ProductionController extends Controller implements HasMiddleware
         if ($workOrder) {
             $workOrder->syncProgressFromProductions();
         }
+
+        // Liberar la máquina si estaba asignada y cerrar el movimiento
+        $machine = $production->machine;
+        if ($machine) {
+            $machine->update(['status' => Machine::STATUS_AVAILABLE]);
+            
+            // Cerrar movement de máquina activo
+            $activeMovement = MachineMovement::where('machine_id', $machine->id)
+                ->where('production_id', $production->id)
+                ->where('status', 'active')
+                ->first();
+            
+            if ($activeMovement) {
+                $activeMovement->update([
+                    'end_time' => now(),
+                    'status' => 'completed',
+                ]);
+            }
+        }
         
 
         return response()->json([
@@ -514,6 +549,25 @@ class ProductionController extends Controller implements HasMiddleware
             'description' => 'Producción pausada' . ($reason ? ": {$reason}" : ''),
         ]);
 
+        // Liberar la máquina si estaba asignada y cerrar el movimiento
+        $machine = $production->machine;
+        if ($machine) {
+            $machine->update(['status' => Machine::STATUS_AVAILABLE]);
+            
+            // Cerrar movement de máquina activo
+            $activeMovement = MachineMovement::where('machine_id', $machine->id)
+                ->where('production_id', $production->id)
+                ->where('status', 'active')
+                ->first();
+            
+            if ($activeMovement) {
+                $activeMovement->update([
+                    'end_time' => now(),
+                    'status' => 'completed',
+                ]);
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Producción pausada',
@@ -536,6 +590,28 @@ class ProductionController extends Controller implements HasMiddleware
             'quantity' => $production->good_parts,
             'description' => 'Producción reanudada',
         ]);
+
+        // Marcar máquina como en uso si está asignada y crear movimiento
+        $machine = $production->machine;
+        if ($machine) {
+            $machine->update(['status' => Machine::STATUS_IN_USE]);
+            
+            // Crear movement de máquina si no existe
+            $activeMovement = MachineMovement::where('machine_id', $machine->id)
+                ->where('production_id', $production->id)
+                ->where('status', 'active')
+                ->first();
+            
+            if (!$activeMovement) {
+                MachineMovement::create([
+                    'machine_id' => $machine->id,
+                    'production_id' => $production->id,
+                    'operator_id' => $production->operator_id,
+                    'start_time' => now(),
+                    'status' => 'active',
+                ]);
+            }
+        }
 
         return response()->json([
             'success' => true,
@@ -580,210 +656,6 @@ class ProductionController extends Controller implements HasMiddleware
         ]);
     }
 
-    // ============================================================
-    // Métodos anteriormente en WorkOrderProcessController
-    // ============================================================
-
-    /**
-     * Iniciar un proceso de work order (cambiar a RUNNING)
-     * Verifica que el proceso anterior esté completado
-     */
-    public function startProcess(WorkOrderProcess $workOrderProcess)
-    {
-        // Obtener todos los procesos de la orden en orden
-        $allProcesses = $workOrderProcess->workOrder->processes()->orderBy('id')->get();
-        $processIndex = $allProcesses->search(fn($p) => $p->id === $workOrderProcess->id);
-        
-        // Si no es el primer proceso, verificar que el anterior esté completado
-        if ($processIndex > 0) {
-            $previousProcess = $allProcesses->get($processIndex - 1);
-            if ($previousProcess->mes_status !== WorkOrderProcess::STATUS_COMPLETED) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No se puede iniciar el proceso. El proceso anterior (' . ($previousProcess->process?->name ?? 'Proceso ' . $processIndex) . ') debe estar completado primero.'
-                ], 400);
-            }
-        }
-
-        if (!$workOrderProcess->isReadyToStart()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'El proceso no está listo para iniciar. Debe estar en estado READY.'
-            ], 400);
-        }
-
-        $workOrderProcess->start();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Proceso iniciado',
-            'data' => $workOrderProcess->fresh()
-        ]);
-    }
-
-    /**
-     * Pausar un proceso de work order
-     */
-    public function pauseProcess(Request $request, WorkOrderProcess $workOrderProcess)
-    {
-        $reason = $request->input('reason');
-
-        if (!$workOrderProcess->pause($reason)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se puede pausar el proceso. Debe estar en ejecución.'
-            ], 400);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Proceso pausado',
-            'data' => $workOrderProcess->fresh()
-        ]);
-    }
-
-    /**
-     * Completar un proceso de work order
-     * Libera el siguiente proceso cuando uno se completa
-     */
-    public function completeProcess(WorkOrderProcess $workOrderProcess)
-    {
-        if (!$workOrderProcess->complete()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se puede completar el proceso. Debe estar en ejecución.'
-            ], 400);
-        }
-
-        // Registrar movimiento de trazabilidad
-        ProductionMovement::recordProcessCompleted($workOrderProcess);
-
-        // Obtener el siguiente proceso y liberarlo
-        $allProcesses = $workOrderProcess->workOrder->processes()->orderBy('id')->get();
-        $processIndex = $allProcesses->search(fn($p) => $p->id === $workOrderProcess->id);
-        $nextProcess = $allProcesses->get($processIndex + 1);
-        
-        if ($nextProcess) {
-            // Liberar el siguiente proceso
-            $nextProcess->update([
-                'mes_status' => WorkOrderProcess::STATUS_READY,
-                'ready_at' => now(),
-                'available_quantity' => $workOrderProcess->completed_quantity,
-            ]);
-            ProductionMovement::recordProcessReleased($nextProcess, $workOrderProcess->completed_quantity);
-        }
-
-        // Verificar si la orden está completa
-        $workOrder = $workOrderProcess->workOrder;
-        if ($workOrder) {
-            $workOrder->checkAndComplete();
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => $nextProcess ? 'Proceso completado y siguiente proceso liberado' : 'Proceso completado',
-            'data' => [
-                'process' => $workOrderProcess->fresh(),
-                'next_process' => $nextProcess ? $nextProcess->fresh() : null,
-                'pipeline_status' => $workOrder ? $workOrder->getPipelineStatus() : null,
-            ]
-        ]);
-    }
-
-    /**
-     * Obtener métricas de un proceso de work order
-     */
-    public function processMetrics(WorkOrderProcess $workOrderProcess)
-    {
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'process' => $workOrderProcess,
-                'metrics' => $workOrderProcess->getMetrics(),
-            ]
-        ]);
-    }
-
-    /**
-     * Inicializar el pipeline de producción para una orden de trabajo
-     * Crea los procesos desde product_processes si no existen
-     */
-    public function initializePipeline(Request $request, int $workOrderId)
-    {
-        $workOrder = WorkOrder::find($workOrderId);
-
-        if (!$workOrder) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Orden de trabajo no encontrada'
-            ], 404);
-        }
-
-        // Obtener procesos de la orden
-        $processes = $workOrder->processes()->orderBy('id')->get();
-
-        // Si no hay procesos, crearlos desde product_processes
-        if ($processes->isEmpty()) {
-            // Obtener los procesos configurados para el producto
-            $productProcesses = \App\Models\ProductProcess::where('product_id', $workOrder->product_id)
-                ->orderBy('sequence')
-                ->get();
-
-            if ($productProcesses->isEmpty()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'El producto no tiene procesos configurados. Configure los procesos en la configuración del producto.'
-                ], 400);
-            }
-
-            // Crear los WorkOrderProcess desde product_processes
-            foreach ($productProcesses as $index => $productProcess) {
-                WorkOrderProcess::create([
-                    'work_order_id' => $workOrder->id,
-                    'process_id' => $productProcess->process_id,
-                    'mes_status' => WorkOrderProcess::STATUS_PENDING,
-                    'planned_quantity' => $workOrder->quantity,
-                    'available_quantity' => 0,
-                    'completed_quantity' => 0,
-                    'scrap_quantity' => 0,
-                    'rework_quantity' => 0,
-                    'quantity_done' => 0,
-                ]);
-            }
-
-            // Recargar los procesos
-            $processes = $workOrder->processes()->orderBy('id')->get();
-        }
-
-        // Inicializar primer proceso
-        $firstProcess = $processes->first();
-        $firstProcess->update([
-            'mes_status' => WorkOrderProcess::STATUS_READY,
-            'ready_at' => now(),
-            'available_quantity' => $workOrder->quantity,
-            'planned_quantity' => $workOrder->quantity,
-        ]);
-
-        // Registrar movimiento
-        ProductionMovement::recordProcessReleased($firstProcess, $workOrder->quantity);
-
-        // Actualizar estado de la orden
-        $workOrder->update([
-            'production_status' => WorkOrder::PRODUCTION_STATUS_IN_PRODUCTION,
-            'production_started_at' => now(),
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Pipeline de producción inicializado',
-            'data' => [
-                'work_order' => $workOrder->fresh(),
-                'first_process' => $firstProcess->fresh(),
-                'pipeline_status' => $workOrder->getPipelineStatus(),
-            ]
-        ]);
-    }
-
     /**
      * Obtener el estado del pipeline
      */
@@ -817,126 +689,5 @@ class ProductionController extends Controller implements HasMiddleware
                 }),
             ]
         ]);
-    }
-
-    /**
-     * Listar procesos de una orden de trabajo (antes WorkOrderProcessController::index)
-     */
-    public function processIndex(Request $request)
-    {
-        $query = WorkOrderProcess::with([
-            'workOrder', 
-            'process', 
-            'machine', 
-            'employee',
-            'productions',
-            'qualityEvaluations'
-        ]);
-
-        if ($request->filled('work_order_id')) {
-            $query->where('work_order_id', $request->integer('work_order_id'));
-        }
-
-        if ($request->filled('status')) {
-            $query->where('mes_status', $request->get('status'));
-        }
-
-        // Filtros MES adicionales
-        if ($request->filled('is_rework_process')) {
-            $query->where('is_rework_process', $request->boolean('is_rework_process'));
-        }
-
-        return response()->json($query->orderBy('id')->get());
-    }
-
-    /**
-     * Mostrar un proceso específico (antes WorkOrderProcessController::show)
-     */
-    public function processShow(WorkOrderProcess $workOrderProcess)
-    {
-        return response()->json(
-            $workOrderProcess->load([
-                'workOrder', 
-                'process', 
-                'machine', 
-                'employee',
-                'productions',
-                'qualityEvaluations',
-                'movements'
-            ])
-        );
-    }
-
-    /**
-     * Crear un proceso para una orden de trabajo (antes WorkOrderProcessController::store)
-     */
-    public function processStore(Request $request)
-    {
-        $validated = $request->validate([
-            'work_order_id' => 'required|exists:work_orders,id',
-            'process_id' => 'required|exists:processes,id',
-            'machine_id' => 'nullable|exists:machines,id',
-            'employee_id' => 'nullable|exists:employees,id',
-            'mes_status' => 'nullable|in:PENDING,READY,RUNNING,PAUSED,COMPLETED',
-            'quantity_done' => 'nullable|integer|min:0',
-            'started_at' => 'nullable|date',
-            'finished_at' => 'nullable|date|after_or_equal:started_at',
-            // Campos MES
-            'planned_quantity' => 'nullable|integer|min:0',
-            'is_rework_process' => 'nullable|boolean',
-        ]);
-
-        // Estado por defecto MES
-        $validated['mes_status'] = $validated['mes_status'] ?? WorkOrderProcess::STATUS_PENDING;
-        $validated['quantity_done'] = $validated['quantity_done'] ?? 0;
-        
-        // Campos MES inicializados
-        $validated['completed_quantity'] = 0;
-        $validated['scrap_quantity'] = 0;
-        $validated['available_quantity'] = 0;
-        $validated['rework_quantity'] = 0;
-        $validated['planned_quantity'] = $validated['planned_quantity'] ?? 0;
-
-        $record = WorkOrderProcess::create($validated);
-
-        return response()->json(
-            $record->load(['workOrder', 'process', 'machine', 'employee']),
-            201
-        );
-    }
-
-    /**
-     * Actualizar un proceso de orden de trabajo (antes WorkOrderProcessController::update)
-     */
-    public function processUpdate(Request $request, WorkOrderProcess $workOrderProcess)
-    {
-        $validated = $request->validate([
-            'machine_id' => 'nullable|exists:machines,id',
-            'employee_id' => 'nullable|exists:employees,id',
-            'mes_status' => 'sometimes|in:PENDING,READY,RUNNING,PAUSED,COMPLETED',
-            'quantity_done' => 'sometimes|integer|min:0',
-            'started_at' => 'nullable|date',
-            'finished_at' => 'nullable|date|after_or_equal:started_at',
-            // Campos MES
-            'planned_quantity' => 'nullable|integer|min:0',
-            'is_rework_process' => 'nullable|boolean',
-            'notes' => 'nullable|string',
-        ]);
-
-        $workOrderProcess->update($validated);
-
-        return response()->json(
-            $workOrderProcess->load(['workOrder', 'process', 'machine', 'employee'])
-        );
-    }
-
-    /**
-     * Eliminar un proceso de orden de trabajo (antes WorkOrderProcessController::destroy)
-     */
-    public function processDestroy(WorkOrderProcess $workOrderProcess)
-    {
-        $workOrderProcess->delete();
-
-        return response()->json(null, 204);
     }
 }

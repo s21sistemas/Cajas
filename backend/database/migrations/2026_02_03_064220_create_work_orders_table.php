@@ -21,7 +21,7 @@ return new class extends Migration
             $table->id();
 
             // Relaciones
-            $table->foreignId('product_id')->nullable()->constrained('products')->nullOnDelete();
+            $table->foreignId('product_id')->constrained('products');
             $table->foreignId('client_id')->nullable()->constrained('clients')->nullOnDelete();
             $table->foreignId('supplier_id')->nullable()->constrained('suppliers')->nullOnDelete();
             

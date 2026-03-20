@@ -37,14 +37,7 @@ import type { PaginatedResponse } from "@/lib/types/api.types";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const accountFields = [
-  { name: "bank", label: "Banco", type: "select", required: true, options: [
-    { value: "BBVA", label: "BBVA" },
-    { value: "Santander", label: "Santander" },
-    { value: "Banorte", label: "Banorte" },
-    { value: "HSBC", label: "HSBC" },
-    { value: "Citibanamex", label: "Citibanamex" },
-    { value: "Scotiabank", label: "Scotiabank" },
-  ]},
+  { name: "bank", label: "Banco", type: "text", placeholder: "Ej: BBVA"},
   { name: "name", label: "Nombre de Cuenta", type: "text", required: true, placeholder: "Ej: Cuenta Principal" },
   { name: "accountNumber", label: "Número de Cuenta", type: "text", required: true, placeholder: "10 dígitos" },
   { name: "clabe", label: "CLABE", type: "text", required: false, placeholder: "18 dígitos" },
@@ -69,6 +62,7 @@ export default function BanksPage() {
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<Partial<BankAccount>>({
     bank: "",
     name: "",
@@ -177,13 +171,18 @@ export default function BanksPage() {
   };
 
   const handleSave = async () => {
-    if (editingAccount) {
-      await financeService.updateBankAccount(editingAccount.id, formData);
-    } else {
-      await financeService.createBankAccount(formData);
+    setSaving(true);
+    try {
+      if (editingAccount) {
+        await financeService.updateBankAccount(editingAccount.id, formData);
+      } else {
+        await financeService.createBankAccount(formData);
+      }
+      await refetch();
+      setIsModalOpen(false);
+    } finally {
+      setSaving(false);
     }
-    await refetch();
-    setIsModalOpen(false);
   };
 
   const handleDelete = async (id: number) => {
@@ -361,28 +360,21 @@ export default function BanksPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                 <div className="space-y-2">
                   <Label className="text-foreground">Banco</Label>
-                  <Select value={formData.bank} onValueChange={(v) => setFormData({ ...formData, bank: v })}>
-                    <SelectTrigger className="bg-secondary border-border">
-                      <SelectValue placeholder="Seleccionar banco" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="BBVA">BBVA</SelectItem>
-                      <SelectItem value="Santander">Santander</SelectItem>
-                      <SelectItem value="Banorte">Banorte</SelectItem>
-                      <SelectItem value="HSBC">HSBC</SelectItem>
-                      <SelectItem value="Citibanamex">Citibanamex</SelectItem>
-                      <SelectItem value="Scotiabank">Scotiabank</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    value={formData.bank || ""}
+                    onChange={(e) => setFormData({ ...formData, bank: e.target.value })}
+                    className="border-border"
+                    placeholder="Ej: BBVA"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-foreground">Nombre</Label>
                   <Input
                     value={formData.name || ""}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="bg-secondary border-border"
+                    className="border-border"
                     placeholder="Ej: Cuenta Principal"
                   />
                 </div>
@@ -393,7 +385,7 @@ export default function BanksPage() {
                   <Input
                     value={formData.accountNumber || ""}
                     onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                    className="bg-secondary border-border"
+                    className="border-border"
                     placeholder="10 dígitos"
                   />
                 </div>
@@ -402,7 +394,7 @@ export default function BanksPage() {
                   <Input
                     value={formData.clabe || ""}
                     onChange={(e) => setFormData({ ...formData, clabe: e.target.value })}
-                    className="bg-secondary border-border"
+                    className="border-border"
                     placeholder="18 dígitos"
                   />
                 </div>
@@ -411,7 +403,7 @@ export default function BanksPage() {
                 <div className="space-y-2">
                   <Label className="text-foreground">Tipo</Label>
                   <Select value={formData.type} onValueChange={(v: "checking" | "savings" | "credit") => setFormData({ ...formData, type: v })}>
-                    <SelectTrigger className="bg-secondary border-border">
+                    <SelectTrigger className="border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -424,7 +416,7 @@ export default function BanksPage() {
                 <div className="space-y-2">
                   <Label className="text-foreground">Moneda</Label>
                   <Select value={formData.currency} onValueChange={(v: "MXN" | "USD") => setFormData({ ...formData, currency: v })}>
-                    <SelectTrigger className="bg-secondary border-border">
+                    <SelectTrigger className="border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -439,14 +431,14 @@ export default function BanksPage() {
                     type="number"
                     value={formData.balance || 0}
                     onChange={(e) => setFormData({ ...formData, balance: Number(e.target.value) })}
-                    className="bg-secondary border-border"
+                    className="border-border"
                   />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label className="text-foreground">Estado</Label>
                 <Select value={formData.status} onValueChange={(v: "active" | "inactive" | "blocked") => setFormData({ ...formData, status: v })}>
-                  <SelectTrigger className="bg-secondary border-border">
+                  <SelectTrigger className="border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -458,8 +450,10 @@ export default function BanksPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSave}>Guardar</Button>
+              <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={saving}>Cancelar</Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? "Guardando..." : "Guardar"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
