@@ -9,13 +9,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, CheckCircle, XCircle, RefreshCcw, AlertCircle } from 'lucide-react';
-import type { ProductionOrder } from '../../types';
+import type { Production } from '@/lib/types/production.types';
 import { qualityService, QUALITY_DECISIONS, QualityEvaluationRequest } from '@/lib/services/quality.service';
 
 interface QualityEvaluationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  production: ProductionOrder | null;
+  production: Production | null;
   onEvaluated: () => void;
 }
 

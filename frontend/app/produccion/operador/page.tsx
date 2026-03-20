@@ -1125,9 +1125,9 @@ export default function OperadorProduccionPage() {
                   Pausar
                 </Button>
                 {(() => {
-                  const currentGoodParts = selectedProduction?.goodParts || 0;
+                  // const currentGoodParts = selectedProduction?.goodParts || 0;
                   const newParts = parseInt(goodParts) || 0;
-                  const totalAfterRegister = currentGoodParts + newParts;
+                  const totalAfterRegister = newParts;
                   const targetParts = selectedProduction?.targetParts || 0;
                   const reachedTarget = totalAfterRegister >= targetParts;
                   

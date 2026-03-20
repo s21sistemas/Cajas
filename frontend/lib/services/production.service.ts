@@ -15,7 +15,7 @@ interface WorkOrder {
   id: number;
   code: string;
   productName: string;
-  client_name: string;
+  clientName: string;
   quantity: number;
   completed?: number;
   progress?: number;

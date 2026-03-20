@@ -91,8 +91,8 @@ export const DEFAULT_FORM: CreateProductionForm = {
 export interface WorkOrder {
   id: number;
   code: string;
-  product_name?: string;
-  client_name?: string;
+  productName?: string;
+  clientName?: string;
   quantity?: number;
   completed?: number;
   progress?: number;

@@ -20,7 +20,7 @@ interface PendingProduction {
     name: string;
   };
   workOrder?: {
-    product_name: string;
+    productName: string;
   };
   operator?: {
     name: string;
@@ -161,10 +161,10 @@ export default function QualityPage() {
                     <TableRow key={production.id}>
                       <TableCell className="font-medium">{production.code}</TableCell>
                       <TableCell>{production.process?.name || '-'}</TableCell>
-                      <TableCell>{production.workOrder?.product_name || '-'}</TableCell>
+                      <TableCell>{production.workOrder?.productName || '-'}</TableCell>
                       <TableCell>{production.operator?.name || '-'}</TableCell>
-                      <TableCell className="text-right">{production.good_parts}</TableCell>
-                      <TableCell className="text-right">{production.scrap_parts}</TableCell>
+                      <TableCell className="text-right">{production.good_parts || 0 }</TableCell>
+                      <TableCell className="text-right">{production.scrap_parts || 0 }</TableCell>
                       <TableCell>{getDecisionBadge(production.quality_status)}</TableCell>
                       <TableCell>
                         {new Date(production.created_at).toLocaleDateString('es-MX')}
