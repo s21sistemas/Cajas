@@ -249,17 +249,23 @@ class WorkOrder extends Model
      */
     public function syncProgressFromProductions(): void
     {
-        $totalGoodParts = $this->productions()
-            ->where('status', '!=', 'cancelled')
-            ->sum('good_parts');
-        
-        $progress = $this->quantity > 0 
-            ? round(($totalGoodParts / $this->quantity) * 100, 2) 
-            : 0;
-        
+        $productions = $this->productions()
+        ->where('status', '!=', 'cancelled')
+        ->get();
+
+        if ($productions->isEmpty() || $this->quantity <= 0) {
+            $this->update([
+                'progress' => 0,
+            ]);
+            return;
+        }
+
+        $averageProgress = $productions->avg(function ($production) {
+            return ($production->good_parts / $this->quantity) * 100;
+        });
+
         $this->update([
-            'completed' => $totalGoodParts,
-            'progress' => min($progress, 100),
+            'progress' => round($averageProgress, 2),
         ]);
     }
 }

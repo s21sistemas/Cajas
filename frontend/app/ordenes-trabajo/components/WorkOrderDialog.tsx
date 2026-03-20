@@ -125,16 +125,18 @@ export function WorkOrderDialog({
         // Cargar todos los productos activos al abrir
         const response = await productsService.selectList();
         if (response && Array.isArray(response)) {
-          // Transformar al formato esperado
-          const products = response.map((p: any) => ({
-            id: p.id,
-            saleItemId: 0,
-            productId: p.id,
-            productName: p.name,
-            quantity: 1,
-            unitPrice: p.price || 0,
-            subtotal: p.price || 0,
-          }));
+          // Transformar al formato esperado - solo productos con ID válido
+          const products = response
+            .filter((p: any) => p.id && p.id > 0)
+            .map((p: any) => ({
+              id: p.id,
+              saleItemId: 0,
+              productId: p.id,
+              productName: p.name || 'Producto sin nombre',
+              quantity: 1,
+              unitPrice: p.price || 0,
+              subtotal: p.price || 0,
+            }));
           setAllProducts(products);
           // Inicialmente mostrar todos los productos
           setSaleProducts(products);
@@ -181,16 +183,27 @@ export function WorkOrderDialog({
         const items = response?.data || response;
         
         if (Array.isArray(items) && items.length > 0) {
-          // Transformar los items de la venta al formato esperado
-          setSaleProducts(items.map((item: any) => ({
-            id: item.product?.id || item.product_id || 0,
-            saleItemId: item.id,
-            productId: item.product?.id || item.product_id || 0,
-            productName: item.product?.name || item.description || 'Producto sin nombre',
-            quantity: item.quantity || 1,
-            unitPrice: item.unit_price || item.price || 0,
-            subtotal: item.subtotal || (item.quantity * (item.unit_price || item.price || 0)),
-          })));
+          // Transformar los items de la venta al formato esperado - solo con ID válido
+          const validItems = items
+            .filter((item: any) => {
+              const productId = item.product?.id ?? item.product_id ?? item.id;
+              return productId && productId > 0;
+            })
+            .map((item: any) => {
+              // Buscar el ID del producto - puede estar en diferentes lugares
+              const productId = item.product?.id ?? item.product_id ?? item.id;
+              return {
+                id: productId,
+                saleItemId: item.id,
+                productId: productId,
+                productName: item.product?.name || item.description || item.product_name || 'Producto sin nombre',
+                quantity: item.quantity || 1,
+                unitPrice: item.unit_price || item.price || 0,
+                subtotal: item.subtotal || (item.quantity * (item.unit_price || item.price || 0)),
+              };
+            });
+          
+          setSaleProducts(validItems);
         } else {
           // Si no hay items, mostrar todos los productos
           console.log('No items found in sale, showing all products');
@@ -222,12 +235,24 @@ export function WorkOrderDialog({
 
   // Cuando se selecciona un producto, autocompletar la cantidad
   const handleProductChange = (productId: string) => {
-    const product = saleProducts.find(p => p.productId === parseInt(productId));
-    setFormData({ 
-      ...formData, 
-      product_id: productId ? parseInt(productId) : null,
-      quantity: Number(product?.quantity) || 1
-    });
+    const parsedId = parseInt(productId);
+    const product = saleProducts.find(p => p.productId === parsedId);
+    
+    // Solo actualizar si es un ID válido (mayor a 0)
+    if (productId && parsedId > 0) {
+      setFormData({ 
+        ...formData, 
+        product_id: parsedId,
+        quantity: Number(product?.quantity) || 1
+      });
+    } else {
+      // Limpiar el campo si no hay selección válida
+      setFormData({ 
+        ...formData, 
+        product_id: null,
+        quantity: 1
+      });
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {

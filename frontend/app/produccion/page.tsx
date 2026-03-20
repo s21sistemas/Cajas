@@ -23,41 +23,13 @@ import {
 import type { CreateProductionForm, Process, Operator, Machine, WorkOrder, Product } from "./types";
 import { DEFAULT_FORM } from "./types";
 
-// Valores por defecto para datos mock (usados solo si falla el backend)
-const DEFAULT_PROCESSES: Process[] = [
-  { id: 1, name: "Corrugado", requiresMachine: true },
-  { id: 2, name: "Impresion Flexografica", requiresMachine: true },
-  { id: 3, name: "Troquelado", requiresMachine: true },
-  { id: 4, name: "Pegado Manual", requiresMachine: false },
-  { id: 5, name: "Pegado Automatico", requiresMachine: true },
-  { id: 6, name: "Ensamble Manual", requiresMachine: false },
-  { id: 7, name: "Ranurado (Slotter)", requiresMachine: true },
-  { id: 8, name: "Inspeccion de Calidad", requiresMachine: false },
-  { id: 9, name: "Empaque y Flejado", requiresMachine: false },
-];
-
-const DEFAULT_OPERATORS: Operator[] = [
-  { id: 1, name: "Carlos Mendoza" },
-  { id: 2, name: "Ana Rodriguez" },
-  { id: 3, name: "Miguel Torres" },
-  { id: 4, name: "Roberto Sanchez" },
-  { id: 5, name: "Luisa Garcia" },
-];
-
-const DEFAULT_MACHINES: Machine[] = [
-  { id: 1, name: "Corrugadora BHS" },
-  { id: 2, name: "Flexo Ward 4 Tintas" },
-  { id: 3, name: "Troqueladora Bobst" },
-  { id: 4, name: "Pegadora Automatica" },
-  { id: 5, name: "Ranuradora" },
-];
 
 export default function ProduccionPage() {
   const [loading, setLoading] = useState(true);
   const [productions, setProductions] = useState<Production[]>([]);
-  const [processes, setProcesses] = useState<Process[]>(DEFAULT_PROCESSES);
-  const [machines, setMachines] = useState<Machine[]>(DEFAULT_MACHINES);
-  const [operators, setOperators] = useState<Operator[]>(DEFAULT_OPERATORS);
+  const [processes, setProcesses] = useState<Process[]>([]);
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [operators, setOperators] = useState<Operator[]>([]);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -135,17 +107,17 @@ export default function ProduccionPage() {
     try {
       // Cargar en paralelo todos los datos necesarios para el formulario de creación
       const [processesData, machinesData, operatorsData, workOrdersData, productsData, clientsData] = await Promise.all([
-        productionService.getProcesses().catch(() => DEFAULT_PROCESSES as any),
-        productionService.getMachines().catch(() => DEFAULT_MACHINES as any),
-        productionService.getOperators().catch(() => DEFAULT_OPERATORS as any),
+        productionService.getProcesses().catch(() => []),
+        productionService.getMachines().catch(() => []),
+        productionService.getOperators().catch(() => []),
         productionService.getWorkOrders().catch(() => []),
         productionService.getProducts().catch(() => []),
         clientsService.selectList().catch(() => []),
       ]);
       
-      setProcesses(processesData || DEFAULT_PROCESSES);
-      setMachines(machinesData || DEFAULT_MACHINES);
-      setOperators(operatorsData || DEFAULT_OPERATORS);
+      setProcesses((processesData || [])as any);
+      setMachines((machinesData || []) as any);
+      setOperators((operatorsData || []) as any);
       setWorkOrders((workOrdersData || []) as any);
       setProducts((productsData || []) as any);
       // También cargar clients por si se necesita para autocompletar
@@ -394,8 +366,29 @@ export default function ProduccionPage() {
     }
   }
 
+  // Cargar datos para edición si no están cargados
+  const loadEditData = async () => {
+    if (createDataLoaded) return; // Si ya están cargados, no volver a cargar
+    setLoadingCreateData(true);
+    try {
+      const [machinesData, operatorsData] = await Promise.all([
+        productionService.getMachines().catch(() => []),
+        productionService.getOperators().catch(() => []),
+      ]);
+      
+      setMachines((machinesData || []) as any);
+      setOperators((operatorsData || []) as any);
+    } catch (error) {
+      console.error("Error cargando datos de edición:", error);
+    } finally {
+      setLoadingCreateData(false);
+    }
+  };
+
   // Funciones para abrir diálogos de edición y eliminación
   function openEditDialog(p: Production) {
+    // Cargar datos de máquinas y operadores si no están disponibles
+    loadEditData();
     setSelectedProduction(p);
     setForm({
       processId: 0, // El proceso no se puede cambiar en edición

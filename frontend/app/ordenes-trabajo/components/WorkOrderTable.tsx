@@ -94,7 +94,7 @@ export function WorkOrderTable({
               const status = statusConfig[order.status] || statusConfig.pending;
               const StatusIcon = status.icon;
               const priority = priorityConfig[order.priority] || priorityConfig.medium;
-              const progress = order.quantity > 0 ? Math.round((order.completed / order.quantity) * 100) : 0;
+              const progress = order.progress;
 
               return (
                 <TableRow key={order.id} className="border-border">
