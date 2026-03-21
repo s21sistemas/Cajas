@@ -101,6 +101,9 @@ class WarehouseMovement extends Model
             'last_movement' => now(),
         ]);
 
+        // Sincronizar stock con Products o Materials por código
+        self::syncStockByCode($inventoryItem->code, $quantity, $data['movement_type']);
+
         // Si es transferencia, crear movimiento de ingreso en destino
         if ($data['movement_type'] === self::TYPE_TRANSFER && !empty($data['warehouse_location_to_id'])) {
             self::create([
@@ -120,6 +123,68 @@ class WarehouseMovement extends Model
         }
 
         return $movement;
+    }
+
+    /**
+     * Sincronizar stock con Products o Materials basado en el código
+     * Busca primero en products, luego en materials
+     */
+    private static function syncStockByCode(string $code, float $quantity, string $movementType): void
+    {
+        // Buscar en products por código
+        $product = Product::where('code', $code)->first();
+        if ($product) {
+            if ($movementType === self::TYPE_INCOME) {
+                $product->increment('stock', $quantity);
+            } elseif ($movementType === self::TYPE_EXPENSE) {
+                $product->decrement('stock', $quantity);
+            }
+            return;
+        }
+
+        // Buscar en materials por código
+        $material = Material::where('code', $code)->first();
+        if ($material) {
+            if ($movementType === self::TYPE_INCOME) {
+                $material->increment('stock', $quantity);
+            } elseif ($movementType === self::TYPE_EXPENSE) {
+                $material->decrement('stock', $quantity);
+            }
+        }
+    }
+
+    /**
+     * Sincronizar todo el inventario con products y materials
+     * Útil para inicializar o corregir datos
+     */
+    public static function syncAllStock(): array
+    {
+        $inventoryItems = InventoryItem::all();
+        $synced = ['products' => 0, 'materials' => 0, 'not_found' => 0];
+
+        foreach ($inventoryItems as $item) {
+            // Buscar en products
+            $product = Product::where('code', $item->code)->first();
+            if ($product) {
+                // Actualizar stock del product con la cantidad actual del inventario
+                $product->update(['stock' => $item->quantity]);
+                $synced['products']++;
+                continue;
+            }
+
+            // Buscar en materials
+            $material = Material::where('code', $item->code)->first();
+            if ($material) {
+                // Actualizar stock del material con la cantidad actual del inventario
+                $material->update(['stock' => $item->quantity]);
+                $synced['materials']++;
+                continue;
+            }
+
+            $synced['not_found']++;
+        }
+
+        return $synced;
     }
 
     /**

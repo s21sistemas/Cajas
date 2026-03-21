@@ -55,7 +55,7 @@ export default function MaterialesPage() {
     setLoading(true);
     try {
       // Filtrar solo materiales (excluir productos terminados)
-      const params: any = { per_page: 100, wharehouse: 'materials'};
+      const params: any = { per_page: 100, warehouse: 'materials'};
       if (searchValue && searchValue.trim()) {
         params.search = searchValue.trim();
       }

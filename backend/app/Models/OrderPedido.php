@@ -18,7 +18,7 @@ class OrderPedido extends Model
         'delivery_address',
         'branch_id',
         'branch_name',
-        'supplier_user_id',
+        'supplier_name',
         'status',
         'picked_up_at',
         'delivered_at',

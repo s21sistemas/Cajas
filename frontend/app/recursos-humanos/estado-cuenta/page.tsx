@@ -29,10 +29,12 @@ import {
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
+import { hrService } from "@/lib/services";
 
-interface EmployeeAccount {
-  id: string;
-  employeeId: string;
+// Interfaz local para mostrar datos de cuenta de empleado
+interface EmployeeAccountDisplay {
+  id: number;
+  employeeId: number;
   employeeName: string;
   department: string;
   baseSalary: number;
@@ -43,26 +45,37 @@ interface EmployeeAccount {
   netBalance: number;
 }
 
-const mockAccounts: EmployeeAccount[] = [
-  { id: "1", employeeId: "1", employeeName: "Carlos Mendoza Garcia", department: "Produccion", baseSalary: 28000, loans: 9000, discounts: 0, overtime: 525, guards: 4200, netBalance: -4275 },
-  { id: "2", employeeId: "3", employeeName: "Miguel Angel Torres", department: "Ingenieria", baseSalary: 38000, loans: 4000, discounts: 2850, overtime: 158, guards: 2400, netBalance: -4292 },
-  { id: "3", employeeId: "4", employeeName: "Laura Sanchez Ruiz", department: "Calidad", baseSalary: 25000, loans: 3000, discounts: 0, overtime: 0, guards: 0, netBalance: -3000 },
-  { id: "4", employeeId: "5", employeeName: "Roberto Hernandez", department: "Mantenimiento", baseSalary: 22000, loans: 0, discounts: 980, overtime: 367, guards: 6500, netBalance: 5887 },
-  { id: "5", employeeId: "7", employeeName: "Fernando Gutierrez", department: "Direccion", baseSalary: 85000, loans: 0, discounts: 5500, overtime: 0, guards: 0, netBalance: -5500 },
-  { id: "6", employeeId: "9", employeeName: "Jose Luis Ramirez", department: "Almacen", baseSalary: 18000, loans: 10000, discounts: 0, overtime: 113, guards: 1080, netBalance: -8807 },
-];
-
 export default function HRAccountPage() {
-  const [accounts, setAccounts] = useState<EmployeeAccount[]>([]);
+  const [accounts, setAccounts] = useState<EmployeeAccountDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
 
   useEffect(() => {
     const loadData = async () => {
-      await new Promise((r) => setTimeout(r, 300));
-      setAccounts(mockAccounts);
-      setLoading(false);
+      try {
+        const response = await hrService.getEmployeeAccounts();
+        console.log(response);
+        // Transformar los datos del endpoint al formato requerido
+        const transformedAccounts: EmployeeAccountDisplay[] = response.map((account: any) => ({
+          id: account.id,
+          employeeId: account.employeeId,
+          employeeName: account.employeeName,
+          department: account.department,
+          baseSalary: parseFloat(account.baseSalary) || 0,
+          loans: parseFloat(account.loans) || 0,
+          discounts: parseFloat(account.discounts) || 0,
+          overtime: parseFloat(account.overtime) || 0,
+          guards: parseFloat(account.guards) || 0,
+          netBalance: parseFloat(account.netBalance) || 0,
+        }));
+        setAccounts(transformedAccounts);
+      } catch (error) {
+        console.error("Error loading employee accounts:", error);
+        setAccounts([]);
+      } finally {
+        setLoading(false);
+      }
     };
     loadData();
   }, []);
@@ -70,7 +83,8 @@ export default function HRAccountPage() {
   const departments = [...new Set(accounts.map((a) => a.department))];
 
   const filtered = accounts.filter((a) => {
-    const matchesSearch = a.employeeName.toLowerCase().includes(search.toLowerCase());
+    const employeeName = a.employeeName || '';
+    const matchesSearch = employeeName.toLowerCase().includes(search.toLowerCase());
     const matchesDept = departmentFilter === "all" || a.department === departmentFilter;
     return matchesSearch && matchesDept;
   });
@@ -89,7 +103,37 @@ export default function HRAccountPage() {
               Resumen de saldos y movimientos por empleado
             </p>
           </div>
-          <Button variant="outline" className="gap-2 bg-transparent">
+          <Button 
+            variant="outline" 
+            className="gap-2 bg-transparent"
+            onClick={() => {
+              // Exportar a CSV
+              const headers = ['Empleado', 'Departamento', 'Salario Base', 'Préstamos', 'Descuentos', 'Tiempo Extra', 'Guardias', 'Balance Neto'];
+              const rows = filtered.map(a => [
+                a.employeeName,
+                a.department,
+                a.baseSalary,
+                a.loans,
+                a.discounts,
+                a.overtime,
+                a.guards,
+                a.netBalance
+              ]);
+              
+              const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.join(','))
+              ].join('\n');
+              
+              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `estado_cuenta_${new Date().toISOString().split('T')[0]}.csv`;
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
             <Download className="h-4 w-4" />
             Exportar
           </Button>

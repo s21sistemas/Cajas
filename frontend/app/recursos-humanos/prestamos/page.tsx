@@ -25,12 +25,12 @@ export default function LoansPage() {
 
   // Load employees for dropdown
   const { data: employeesResponse } = useApiQuery<any>(
-    () => employeesService.getAll({ per_page: 100 }),
+    () => employeesService.getSelectList(),
     { enabled: true }
   );
 
   const loans: Loan[] = loansResponse?.data || [];
-  const employees: any[] = employeesResponse?.data || [];
+  const employees: any[] = employeesResponse || [];
 
   // Stats
   const totalLoaned = loans.reduce((sum, l) => sum + l.amount, 0);

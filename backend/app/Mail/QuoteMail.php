@@ -23,11 +23,15 @@ class QuoteMail extends Mailable
     /** @var string|null */
     public $body;
 
-    public function __construct(Quote $quote, ?string $subject = null, ?string $body = null)
+    /** @var string|null */
+    public $approvalUrl;
+
+    public function __construct(Quote $quote, ?string $subject = null, ?string $body = null, ?string $approvalUrl = null)
     {
         $this->quote = $quote;
         $this->subject = $subject;
         $this->body = $body;
+        $this->approvalUrl = $approvalUrl;
     }
 
     public function envelope(): Envelope
@@ -54,6 +58,7 @@ class QuoteMail extends Mailable
             with: [
                 'quote' => $this->quote,
                 'body' => $this->body ?? 'Adjuntamos la cotización solicitada. Quedamos a sus órdenes para cualquier duda o comentario.',
+                'approvalUrl' => $this->approvalUrl,
             ],
         );
     }

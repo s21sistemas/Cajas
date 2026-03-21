@@ -75,6 +75,15 @@
         
         <p>Adjunto encontrará el documento PDF con el detalle completo de la cotización.</p>
         
+        @if(isset($approvalUrl))
+        <div style="background: #e8f5e9; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: center;">
+            <h3 style="color: #2e7d32; margin-top: 0;">Aprobación de Cotización</h3>
+            <p>Puede revisar y aprobar esta cotización en línea haciendo clic en el siguiente botón:</p>
+            <a href="{{ $approvalUrl }}" class="btn" style="background: #27ae60; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0;">Revisar y Aprobar Cotización</a>
+            <p style="font-size: 12px; color: #666;">Este link es válido por 7 días.</p>
+        </div>
+        @endif
+        
         <p>Si tiene alguna duda o requiere más información, no dude en contactarnos.</p>
         
         <p>Saludos cordiales,<br>

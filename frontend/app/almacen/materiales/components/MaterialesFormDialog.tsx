@@ -19,12 +19,11 @@ const materialSchema = z.object({
   code: z.string().min(1, "El codigo es requerido").max(255),
   name: z.string().min(1, "El nombre es requerido").max(255),
   category: z.string().min(1, "La categoria es requerida"),
-  quantity: z.coerce.number().min(0, "La cantidad debe ser positiva").default(0),
   minStock: z.coerce.number().min(0, "El stock minimo debe ser positivo").default(0),
   maxStock: z.coerce.number().optional(),
   unitCost: z.coerce.number().min(0, "El costo debe ser positivo").default(0),
   unit: z.string().optional().default(""),
-  warehouse_location_id: z.string().optional().default(""),
+  warehouse_location_id: z.string().min(1, "La ubicación es requerida"),
 });
 
 type MaterialFormValues = z.infer<typeof materialSchema>;
@@ -60,7 +59,6 @@ export function MaterialesFormDialog({
       code: "",
       name: "",
       category: "raw_material",
-      quantity: 0,
       minStock: 0,
       maxStock: undefined,
       unitCost: 0,
@@ -112,7 +110,6 @@ export function MaterialesFormDialog({
         code: defaultValues.code || "",
         name: defaultValues.name || "",
         category: defaultValues.category || "raw_material",
-        quantity: defaultValues.quantity || 0,
         minStock: defaultValues.minStock || 0,
         maxStock: defaultValues.maxStock || undefined,
         unitCost: defaultValues.unitCost || 0,
@@ -125,7 +122,6 @@ export function MaterialesFormDialog({
         code: "",
         name: "",
         category: "raw_material",
-        quantity: 0,
         minStock: 0,
         maxStock: undefined,
         unitCost: 0,
@@ -135,7 +131,7 @@ export function MaterialesFormDialog({
     }
   }, [open, defaultValues, form]);
 
-  // Manejar seleccion de material existente del catalogo
+  // Manejar seleccion de material existente del catalogo (solo datos, NO stock)
   const handleMaterialSelect = (materialId: string) => {
     if (!materialId) {
       setSelectedMaterialId("");
@@ -148,22 +144,23 @@ export function MaterialesFormDialog({
       if (material.category) form.setValue("category", material.category);
       if (material.unit) form.setValue("unit", material.unit);
       if (material.cost != null) form.setValue("unitCost", Number(material.cost) || 0);
-      if (material.stock != null) form.setValue("quantity", Number(material.stock) || 0);
-      if (material.minStock != null) form.setValue("minStock", Number(material.minStock) || 0);
     }
   };
 
   const handleSubmit = async (data: MaterialFormValues) => {
+    // El stock se maneja a través de movimientos de inventario, no directamente
+    // Usamos warehouse para identificar materiales
     const submitData: CreateInventoryItemDto = {
       code: data.code,
       name: data.name,
+      warehouse: "materials",
       category: data.category as any,
-      quantity: data.quantity,
+      quantity: 0, // Se manejará por movimientos
       minStock: data.minStock,
       maxStock: data.maxStock,
       unitCost: data.unitCost,
       unit: data.unit || undefined,
-      warehouse_location_id: data.warehouse_location_id ? parseInt(data.warehouse_location_id) : undefined,
+      warehouse_location_id: parseInt(data.warehouse_location_id),
     };
     await onSubmit(submitData);
     form.reset();
@@ -180,12 +177,13 @@ export function MaterialesFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>
             {defaultValues?.id ? "Editar Material" : "Nuevo Material"}
           </DialogTitle>
         </DialogHeader>
+        <div className="overflow-y-auto max-h-[calc(90vh-80px)] pr-2">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             {/* SelectList para autocompletar de materiales existentes */}
@@ -263,25 +261,12 @@ export function MaterialesFormDialog({
               )}
             />
 
+            {/* Nota: El stock se gestiona a través de movimientos de inventario */}
+            <div className="bg-muted/50 p-3 rounded-md text-sm text-muted-foreground">
+              <p>El stock se gestiona a través de movimientos de inventario (entradas/salidas).</p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="quantity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cantidad inicial</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        placeholder="0"
-                        value={field.value}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="minStock"
@@ -300,9 +285,6 @@ export function MaterialesFormDialog({
                   </FormItem>
                 )}
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="maxStock"
@@ -321,6 +303,9 @@ export function MaterialesFormDialog({
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="unitCost"
@@ -340,9 +325,6 @@ export function MaterialesFormDialog({
                   </FormItem>
                 )}
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="unit"
@@ -356,33 +338,32 @@ export function MaterialesFormDialog({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="warehouse_location_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Ubicacion</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {locationOptions.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
 
-
+            <FormField
+              control={form.control}
+              name="warehouse_location_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Ubicación *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {locationOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
@@ -394,6 +375,7 @@ export function MaterialesFormDialog({
             </div>
           </form>
         </Form>
+        </div>
       </DialogContent>
     </Dialog>
   );

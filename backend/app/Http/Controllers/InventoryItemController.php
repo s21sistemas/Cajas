@@ -63,7 +63,8 @@ class InventoryItemController extends Controller implements HasMiddleware
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'code' => 'required|string|max:255',
+            'code' => 'required|string|max:255|unique:inventory_items,code',
+            'warehouse' => 'required|string|max:255',
             'name' => 'required|string|max:255',
             'category' => 'required|string|max:255',
             'quantity' => 'sometimes|numeric|min:0',
@@ -95,6 +96,7 @@ class InventoryItemController extends Controller implements HasMiddleware
     {
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
+            'warehouse' => 'required|string|max:255',
             'category' => 'required|string|max:255',
             'quantity' => 'sometimes|numeric|min:0',
             'min_stock' => 'sometimes|numeric|min:0',

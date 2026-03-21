@@ -33,7 +33,12 @@ class ReportController extends Controller
 
         // Producción
         $productions = Production::whereBetween('created_at', [$startDate, $endDate])->get();
-        $totalProduction = $productions->sum('good_parts');
+        $totalProduction = 0;
+        foreach ($productions as $p) {
+            if ($p->workOrder) {
+                $totalProduction += $p->workOrder->quantity;
+            }
+        }
         $totalScrap = $productions->sum('scrap_parts');
         
         // Máquinas
@@ -57,7 +62,7 @@ class ReportController extends Controller
         });
 
         // Órdenes de trabajo
-        $workOrders = WorkOrder::whereBetween('created_at', [$startDate, $endDate])->get();
+        $workOrders = WorkOrder::whereBetween('created_at', [$startDate, $endDate])->get();     
         
         // Empleados
         $employees = Employee::where('status', 'active')->get();

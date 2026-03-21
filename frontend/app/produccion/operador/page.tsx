@@ -54,6 +54,16 @@ interface WorkOrder {
   priority: string;
   operator?: string;
   product_id?: number;
+  // Materiales para la orden de trabajo
+  materials?: {
+    id: number;
+    code: string;
+    name: string;
+    requiredQuantity: number;
+    availableStock: number;
+    isAvailable: boolean;
+  }[];
+  allMaterialsAvailable?: boolean;
   // Campos calculados en el frontend
   productionCount?: number;
   completedProductionCount?: number;
@@ -397,7 +407,16 @@ export default function OperadorProduccionPage() {
         }
       }
     } catch (error: any) {
-      toast.error(error?.message || "No se pudo iniciar la producción");
+      // Manejar error 422 de materiales insuficientes
+      if (error?.response?.status === 422 && error?.response?.data?.unavailable_materials) {
+        const materials = error.response.data.unavailable_materials;
+        const message = materials.map((m: any) => 
+          `${m.code}: requiere ${m.required}, disponible ${m.available}`
+        ).join('\n');
+        toast.error(`Materiales insuficientes:\n${message}`);
+      } else {
+        toast.error(error?.message || "No se pudo iniciar la producción");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -685,6 +704,38 @@ export default function OperadorProduccionPage() {
                         ({wo.completedProductionCount ?? 0}/{wo.productionCount ?? 0} procesos)
                       </span>
                     </div>
+                    {/* Materiales requeridos */}
+                    {wo.materials && wo.materials.length > 0 && (
+                      <div className="mt-2 p-2 bg-muted/30 rounded text-xs">
+                        <div className="flex items-center gap-1 mb-1">
+                          <Package className="h-3 w-3" />
+                          <span className="font-medium">Materiales:</span>
+                          {!wo.allMaterialsAvailable && (
+                            <Badge variant="destructive" className="ml-auto text-[10px] h-4">
+                              Faltantes
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {wo.materials.slice(0, 4).map((mat) => (
+                            <span
+                              key={mat.id}
+                              className={`px-1.5 py-0.5 rounded ${
+                                mat.isAvailable
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}
+                              title={`${mat.name}: requiere ${mat.requiredQuantity}, disponible ${mat.availableStock}`}
+                            >
+                              {mat.code}: {mat.availableStock}/{mat.requiredQuantity}
+                            </span>
+                          ))}
+                          {wo.materials.length > 4 && (
+                            <span className="text-muted-foreground">+{wo.materials.length - 4} más</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2 ml-4">
                     <Button

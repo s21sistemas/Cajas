@@ -8,6 +8,7 @@ use App\Models\ProductionMovement;
 use App\Models\Machine;
 use App\Models\MachineMovement;
 use App\Models\Operator;
+use App\Models\InventoryItem;
 use Illuminate\Http\Request;
 use \Spatie\Permission\Middleware\PermissionMiddleware;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -332,6 +333,19 @@ class ProductionController extends Controller implements HasMiddleware
                         ], 422);
                     }
                 }
+            }
+        }
+
+        // Validación de materiales: verificar disponibilidad antes de iniciar producción
+        if (isset($data['status']) && $data['status'] === 'in_progress' && in_array($production->status, ['pending', null, ''])) {
+            $unavailableMaterials = $this->validateMaterialsForProduction($production);
+            
+            if (!empty($unavailableMaterials)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Materiales insuficientes para iniciar producción',
+                    'unavailable_materials' => $unavailableMaterials
+                ], 422);
             }
         }
 
@@ -689,5 +703,49 @@ class ProductionController extends Controller implements HasMiddleware
                 }),
             ]
         ]);
+    }
+
+    /**
+     * Validar disponibilidad de materiales para una producción
+     * Retorna array con materiales no disponibles
+     */
+    private function validateMaterialsForProduction(Production $production): array
+    {
+        $unavailable = [];
+        
+        // Cargar materiales del producto
+        $production->load('product.materials');
+        
+        if (!$production->product) {
+            return $unavailable;
+        }
+        
+        $materials = $production->product->materials;
+        
+        if (!$materials || $materials->isEmpty()) {
+            return $unavailable;
+        }
+        
+        foreach ($materials as $material) {
+            // Buscar en inventory_items por código y warehouse
+            $inventoryItem = InventoryItem::where('code', $material->code)
+                ->where('warehouse', 'materials')
+                ->first();
+            
+            $availableStock = $inventoryItem ? $inventoryItem->quantity : 0;
+            $requiredQuantity = $material->pivot->quantity;
+            
+            if ($availableStock < $requiredQuantity) {
+                $unavailable[] = [
+                    'code' => $material->code,
+                    'name' => $material->name,
+                    'required' => $requiredQuantity,
+                    'available' => $availableStock,
+                    'shortage' => $requiredQuantity - $availableStock,
+                ];
+            }
+        }
+        
+        return $unavailable;
     }
 }

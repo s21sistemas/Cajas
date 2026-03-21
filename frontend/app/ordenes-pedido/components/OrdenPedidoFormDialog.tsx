@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { clientsService } from "@/lib/services/clients.service";
 import { salesService } from "@/lib/services/sales.service";
-import { Upload, X } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { OrderPedido, CreateOrderPedidoDto } from "@/lib/types";
 
 interface Branch {
@@ -87,16 +87,13 @@ export function OrdenPedidoFormDialog({
   const [selectedBranchId, setSelectedBranchId] = useState<string>("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [pickupDate, setPickupDate] = useState("");
-  const [deliveryDate, setDeliveryDate] = useState("");
   const [supplierName, setSupplierName] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<OrderItem[]>([]);
   const [loadingData, setLoadingData] = useState(false);
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [loadingSaleItems, setLoadingSaleItems] = useState(false);
-  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const isEditing = !!defaultValues;
 
   // Reset form when dialog opens
@@ -108,11 +105,9 @@ export function OrdenPedidoFormDialog({
       setSelectedBranchId("");
       setDeliveryAddress("");
       setPickupDate("");
-      setDeliveryDate("");
       setSupplierName("");
       setNotes("");
       setItems([]);
-      setEvidenceFile(null);
       setErrors({});
 
       setLoadingData(true);
@@ -134,6 +129,7 @@ export function OrdenPedidoFormDialog({
             setSelectedBranchId(defaultValues.branchId?.toString() || "");
             setDeliveryAddress(defaultValues.deliveryAddress || "");
             setNotes(defaultValues.notes || "");
+            console.log(defaultValues);
             setItems(defaultValues.items?.map(item => ({
               product_id: item.productId || undefined,
               product_name: item.productName,
@@ -173,7 +169,7 @@ export function OrdenPedidoFormDialog({
             setItems(saleItems.map((item: any) => ({
               product_id: item.product?.id || item.product_id || undefined,
               product_name: item.product?.name || item.description || item.product_name || '',
-              product_code: item.product?.code || item.product_code || '',
+              product_code: item.partNumber || item.part_number || '',
               quantity: item.quantity || 1,
               unit: item.unit || 'pza',
             })));
@@ -234,10 +230,6 @@ export function OrdenPedidoFormDialog({
     }
   }, [selectedBranchId, branches]);
 
-  const handleAddItem = () => {
-    setItems([...items, { product_name: "", quantity: 1 }]);
-  };
-
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
   };
@@ -246,20 +238,6 @@ export function OrdenPedidoFormDialog({
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
     setItems(newItems);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setEvidenceFile(file);
-    }
-  };
-
-  const handleRemoveFile = () => {
-    setEvidenceFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -305,9 +283,6 @@ export function OrdenPedidoFormDialog({
     (data as any).sale_id = selectedSaleId ? Number(selectedSaleId) : undefined;
     (data as any).branch_id = selectedBranchId ? Number(selectedBranchId) : undefined;
     (data as any).pickup_date = pickupDate || undefined;
-    (data as any).delivery_date = deliveryDate || undefined;
-    (data as any).supplier_name = supplierName || undefined;
-    (data as any).evidenceFile = evidenceFile;
 
     onSubmit(data);
   };
@@ -401,79 +376,15 @@ export function OrdenPedidoFormDialog({
             {errors.delivery_address && <p className="text-sm text-red-500 mt-1">{errors.delivery_address}</p>}
           </div>
 
-          {/* Fechas y Proveedor */}
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="pickup_date">Fecha de Recogida</Label>
-              <Input
-                id="pickup_date"
-                type="date"
-                value={pickupDate}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPickupDate(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="delivery_date">Fecha de Entrega</Label>
-              <Input
-                id="delivery_date"
-                type="date"
-                value={deliveryDate}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDeliveryDate(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="supplier_name">Proveedor / Transportista</Label>
-              <Input
-                id="supplier_name"
-                value={supplierName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSupplierName(e.target.value)}
-                placeholder="DHL, Estafeta, Nombre del conductor..."
-              />
-            </div>
-          </div>
-
-          {/* Evidencia - File Upload */}
+          {/* Fecha de Recogida */}
           <div>
-            <Label>Evidencia (Archivo)</Label>
-            <div className="mt-1">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="image/*,.pdf"
-                className="hidden"
-                id="evidence-file"
-              />
-              
-              {evidenceFile ? (
-                <div className="flex items-center justify-between p-3 border rounded-md bg-secondary">
-                  <div className="flex items-center gap-2">
-                    <Upload className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm truncate max-w-[200px]">{evidenceFile.name}</span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleRemoveFile}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <label
-                  htmlFor="evidence-file"
-                  className="flex items-center justify-center w-full h-20 border-2 border-dashed rounded-md cursor-pointer hover:border-primary transition-colors"
-                >
-                  <div className="flex flex-col items-center gap-1 text-muted-foreground">
-                    <Upload className="h-5 w-5" />
-                    <span className="text-sm">Subir evidencia (imagen o PDF)</span>
-                  </div>
-                </label>
-              )}
-            </div>
+            <Label htmlFor="pickup_date">Fecha de Recogida</Label>
+            <Input
+              id="pickup_date"
+              type="date"
+              value={pickupDate}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPickupDate(e.target.value)}
+            />
           </div>
 
           {/* Notas */}
@@ -490,26 +401,18 @@ export function OrdenPedidoFormDialog({
 
           {/* Productos - Auto-cargados desde venta */}
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2">
               <Label>
                 Productos <span className="text-red-500">*</span>
                 {loadingSaleItems && <span className="ml-2 text-muted-foreground">(Cargando desde venta...)</span>}
               </Label>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm"
-                onClick={handleAddItem}
-              >
-                + Agregar Producto
-              </Button>
             </div>
 
             {errors.items && <p className="text-sm text-red-500 mb-2">{errors.items}</p>}
 
             {items.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4">
-                No hay productos agregados. Seleccione una venta o haga clic en "Agregar Producto".
+                Seleccione una venta para cargar los productos.
               </p>
             ) : (
               <div className="space-y-2">
@@ -551,7 +454,7 @@ export function OrdenPedidoFormDialog({
                       size="icon"
                       onClick={() => handleRemoveItem(index)}
                     >
-                      ×
+                      <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </div>
                 ))}

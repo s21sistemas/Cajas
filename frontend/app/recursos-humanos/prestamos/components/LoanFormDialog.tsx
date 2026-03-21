@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,10 +22,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type { Loan, CreateLoanDto, UpdateLoanDto } from "@/lib/services/loans.service";
+import { loanTypesService } from "@/lib/services";
+import type { LoanType } from "@/lib/services/loan-types.service";
 
 const loanSchema = z.object({
   employee_id: z.coerce.number().min(1, "Debe seleccionar un empleado"),
-  type: z.enum(["personal", "emergency", "advance"]),
+  type: z.string().min(1, "Tipo de préstamo requerido"),
   amount: z.coerce.number().min(1, "El monto debe ser mayor a 0"),
   installments: z.coerce.number().min(1, "Debe tener al menos 1 cuota"),
   start_date: z.string().min(1, "La fecha de inicio es requerida"),
@@ -64,7 +66,7 @@ export function LoanFormDialog({
     resolver: zodResolver(loanSchema),
     defaultValues: {
       employee_id: 0,
-      type: "personal",
+      type: "",
       amount: 0,
       installments: 1,
       start_date: new Date().toISOString().split("T")[0],
@@ -73,6 +75,8 @@ export function LoanFormDialog({
       notes: "",
     },
   });
+
+  const [loanTypes, setLoanTypes] = useState<LoanType[]>([]);
 
   const formType = watch("type");
   const formStatus = watch("status");
@@ -101,7 +105,7 @@ export function LoanFormDialog({
     } else {
       reset({
         employee_id: 0,
-        type: "personal",
+        type: "",
         amount: 0,
         installments: 1,
         start_date: new Date().toISOString().split("T")[0],
@@ -111,6 +115,19 @@ export function LoanFormDialog({
       });
     }
   }, [editingItem, reset, open]);
+
+  // Load loan types
+  useEffect(() => {
+    const loadLoanTypes = async () => {
+      try {
+        const response = await loanTypesService.getAll();
+        setLoanTypes(response || []);
+      } catch (error) {
+        console.error("Error loading loan types:", error);
+      }
+    };
+    loadLoanTypes();
+  }, []);
 
   const onSubmit = async (data: LoanFormData) => {
     await onSave(data);
@@ -137,8 +154,8 @@ export function LoanFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {employees.map((emp: any) => (
-                    <SelectItem key={emp.id} value={String(emp.id)}>
-                      {emp.name}
+                    <SelectItem key={emp.value} value={String(emp.value)}>
+                      {emp.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -152,17 +169,19 @@ export function LoanFormDialog({
                 <Label className="text-foreground">Tipo</Label>
                 <Select
                   value={formType}
-                  onValueChange={(v: "personal" | "emergency" | "advance") =>
+                  onValueChange={(v: string) =>
                     setValue("type", v)
                   }
                 >
                   <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue />
+                    <SelectValue placeholder="Seleccionar tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="personal">Personal</SelectItem>
-                    <SelectItem value="emergency">Emergencia</SelectItem>
-                    <SelectItem value="advance">Anticipo</SelectItem>
+                    {loanTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.code}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {errors.type && (

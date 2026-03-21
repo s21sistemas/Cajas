@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, Pencil, Trash2, Eye, RefreshCw } from "lucide-react";
+import { Search, MoreHorizontal, Pencil, Trash2, Eye, RefreshCw, PackageCheck, Truck, CheckCircle } from "lucide-react";
 import type { OrderPedido, OrderPedidoStatus } from "@/lib/types/order-pedido.types";
 
 interface OrdenPedidoTableProps {
@@ -27,6 +27,9 @@ interface OrdenPedidoTableProps {
   onSearchChange: (value: string) => void;
   onEdit: (order: OrderPedido) => void;
   onDelete: (order: OrderPedido) => void;
+  onPickUp: (order: OrderPedido) => void;
+  onAssign: (order: OrderPedido) => void;
+  onDeliver: (order: OrderPedido) => void;
   loading: boolean;
   onRefresh: () => void;
 }
@@ -55,6 +58,9 @@ export function OrdenPedidoTable({
   onSearchChange, 
   onEdit, 
   onDelete,
+  onPickUp,
+  onAssign,
+  onDeliver,
   loading,
   onRefresh 
 }: OrdenPedidoTableProps) {
@@ -105,20 +111,20 @@ export function OrdenPedidoTable({
             ) : (
               orders.map((order) => (
                 <TableRow key={order.id}>
-                  <TableCell className="font-medium">{order.order_number}</TableCell>
+                  <TableCell className="font-medium">{order.orderNumber}</TableCell>
                   <TableCell>{order.sale?.code || "—"}</TableCell>
-                  <TableCell>{order.client_name || "—"}</TableCell>
+                  <TableCell>{order.clientName || "—"}</TableCell>
                   <TableCell className="max-w-xs truncate">
-                    {order.delivery_address || "—"}
+                    {order.deliveryAddress || "—"}
                   </TableCell>
-                  <TableCell>{order.supplier?.name || "—"}</TableCell>
+                  <TableCell>{order.supplierName || "—"}</TableCell>
                   <TableCell>
                     <Badge className={statusColors[order.status]}>
                       {statusLabels[order.status]}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {new Date(order.created_at).toLocaleDateString("es-MX")}
+                    {new Date(order.createdAt).toLocaleDateString("es-MX")}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -132,6 +138,33 @@ export function OrdenPedidoTable({
                           <Pencil className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
+                        {order.status === 'pending' && (
+                          <DropdownMenuItem 
+                            onClick={() => onAssign(order)}
+                            className="text-blue-600"
+                          >
+                            <Truck className="h-4 w-4 mr-2" />
+                            Asignar proveedor
+                          </DropdownMenuItem>
+                        )}
+                        {order.status === 'assigned' && (
+                          <DropdownMenuItem 
+                            onClick={() => onPickUp(order)}
+                            className="text-orange-600"
+                          >
+                            <PackageCheck className="h-4 w-4 mr-2" />
+                            Marcar como recogida
+                          </DropdownMenuItem>
+                        )}
+                        {(order.status === 'picked_up' || order.status === 'in_transit') && (
+                          <DropdownMenuItem 
+                            onClick={() => onDeliver(order)}
+                            className="text-green-600"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Registrar entrega
+                          </DropdownMenuItem>
+                        )}
                         {order.status === 'pending' && (
                           <DropdownMenuItem 
                             onClick={() => onDelete(order)}

@@ -124,7 +124,7 @@ export function PaymentFormDialog({
                 <SelectContent>
                   {loans.map((loan: any) => (
                     <SelectItem key={loan.id} value={String(loan.id)}>
-                      {loan.employee_name} - ${loan.amount?.toLocaleString()}
+                      {loan.employee?.name} - ${loan.amount?.toLocaleString()}
                     </SelectItem>
                   ))}
                 </SelectContent>

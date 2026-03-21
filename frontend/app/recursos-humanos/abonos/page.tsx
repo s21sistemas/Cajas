@@ -26,7 +26,7 @@ export default function PaymentsPage() {
 
   // Load loans for dropdown
   const { data: loansResponse } = useApiQuery<any>(
-    () => loansService.getAll({ perPage: 100, status: "active" }),
+    () => loansService.getAll({ status: "active" }),
     { enabled: true }
   );
 

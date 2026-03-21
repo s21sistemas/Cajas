@@ -188,7 +188,7 @@ export function LoanTable({ data, loading, onEdit }: LoanTableProps) {
                   {formatCurrency(item.balance)}
                 </TableCell>
                 <TableCell className="text-right text-foreground">
-                  {formatCurrency(item.installment_amount)}
+                  {formatCurrency(item.installment_amount | 0)}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDate(item.start_date)}

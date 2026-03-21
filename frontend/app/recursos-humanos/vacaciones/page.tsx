@@ -26,7 +26,7 @@ export default function VacationsPage() {
 
   // Load employees for dropdown
   const { data: employeesResponse } = useApiQuery<any>(
-    () => employeesService.getAll({ per_page: 100 }),
+    () => employeesService.getAll(),
     { enabled: true }
   );
 

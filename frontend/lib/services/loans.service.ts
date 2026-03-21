@@ -13,7 +13,7 @@ export interface Loan {
   };
   loan_type_id: number | null;
   loan_type_name?: string;
-  type: "personal" | "emergency" | "advance";
+  type: string;
   amount: number;
   paid: number;
   balance: number;
@@ -32,7 +32,7 @@ export interface Loan {
 export interface CreateLoanDto {
   employee_id: number;
   loan_type_id?: number;
-  type: "personal" | "emergency" | "advance";
+  type: string;
   amount: number;
   installments: number;
   start_date: string;
@@ -43,7 +43,7 @@ export interface CreateLoanDto {
 
 export interface UpdateLoanDto {
   loan_type_id?: number;
-  type?: "personal" | "emergency" | "advance";
+  type?: string;
   amount?: number;
   installments?: number;
   start_date?: string;

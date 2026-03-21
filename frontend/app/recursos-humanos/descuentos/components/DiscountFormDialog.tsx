@@ -15,14 +15,14 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { DialogFooter, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { employeesService } from "@/lib/services";
+import { employeesService, discountTypesService } from "@/lib/services";
 import type { Discount } from "@/lib/types/hr.types";
-import type { Employee } from "@/lib/types";
+import type { DiscountType } from "@/lib/services/discount-types.service";
 import { useState } from "react";
 
 const schema = z.object({
   employeeId: z.number().min(1, "Empleado requerido"),
-  type: z.enum(["loan", "infonavit", "fonacot", "alimony", "other"]),
+  type: z.string().min(1, "Tipo de descuento requerido"),
   description: z.string().min(1, "Descripción requerida"),
   amount: z.number().min(0, "Monto requerido"),
   period: z.string().min(1, "Periodo requerido"),
@@ -41,8 +41,14 @@ interface DiscountFormDialogProps {
   loading?: boolean;
 }
 
+interface Employee{
+  value?: number;
+  label?: string;
+}
+
 export function DiscountFormDialog({ open, onOpenChange, editingDiscount, onSubmit, loading = false }: DiscountFormDialogProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [discountTypes, setDiscountTypes] = useState<DiscountType[]>([]);
 
   const {
     register,
@@ -55,7 +61,7 @@ export function DiscountFormDialog({ open, onOpenChange, editingDiscount, onSubm
     resolver: zodResolver(schema),
     defaultValues: {
       employeeId: editingDiscount?.employeeId || 0,
-      type: (editingDiscount?.type as any) || "loan",
+      type: (editingDiscount?.type as any) || "",
       description: editingDiscount?.description || "",
       amount: editingDiscount?.amount || 0,
       period: editingDiscount?.period || "quincenal",
@@ -69,8 +75,8 @@ export function DiscountFormDialog({ open, onOpenChange, editingDiscount, onSubm
   useEffect(() => {
     const loadEmployees = async () => {
       try {
-        const response = await employeesService.getAll({ per_page: 100 });
-        setEmployees(response?.data || []);
+        const response = await employeesService.getSelectList();
+        setEmployees(response || []);
       } catch (error) {
         console.error("Error loading employees:", error);
       }
@@ -78,12 +84,25 @@ export function DiscountFormDialog({ open, onOpenChange, editingDiscount, onSubm
     loadEmployees();
   }, []);
 
+  // Load discount types
+  useEffect(() => {
+    const loadDiscountTypes = async () => {
+      try {
+        const response = await discountTypesService.getAll();
+        setDiscountTypes(response || []);
+      } catch (error) {
+        console.error("Error loading discount types:", error);
+      }
+    };
+    loadDiscountTypes();
+  }, []);
+
   // Reset form values when editingDiscount or open changes
   useEffect(() => {
     if (open) {
       reset({
         employeeId: editingDiscount?.employeeId || 0,
-        type: (editingDiscount?.type as any) || "loan",
+        type: (editingDiscount?.type as any) || "",
         description: editingDiscount?.description || "",
         amount: editingDiscount?.amount || 0,
         period: editingDiscount?.period || "quincenal",
@@ -133,8 +152,8 @@ export function DiscountFormDialog({ open, onOpenChange, editingDiscount, onSubm
               </SelectTrigger>
               <SelectContent>
                 {employees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id?.toString() || ""}>
-                    {emp.name}
+                  <SelectItem key={emp.value} value={emp.value?.toString() || ""}>
+                    {emp.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -150,14 +169,14 @@ export function DiscountFormDialog({ open, onOpenChange, editingDiscount, onSubm
                 onValueChange={(v: any) => setValue("type", v)}
               >
                 <SelectTrigger id="type">
-                  <SelectValue />
+                  <SelectValue placeholder="Seleccionar tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="loan">Préstamo</SelectItem>
-                  <SelectItem value="infonavit">INFONAVIT</SelectItem>
-                  <SelectItem value="fonacot">FONACOT</SelectItem>
-                  <SelectItem value="alimony">Pensión Alimenticia</SelectItem>
-                  <SelectItem value="other">Otro</SelectItem>
+                  {discountTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.code}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {errors.type && <p className="text-xs text-destructive">{errors.type.message}</p>}

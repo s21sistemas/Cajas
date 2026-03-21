@@ -182,7 +182,6 @@ const navSections: NavSection[] = [
           { title: "Prestamos", href: "/recursos-humanos/prestamos" },
           { title: "Abonos", href: "/recursos-humanos/abonos" },
           { title: "Estado de cuenta", href: "/recursos-humanos/estado-cuenta" },
-          { title: "Reportes", href: "/recursos-humanos/reportes" },
           { title: "Tipo de descuento", href: "/recursos-humanos/tipo-descuento" },
           { title: "Tipo de prestamo", href: "/recursos-humanos/tipo-prestamo" },
         ],

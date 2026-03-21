@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\QuoteMail;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Str;
 use \Spatie\Permission\Middleware\PermissionMiddleware;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -639,8 +640,20 @@ class QuoteController extends Controller implements HasMiddleware
         }
 
         try {
-            // Enviar el correo con el PDF adjunto
-            Mail::to($quote->client->email)->send(new QuoteMail($quote));
+            // Generar token de aprobación si no existe
+            $approvalToken = $quote->client->approval_token;
+            if (!$approvalToken) {
+                $approvalToken = Str::random(64);
+                $quote->client->approval_token = hash('sha256', $approvalToken);
+                $quote->client->approval_token_expires_at = now()->addDays(7);
+                $quote->client->save();
+            }
+
+            // Generar URL de aprobación
+            $approvalUrl = config('app.frontend_url', 'http://localhost:3000') . '/auth/cliente?token=' . $approvalToken;
+
+            // Enviar el correo con el PDF adjunto y el link de aprobación
+            Mail::to($quote->client->email)->send(new QuoteMail($quote, null, null, $approvalUrl));
 
             // Actualizar el estado a 'sent' si estaba en 'draft'
             $previousStatus = $quote->status;

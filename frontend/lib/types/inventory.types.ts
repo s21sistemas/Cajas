@@ -6,6 +6,7 @@ export interface InventoryItem extends BaseEntity {
   category: InventoryCategory;
   warehouse: WarehouseType | null;
   warehouse_location_id: number | null;
+  warehouseLocation?: WarehouseLocation | null;
   quantity: number;
   minStock: number;
   maxStock: number | null;
@@ -59,17 +60,17 @@ export interface UpdateWarehouseLocationDto extends Partial<CreateWarehouseLocat
 export interface WarehouseMovement {
   id: number;
   inventory_item_id: number;
-  movement_type: "income" | "expense" | "adjustment" | "transfer";
+  movementType: "income" | "expense" | "adjustment" | "transfer";
   quantity: number;
   warehouse_location_id: number | null;
   warehouse_location_to_id: number | null;
-  reference_type: string | null;
+  referenceType: string | null;
   reference_id: number | null;
   notes: string | null;
   performed_by: string | null;
   status: "pending" | "completed" | "cancelled";
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
   inventoryItem?: {
     id: number;
     code: string;

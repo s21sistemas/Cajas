@@ -19,13 +19,14 @@ export interface OrderPedido {
   deliveryAddress: string | null;
   branchId: number | null;
   branchName: string | null;
+  supplierName: string | null;
   status: OrderPedidoStatus;
   picked_up_at: string | null;
   deliveredAt: string | null;
   deliveryPhoto: string | null;
   notes: string | null;
   created_by: number | null;
-  created_at: string;
+  createdAt: string;
   updated_at: string;
   items?: OrderPedidoItem[];
   client?: {
@@ -64,7 +65,8 @@ export interface CreateOrderPedidoDto {
 }
 
 export interface AssignOrderPedidoDto {
-  supplier_user_id: number;
+  supplier_user_id?: number;
+  supplier_name?: string;
 }
 
 export interface PickUpOrderPedidoDto {
@@ -73,7 +75,8 @@ export interface PickUpOrderPedidoDto {
 
 export interface DeliverOrderPedidoDto {
   delivered_at?: string;
-  delivery_photo?: string;
+  delivery_photo?: string | File;
+  notes?: string;
 }
 
 export interface OrderPedidoStats {

@@ -503,6 +503,7 @@ export default function MaquinasPage() {
         {/* Machine Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredMachines.map((machine) => {
+            console.log(machine);
             const st = statusConfig[machine.status as MachineStatus] || statusConfig.available;
             const isLoading = actionLoading === machine.id;
 
@@ -544,17 +545,17 @@ export default function MaquinasPage() {
                     </div>
                   </div>
 
-                  {/* Utilization bar - simulated for now */}
+                  {/* Utilization bar */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground flex items-center gap-1"><Gauge className="h-3.5 w-3.5" /> Utilizacion</span>
-                      <span className="font-semibold text-muted-foreground">-</span>
+                      <span className="font-semibold text-muted-foreground">{machine.utilization?.utilization ?? 0}%</span>
                     </div>
-                    <Progress value={0} className="h-1.5" />
+                    <Progress value={machine.utilization?.utilization ?? 0} className="h-1.5" />
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> -</span>
+                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {machine.utilization?.activeHours ?? 0}h / {machine.utilization?.totalHours ?? 0}h</span>
                     <span>Creada: {formatDate(machine.createdAt)}</span>
                   </div>
 

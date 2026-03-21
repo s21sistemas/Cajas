@@ -48,7 +48,7 @@ class DiscountController extends Controller implements HasMiddleware
     {
         $validator = Validator::make($request->all(), [
             'employee_id' => 'required|exists:employees,id',
-            'type' => 'required|in:loan,infonavit,fonacot,alimony,other',
+            'type' => 'required',
             'description' => 'nullable|string',
             'amount' => 'required|numeric|min:0',
             'period' => 'required|string',
@@ -83,7 +83,7 @@ class DiscountController extends Controller implements HasMiddleware
     public function update(Request $request, Discount $discount)
     {
         $validator = Validator::make($request->all(), [
-            'type' => 'sometimes|in:loan,infonavit,fonacot,alimony,other',
+            'type' => 'sometimes',
             'description' => 'nullable|string',
             'amount' => 'sometimes|numeric|min:0',
             'period' => 'sometimes|string',

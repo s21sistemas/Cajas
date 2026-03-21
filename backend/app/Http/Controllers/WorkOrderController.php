@@ -106,20 +106,27 @@ class WorkOrderController extends Controller implements HasMiddleware
                 $query->whereIn('status', ['pending', 'in_progress', 'paused', 'completed'])
                     ->where('operator_id', $operatorId);
             })
+            ->where('status', 'pending')
             ->orderByRaw("FIELD(priority, 'urgent', 'high', 'medium', 'low')")
             ->orderByDesc('created_at')
             ->get()
             ->map(function ($wo) {
+                // Obtener materiales con inventario
+                $materials = $wo->getMaterialsWithInventory();
+                
                 return [
                     'id' => $wo->id,
                     'code' => $wo->code,
                     'product_name' => $wo->product_name,
+                    'product_id' => $wo->product_id,
                     'client_name' => $wo->client?->name ?? $wo->client_name ?? 'Sin cliente',
                     'quantity' => $wo->quantity,
                     'completed' => $wo->completed,
                     'progress' => $wo->progress,
                     'status' => $wo->status,
                     'priority' => $wo->priority,
+                    'materials' => $materials,
+                    'allMaterialsAvailable' => empty(array_filter($materials, fn($m) => !$m['isAvailable'])),
                 ];
             });
 

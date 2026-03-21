@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('supplier_name')->nullable();
             $table->enum('status', ['pending', 'assigned', 'picked_up', 'in_transit', 'delivered', 'cancelled'])->default('pending');
             $table->timestamp('picked_up_at')->nullable();
+            $table->timestamp('pickup_date')->nullable();
             $table->timestamp('delivered_at')->nullable();
             $table->string('delivery_photo')->nullable();
             $table->text('notes')->nullable();

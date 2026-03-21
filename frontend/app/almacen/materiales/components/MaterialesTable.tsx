@@ -157,7 +157,7 @@ export function MaterialesTable({
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">{item.minStock || 0}</TableCell>
                       <TableCell className="text-right text-foreground">{formatCurrency(item.unitCost)}</TableCell>
-                      <TableCell className="text-muted-foreground">{item.location || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{item.warehouseLocation?.name +' '+ item.warehouseLocation?.zone || "-"}</TableCell>
                       <TableCell>
                         <Badge className={stockStatus.class}>{stockStatus.label}</Badge>
                       </TableCell>

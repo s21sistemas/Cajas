@@ -113,7 +113,7 @@ class PurchaseOrderController extends Controller
         // Crear registro en el estado de cuenta del proveedor al crear la orden
         // Solo si el estado es diferente de draft (draft es pendiente de aprobación)
         if ($purchaseOrder->status === 'ordered') {
-            $this->createSupplierStatementFromOrder($purchaseOrder);
+            $this->createOrUpdateSupplierStatementFromOrder($purchaseOrder);
         }
         
         return response()->json($purchaseOrder->load('supplier'), 201);
@@ -284,6 +284,7 @@ class PurchaseOrderController extends Controller
             Movement::create([
                 'type' => 'expense',
                 'bank_account_id' => $data['bank_account_id'],
+                'category' => 'Materiales',
                 'amount' => $data['amount'],
                 'description' => 'Pago a proveedor - Orden #' . $purchaseOrder->code . ' - Pago #' . $code,
                 'reference' => $code,

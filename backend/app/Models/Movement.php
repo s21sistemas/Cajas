@@ -19,6 +19,8 @@ class Movement extends Model
         'amount',
         'balance',
         'status',
+        'movementable_type',
+        'movementable_id'
     ];
 
     protected $casts = [

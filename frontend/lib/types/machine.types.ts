@@ -10,6 +10,13 @@ export interface Machine extends BaseEntity {
   location: string | null;
   status: MachineStatus;
   notes: string | null;
+  utilization?: {
+    utilization: number;
+    activeHours: number;
+    totalHours: number;
+    startOfWeek: string;
+    endOfWeek: string;
+  };
 }
 
 export interface CreateMachineDto {

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Product;
+use App\Models\WarehouseMovement;
 
 class WorkOrder extends Model
 {
@@ -30,29 +32,29 @@ class WorkOrder extends Model
         'operator',
         'start_date',
         'due_date',
-        'expected_date',
+        'end_date',
         'progress',
         'estimated_time',
         'actual_time',
         'cancellation_reason',
-        // Campos de precios
-        'unit_price',
-        'subtotal',
-        'iva',
-        'total',
-        // Campos de pago
-        'payment_type',
-        'credit_days',
-        // Campos MES
-        'total_produced',
-        'total_scrap',
-        'total_rework',
-        'yield',
-        'scrap_rate',
-        'efficiency',
-        'production_status',
-        'production_started_at',
-        'production_completed_at',
+        // // Campos de precios
+        // 'unit_price',
+        // 'subtotal',
+        // 'iva',
+        // 'total',
+        // // Campos de pago
+        // 'payment_type',
+        // 'credit_days',
+        // // Campos MES
+        // 'total_produced',
+        // 'total_scrap',
+        // 'total_rework',
+        // 'yield',
+        // 'scrap_rate',
+        // 'efficiency',
+        // 'production_status',
+        // 'production_started_at',
+        // 'production_completed_at',
     ];
 
     protected $casts = [
@@ -282,64 +284,99 @@ class WorkOrder extends Model
             'message' => '',
             'quantity_transferred' => 0,
         ];
-        
-        // Obtener las producciones completadas de esta orden de trabajo
-        $productions = $this->productions()
-            ->where('status', 'completed')
-            ->get();
-        
-        if ($productions->isEmpty()) {
-            $result['message'] = 'No hay producciones completadas para transferir';
-            return $result;
-        }
-        
-        // Sumar las piezas buenas de todas las producciones
-        $totalGoodParts = $productions->target_parts;
-        
+
+        $totalGoodParts = $this->quantity;
+
         if ($totalGoodParts <= 0) {
             $result['message'] = 'No hay piezas buenas para transferir';
             return $result;
         }
-        
-        // Verificar si tenemos un producto asociado
-        $productId = $this->product_id;
-        $productName = $this->product_name;
-        
-        if (!$productId && !$productName) {
+
+        if (!$this->product_id) {
             $result['message'] = 'La orden de trabajo no tiene un producto asociado';
             return $result;
         }
-        
-        // Buscar o crear el item en inventario de productos terminados
-        $inventoryItem = InventoryItem::where('product_id', $productId)
-            ->where('category', 'finished_product')
+
+        $product = Product::find($this->product_id);
+
+        if (!$product) {
+            $result['message'] = 'Producto no encontrado';
+            return $result;
+        }
+
+        $inventoryItem = InventoryItem::where('code', $product->code)
+            ->where('warehouse', 'finished_product')
             ->first();
-        
+
         if ($inventoryItem) {
-            // Actualizar cantidad existente
-            $inventoryItem->quantity += $totalGoodParts;
-            $inventoryItem->last_movement = now();
-            $inventoryItem->save();
+            $inventoryItem->increment('quantity', $totalGoodParts);
+            $inventoryItem->update([
+                'last_movement' => now()
+            ]);
+            $inventoryItemId = $inventoryItem->id;
         } else {
-            // Crear nuevo item en inventario
-            $product = Product::find($productId);
-            
-            InventoryItem::create([
+            $newItem = InventoryItem::create([
                 'code' => $product->code,
-                'name' => $productName ?? 'Producto terminado',
-                'category' => '',
-                'warehouse' => 'finished_product', // Productos Terminados
+                'name' => $this->product_name ?? $product->name,
+                'category' => $product->category ?? '',
+                'warehouse' => 'finished_product',
                 'quantity' => $totalGoodParts,
                 'unit' => 'pza',
                 'unit_cost' => $this->unit_price ?? 0,
                 'last_movement' => now(),
             ]);
+            $inventoryItemId = $newItem->id;
+        }
+
+        // Registrar movimiento de almacén para trazabilidad
+        WarehouseMovement::create([
+            'inventory_item_id' => $inventoryItemId,
+            'movement_type' => 'income',
+            'quantity' => $totalGoodParts,
+            'reference_type' => 'work_order',
+            'reference_id' => $this->id,
+            'notes' => 'Transferencia desde orden de trabajo: ' . $this->code,
+            'performed_by' => auth()->user()->name ?? 'Sistema',
+            'movement_date' => now(),
+        ]);
+
+        return [
+            'success' => true,
+            'message' => "Se transfirieron {$totalGoodParts} piezas al inventario de productos terminados",
+            'quantity_transferred' => $totalGoodParts,
+        ];
+    }
+
+    /**
+     * Obtener materiales del producto de la orden de trabajo con su stock en inventario
+     */
+    public function getMaterialsWithInventory(): array
+    {
+        $materials = [];
+        
+        // Cargar el producto con sus materiales
+        $this->load('product.materials');
+        
+        if (!$this->product) {
+            return $materials;
         }
         
-        $result['success'] = true;
-        $result['message'] = "Se transfirieron {$totalGoodParts} piezas al inventario de productos terminados";
-        $result['quantity_transferred'] = $totalGoodParts;
+        foreach ($this->product->materials as $material) {
+            // Buscar en inventory_items por código
+            $inventoryItem = \App\Models\InventoryItem::where('code', $material->code)
+                ->where('warehouse', 'materials')
+                ->first();
+            
+            $materials[] = [
+                'id' => $material->id,
+                'code' => $material->code,
+                'name' => $material->name,
+                'requiredQuantity' => $material->pivot->quantity,
+                'availableStock' => $inventoryItem ? $inventoryItem->quantity : 0,
+                'isAvailable' => $inventoryItem && $inventoryItem->quantity >= $material->pivot->quantity,
+            ];
+        }
         
-        return $result;
+        return $materials;
     }
 }

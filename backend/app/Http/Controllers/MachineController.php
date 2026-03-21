@@ -110,6 +110,12 @@ class MachineController extends Controller implements HasMiddleware
 
         $perPage = $request->integer('per_page', 15);
         $machines = $query->orderBy('name')->paginate($perPage);
+        
+        // Agregar utilización a cada máquina
+        $machines->getCollection()->transform(function ($machine) {
+            $machine->utilization = $machine->getCurrentWeekUtilization();
+            return $machine;
+        });
 
         return response()->json($machines);
     }
@@ -126,6 +132,9 @@ class MachineController extends Controller implements HasMiddleware
             'axes' => 'integer|min:1|max:255',
             'status' => 'sometimes|string|max:255',
             'notes' => 'nullable|string',
+            "brand" => 'nullable|string',
+            "model" => 'nullable|string',
+            "location" => 'nullable|string',
         ]);
 
         if (!isset($data['status'])) {
@@ -165,6 +174,9 @@ class MachineController extends Controller implements HasMiddleware
             'axes' => 'sometimes|integer|min:1|max:255',
             'status' => 'sometimes|string|max:255',
             'notes' => 'nullable|string',
+            "brand" => 'nullable|string',
+            "model" => 'nullable|string',
+            "location" => 'nullable|string',
         ]);
 
         // Registrar los cambios realizados

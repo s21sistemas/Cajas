@@ -15,8 +15,8 @@ const productSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido').max(255),
   description: z.string().optional().default(''),
   category: z.string().optional().default(''),
-  price: z.number().min(0, 'El precio debe ser positivo').default(0),
-  cost: z.number().min(0, 'El costo debe ser positivo').default(0),
+  price: z.coerce.number().min(0, 'El precio debe ser positivo').default(0),
+  cost: z.coerce.number().min(0, 'El costo debe ser positivo').default(0),
   status: z.enum(['active', 'inactive', 'discontinued']).default('active'),
   unit: z.string().optional().default(''),
 });

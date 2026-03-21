@@ -66,8 +66,8 @@ export function AbsenceFormDialog({ open, onOpenChange, editingAbsence, onSubmit
   useEffect(() => {
     const loadEmployees = async () => {
       try {
-        const response = await employeesService.getAll({ per_page: 100 });
-        setEmployees(response?.data || []);
+        const response = await employeesService.getSelectList();
+        setEmployees(response || []);
       } catch (error) {
         console.error("Error loading employees:", error);
       }

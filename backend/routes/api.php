@@ -245,11 +245,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/inventory-items/{inventoryItem}/quantity', [InventoryItemController::class, 'updateQuantity']);
     Route::apiResource('inventory-items', InventoryItemController::class);
     // Warehouse Movements - Movimientos de almacén (ingresos y egresos)
-    Route::apiResource('warehouse-movements', WarehouseMovementController::class);
     Route::get('/warehouse-movements/stats', [WarehouseMovementController::class, 'stats']);
     Route::post('/warehouse-movements/income', [WarehouseMovementController::class, 'registerIncome']);
     Route::post('/warehouse-movements/expense', [WarehouseMovementController::class, 'registerExpense']);
     Route::get('/warehouse-movements/item/{inventoryItemId}', [WarehouseMovementController::class, 'byInventoryItem']);
+    Route::post('/warehouse-movements/sync-stock', [WarehouseMovementController::class, 'syncStock']);
+    Route::apiResource('warehouse-movements', WarehouseMovementController::class);
 
     Route::patch('/service-orders/{serviceOrder}/status', [ServiceOrderController::class, 'updateStatus']);
     Route::get('/service-orders/stats', [ServiceOrderController::class, 'stats']);
@@ -286,13 +287,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/discounts/{discount}/resume', [DiscountController::class, 'resume']);
     Route::apiResource('discount-types', DiscountTypeController::class);
     Route::apiResource('process-types', ProcessTypeController::class);
-    Route::apiResource('loan-types', LoanTypeController::class);
-    Route::apiResource('loans', LoanController::class);
+    Route::apiResource('loan-types', LoanTypeController::class);    
     Route::get('/loans/stats', [LoanController::class, 'stats']);
     Route::patch('/loans/{loan}/activate', [LoanController::class, 'activate']);
     Route::patch('/loans/{loan}/cancel', [LoanController::class, 'cancel']);
-    Route::apiResource('loan-payments', LoanPaymentController::class);
+    Route::apiResource('loans', LoanController::class);
     Route::patch('/loan-payments/{loanPayment}/cancel', [LoanPaymentController::class, 'cancel']);
+    Route::apiResource('loan-payments', LoanPaymentController::class);
     Route::apiResource('vacation-requests', VacationRequestController::class);
     Route::patch('/vacation-requests/{vacationRequest}/approve', [VacationRequestController::class, 'approve']);
     Route::patch('/vacation-requests/{vacationRequest}/reject', [VacationRequestController::class, 'reject']);

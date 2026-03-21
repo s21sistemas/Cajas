@@ -63,6 +63,10 @@ class LoanController extends Controller implements HasMiddleware
         return response()->json($query->orderByDesc('created_at')->paginate($perPage));
     }
 
+    public function selectList(){
+
+    }
+
     /**
      * Store a newly created resource in storage.
      */
@@ -71,7 +75,7 @@ class LoanController extends Controller implements HasMiddleware
         $validator = Validator::make($request->all(), [
             'employee_id' => 'required|exists:employees,id',
             'loan_type_id' => 'nullable|exists:loan_types,id',
-            'type' => 'required|in:personal,emergency,advance',
+            'type' => 'required',
             'amount' => 'required|numeric|min:0',
             'installments' => 'required|integer|min:1',
             'start_date' => 'required|date',
@@ -120,7 +124,7 @@ class LoanController extends Controller implements HasMiddleware
     {
         $validator = Validator::make($request->all(), [
             'loan_type_id' => 'nullable|exists:loan_types,id',
-            'type' => 'sometimes|in:personal,emergency,advance',
+            'type' => 'sometimes',
             'amount' => 'sometimes|numeric|min:0',
             'installments' => 'sometimes|integer|min:1',
             'start_date' => 'sometimes|date',

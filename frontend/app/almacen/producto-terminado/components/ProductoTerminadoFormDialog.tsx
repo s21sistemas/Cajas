@@ -17,13 +17,13 @@ import type { Product } from "@/lib/types";
 const productoSchema = z.object({
   code: z.string().min(1, "El código es requerido").max(255),
   name: z.string().min(1, "El nombre es requerido").max(255),
-  quantity: z.number().min(0, "La cantidad debe ser positiva").default(0),
-  minStock: z.number().min(0, "El stock mínimo debe ser positivo").default(0),
-  maxStock: z.number().optional(),
-  unitCost: z.number().min(0, "El costo debe ser positivo").default(0),
+  category: z.string().min(1, "La categoría es requerida"),
+  minStock: z.coerce.number().min(0, "El stock mínimo debe ser positivo").default(0),
+  maxStock: z.coerce.number().optional(),
+  unitCost: z.coerce.number().min(0, "El costo debe ser positivo").default(0),
   unit: z.string().optional().default(""),
   warehouse: z.string().optional().default(""),
-  warehouse_location_id: z.string().optional().default(""),
+  warehouse_location_id: z.string().min(1, "La ubicación es requerida"),
 });
 
 type ProductoFormValues = z.infer<typeof productoSchema>;
@@ -35,24 +35,6 @@ interface ProductoTerminadoFormDialogProps {
   onSubmit: (data: CreateInventoryItemDto) => Promise<void>;
   isLoading?: boolean;
 }
-
-const unitOptions = [
-  { value: "pza", label: "Pieza" },
-  { value: "kg", label: "Kilogramo" },
-  { value: "ton", label: "Tonelada" },
-  { value: "metro", label: "Metro" },
-  { value: "litro", label: "Litro" },
-  { value: "rollo", label: "Rollo" },
-  { value: "caja", label: "Caja" },
-  { value: "paquete", label: "Paquete" },
-];
-
-const warehouseOptions = [
-  { value: "almacen_principal", label: "Almacén Principal" },
-  { value: "almacen_secundario", label: "Almacén Secundario" },
-  { value: "area_produccion", label: "Área de Producción" },
-  { value: "exhibicion", label: "Exhibición" },
-];
 
 export function ProductoTerminadoFormDialog({ 
   open, 
@@ -82,7 +64,7 @@ export function ProductoTerminadoFormDialog({
     defaultValues: {
       code: "",
       name: "",
-      quantity: 0,
+      category: "",
       minStock: 0,
       maxStock: undefined,
       unitCost: 0,
@@ -98,7 +80,7 @@ export function ProductoTerminadoFormDialog({
       form.reset({
         code: defaultValues.code || "",
         name: defaultValues.name || "",
-        quantity: defaultValues.quantity || 0,
+        category: defaultValues.category || "",
         minStock: defaultValues.minStock || 0,
         maxStock: defaultValues.maxStock || undefined,
         unitCost: defaultValues.unitCost || 0,
@@ -111,7 +93,7 @@ export function ProductoTerminadoFormDialog({
       form.reset({
         code: "",
         name: "",
-        quantity: 0,
+        category: "",
         minStock: 0,
         maxStock: undefined,
         unitCost: 0,
@@ -122,32 +104,35 @@ export function ProductoTerminadoFormDialog({
     }
   }, [open, defaultValues, form]);
 
-  // Manejar selección de producto existente del catálogo
+  // Manejar selección de producto existente del catálogo (solo para autocompletar datos, NO stock)
   const handleProductSelect = (productId: string) => {
     if (!productId) return;
     const product = productOptions.find(p => p.id.toString() === productId);
     if (product) {
       form.setValue("code", product.code);
       form.setValue("name", product.name);
+      
+      if (product.category) form.setValue("category", product.category);
       if (product.unit) form.setValue("unit", product.unit);
       if (product.cost != null) form.setValue("unitCost", Number(product.cost) || 0);
-      if (product.stock != null) form.setValue("quantity", Number(product.stock) || 0);
       if (product.minStock != null) form.setValue("minStock", Number(product.minStock) || 0);
-      if (product.category) form.setValue("category" as any, product.category);
     }
   };
 
   const handleSubmit = async (data: ProductoFormValues) => {
+    // El stock se maneja a través de movimientos de inventario, no directamente
+    // Usamos warehouse para identificar productos terminados
     const submitData: CreateInventoryItemDto = {
       code: data.code,
       name: data.name,
-      category: "finished_product",
-      quantity: data.quantity,
+      category: data.category as any,
+      warehouse: "finished_product",
+      quantity: 0, // Se manejará por movimientos
       minStock: data.minStock,
       maxStock: data.maxStock,
       unitCost: data.unitCost,
       unit: data.unit || undefined,
-      warehouse_location_id: data.warehouse_location_id ? parseInt(data.warehouse_location_id) : undefined,
+      warehouse_location_id: parseInt(data.warehouse_location_id),
     };
     await onSubmit(submitData);
     form.reset();
@@ -162,12 +147,13 @@ export function ProductoTerminadoFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>
             {defaultValues?.id ? "Editar Producto Terminado" : "Nuevo Producto Terminado"}
           </DialogTitle>
         </DialogHeader>
+        <div className="overflow-y-auto max-h-[calc(90vh-80px)] pr-2">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             {/* SelectList para autocompletar de productos terminados existentes */}
@@ -225,25 +211,26 @@ export function ProductoTerminadoFormDialog({
               />
             </div>
 
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Categoría *</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Producto terminado" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Nota: El stock se gestiona a través de movimientos de inventario, no se edita directamente */}
+            <div className="bg-muted/50 p-3 rounded-md text-sm text-muted-foreground">
+              <p>El stock se gestiona a través de movimientos de inventario (entradas/salidas).</p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="quantity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cantidad inicial</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        placeholder="0"
-                        value={field.value}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="minStock"
@@ -262,9 +249,6 @@ export function ProductoTerminadoFormDialog({
                   </FormItem>
                 )}
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="maxStock"
@@ -283,6 +267,9 @@ export function ProductoTerminadoFormDialog({
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="unitCost"
@@ -302,9 +289,6 @@ export function ProductoTerminadoFormDialog({
                   </FormItem>
                 )}
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="unit"
@@ -318,33 +302,32 @@ export function ProductoTerminadoFormDialog({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="warehouse_location_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Ubicación específica</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar ubicación" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {locationOptions.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />      
             </div>
 
-
+            <FormField
+              control={form.control}
+              name="warehouse_location_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Ubicación específica *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar ubicación" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {locationOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />      
 
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
@@ -356,6 +339,7 @@ export function ProductoTerminadoFormDialog({
             </div>
           </form>
         </Form>
+        </div>
       </DialogContent>
     </Dialog>
   );

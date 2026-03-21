@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Plus, ClipboardList } from "lucide-react";
 import { useToast } from "@/components/erp/action-toast";
 import { ConfirmDialog } from "@/components/erp/confirm-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { orderPedidoService } from "@/lib/services/order-pedido.service";
 import type { OrderPedido, OrderPedidoStats, CreateOrderPedidoDto } from "@/lib/types/order-pedido.types";
 
@@ -26,6 +29,13 @@ export default function OrdenesPedidoPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<OrderPedido | null>(null);
   const [deletingOrder, setDeletingOrder] = useState<OrderPedido | null>(null);
+  const [assigningOrder, setAssigningOrder] = useState<OrderPedido | null>(null);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [supplierName, setSupplierName] = useState("");
+  const [deliveringOrder, setDeliveringOrder] = useState<OrderPedido | null>(null);
+  const [deliverModalOpen, setDeliverModalOpen] = useState(false);
+  const [deliveryPhoto, setDeliveryPhoto] = useState<File | null>(null);
+  const [deliveryNotes, setDeliveryNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   
   // Stats
@@ -131,6 +141,81 @@ export default function OrdenesPedidoPage() {
     }
   };
 
+  const handlePickUp = async (order: OrderPedido) => {
+    setSubmitting(true);
+    try {
+      await orderPedidoService.pickUp(Number(order.id));
+      showToast("success", "Orden marcada como recogida", "El inventario ha sido actualizado");
+      fetchOrders();
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAssign = (order: OrderPedido) => {
+    setAssigningOrder(order);
+    setSupplierName(order.supplierName || "");
+    setAssignModalOpen(true);
+  };
+
+  const handleAssignSubmit = async (supplierName: string) => {
+    if (!assigningOrder) return;
+    setSubmitting(true);
+    try {
+      await orderPedidoService.assign(Number(assigningOrder.id), { supplier_name: supplierName });
+      showToast("success", "Proveedor asignado", "La orden ha sido asignada");
+      setAssignModalOpen(false);
+      setAssigningOrder(null);
+      fetchOrders();
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeliver = (order: OrderPedido) => {
+    setDeliveringOrder(order);
+    setDeliveryPhoto(null);
+    setDeliveryNotes("");
+    setDeliverModalOpen(true);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setDeliveryPhoto(file);
+    }
+  };
+
+  const handleDeliverSubmit = async () => {
+    if (!deliveringOrder) return;
+    setSubmitting(true);
+    try {
+      const data: any = {};
+      if (deliveryNotes) {
+        data.notes = deliveryNotes;
+      }
+      await orderPedidoService.deliver(Number(deliveringOrder.id), data);
+      showToast("success", "Entrega registrada", "La orden ha sido marcada como entregada");
+      setDeliverModalOpen(false);
+      setDeliveringOrder(null);
+      fetchOrders();
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      showToast("error", "Error", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const openEditModal = (order: OrderPedido) => {
     setEditingOrder(order);
     setModalOpen(true);
@@ -176,6 +261,9 @@ export default function OrdenesPedidoPage() {
           onSearchChange={setSearch}
           onEdit={openEditModal}
           onDelete={setDeletingOrder}
+          onPickUp={handlePickUp}
+          onAssign={handleAssign}
+          onDeliver={handleDeliver}
           loading={loading}
           onRefresh={fetchOrders}
         />
@@ -197,6 +285,80 @@ export default function OrdenesPedidoPage() {
           confirmText="Eliminar"
           variant="destructive"
         />
+
+        <Dialog open={assignModalOpen} onOpenChange={setAssignModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Asignar Proveedor</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="supplier_name">Nombre del Proveedor</Label>
+                <Input
+                  id="supplier_name"
+                  value={supplierName}
+                  onChange={(e) => setSupplierName(e.target.value)}
+                  placeholder="Ingrese el nombre del proveedor"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setAssignModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={() => handleAssignSubmit(supplierName)}
+                  disabled={!supplierName.trim() || submitting}
+                >
+                  {submitting ? "Asignando..." : "Asignar"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={deliverModalOpen} onOpenChange={setDeliverModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Registrar Entrega</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Foto de Entrega (Opcional)</Label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleFileChange}
+                  className="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-md file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-primary file:text-white
+                    hover:file:bg-primary/90"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="delivery_notes">Notas de Entrega</Label>
+                <Input
+                  id="delivery_notes"
+                  value={deliveryNotes}
+                  onChange={(e) => setDeliveryNotes(e.target.value)}
+                  placeholder="Notas adicionales de la entrega"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setDeliverModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleDeliverSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? "Registrando..." : "Registrar Entrega"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </ERPLayout>
   );

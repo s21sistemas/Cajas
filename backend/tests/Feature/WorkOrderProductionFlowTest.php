@@ -619,6 +619,6 @@ class WorkOrderProductionFlowTest extends TestCase
 
         // Verificar que la máquina cambió a "in_use"
         $machine->refresh();
-        $this->assertEquals('in_use', $machine->status);
+        $this->assertEquals('running', $machine->status);
     }
 }

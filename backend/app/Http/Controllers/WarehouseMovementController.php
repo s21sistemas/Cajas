@@ -231,4 +231,17 @@ class WarehouseMovementController extends Controller implements HasMiddleware
             'pending_movements' => $pendingMovements,
         ]);
     }
+
+    /**
+     * Sincronizar stock de inventory_items con products y materials
+     */
+    public function syncStock()
+    {
+        $result = WarehouseMovement::syncAllStock();
+        
+        return response()->json([
+            'message' => 'Sincronización completada',
+            'result' => $result,
+        ]);
+    }
 }

@@ -18,13 +18,7 @@ return new class extends Migration
 
             $table->string('department');
 
-            $table->enum('type', [
-                'loan',
-                'infonavit',
-                'fonacot',
-                'alimony',
-                'other'
-            ]);
+            $table->string('type');
 
             $table->string('description')->nullable();
 

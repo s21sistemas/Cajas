@@ -155,14 +155,16 @@ export function MovimientosTable({
                 </TableRow>
               ) : (
                 movements.map((movement) => {
-                  const typeInfo = typeLabels[movement.movement_type] || { label: movement.movement_type, class: "bg-gray-500/20 text-gray-400" };
+
+                  console.log(movement);
+                  const typeInfo = typeLabels[movement.movementType] || { label: movement.movementType, class: "bg-gray-500/20 text-gray-400" };
                   const statusInfo = statusLabels[movement.status] || { label: movement.status, class: "bg-gray-500/20 text-gray-400" };
-                  const quantityPrefix = movement.movement_type === "income" ? "+" : movement.movement_type === "expense" ? "-" : "";
+                  const quantityPrefix = movement.movementType === "income" ? "+" : movement.movementType === "expense" ? "-" : "";
                   
                   return (
                     <TableRow key={movement.id} className="border-border">
                       <TableCell className="text-muted-foreground whitespace-nowrap">
-                        {formatDate(movement.created_at)}
+                        {formatDate(movement.createdAt)}
                       </TableCell>
                       <TableCell>
                         <Badge className={typeInfo.class}>{typeInfo.label}</Badge>
@@ -173,7 +175,7 @@ export function MovimientosTable({
                           <p className="text-xs text-muted-foreground">{movement.inventoryItem?.code}</p>
                         </div>
                       </TableCell>
-                      <TableCell className={`text-right font-medium ${movement.movement_type === 'income' ? 'text-green-400' : movement.movement_type === 'expense' ? 'text-red-400' : 'text-foreground'}`}>
+                      <TableCell className={`text-right font-medium ${movement.movementType === 'income' ? 'text-green-400' : movement.movementType === 'expense' ? 'text-red-400' : 'text-foreground'}`}>
                         {quantityPrefix}{movement.quantity}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -183,7 +185,7 @@ export function MovimientosTable({
                         {movement.warehouseLocationTo?.name || (movement.warehouse_location_to_id ? "Transferencia" : "-")}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {movement.reference_type || "-"}
+                        {movement.referenceType || "-"}
                       </TableCell>
                       <TableCell>
                         <Badge className={statusInfo.class}>{statusInfo.label}</Badge>

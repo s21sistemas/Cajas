@@ -79,7 +79,7 @@ export function DisabilityFormDialog({ open, onOpenChange, editingDisability, on
     resolver: zodResolver(schema),
     defaultValues: {
       folio: editingDisability?.folio || "",
-      type: (editingDisability?.type as any) || "illness",
+      type: (editingDisability?.type as any) || "",
       employeeId: editingDisability?.employeeId || 0,
       startDate: formatDateForInput(editingDisability?.startDate),
       endDate: formatDateForInput(editingDisability?.endDate),
@@ -107,7 +107,7 @@ export function DisabilityFormDialog({ open, onOpenChange, editingDisability, on
     if (open) {
       reset({
         folio: editingDisability?.folio || "",
-        type: (editingDisability?.type as any) || "illness",
+        type: (editingDisability?.type as any) || "",
         employeeId: editingDisability?.employeeId || 0,
         startDate: formatDateForInput(editingDisability?.startDate),
         endDate: formatDateForInput(editingDisability?.endDate),

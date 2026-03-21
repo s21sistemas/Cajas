@@ -276,5 +276,10 @@ export const inventoryService = {
   // Get warehouse movement statistics
   getMovementStats: (): Promise<WarehouseMovementStats> => {
     return api.get<WarehouseMovementStats>('/warehouse-movements/stats');
+  },
+
+  // Sync stock from inventory items to products/materials
+  syncStock: (): Promise<{ message: string; result: { products: number; materials: number; not_found: number } }> => {
+    return api.post<{ message: string; result: { products: number; materials: number; not_found: number } }>('/warehouse-movements/sync-stock');
   }
 };

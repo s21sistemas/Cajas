@@ -132,6 +132,7 @@ export function ProductoTerminadoTable({
               ) : (
                 items.map((item) => {
                   const stockStatus = getStockStatus(item.quantity || 0, item.minStock || 0);
+                  console.log(item);
                   return (
                     <TableRow key={item.id} className="border-border">
                       <TableCell className="font-mono text-sm text-foreground">{item.code}</TableCell>
@@ -148,7 +149,7 @@ export function ProductoTerminadoTable({
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">{item.minStock || 0}</TableCell>
                       <TableCell className="text-right text-foreground">{formatCurrency(item.unitCost)}</TableCell>
-                      <TableCell className="text-muted-foreground">{item.warehouse || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{item.warehouseLocation?.name + ' ' + item.warehouseLocation?.zone || "-"}</TableCell>
                       <TableCell>
                         <Badge className={stockStatus.class}>{stockStatus.label}</Badge>
                       </TableCell>

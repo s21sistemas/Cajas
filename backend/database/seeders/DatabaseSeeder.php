@@ -25,25 +25,25 @@ class DatabaseSeeder extends Seeder
             SuperAdminSeeder::class,
         ]);
 
-        // 2.1. Crear usuarios con diferentes roles
-        $this->call([
-            UserRoleSeeder::class,
-        ]);
+        // // 2.1. Crear usuarios con diferentes roles
+        // $this->call([
+        //     UserRoleSeeder::class,
+        // ]);
 
-        // 3. Crear catálogo de datos
-        $this->call([
-            CatalogSeeder::class,
-        ]);
+        // // 3. Crear catálogo de datos
+        // $this->call([
+        //     CatalogSeeder::class,
+        // ]);
 
-        // 4. Crear cuentas bancarias
-        $this->call([
-            BankAccountSeeder::class,
-        ]);
+        // // 4. Crear cuentas bancarias
+        // $this->call([
+        //     BankAccountSeeder::class,
+        // ]);
 
-        // 5. Crear cotizaciones en borrador
-        $this->call([
-            QuoteSeeder::class,
-        ]);
+        // // 5. Crear cotizaciones en borrador
+        // $this->call([
+        //     QuoteSeeder::class,
+        // ]);
 
         // // 4. Crear órdenes de trabajo (después de catálogos)
         // $this->call([

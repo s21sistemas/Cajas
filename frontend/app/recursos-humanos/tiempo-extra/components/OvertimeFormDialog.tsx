@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { DialogFooter, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { employeesService } from "@/lib/services";
 import type { Overtime } from "@/lib/types/hr.types";
-import type { Employee } from "@/lib/types";
 import { useState } from "react";
 
 const schema = z.object({
@@ -48,6 +47,11 @@ interface OvertimeFormDialogProps {
   loading?: boolean;
 }
 
+interface Employee {
+  value?: number,
+  label?: string,
+}
+
 export function OvertimeFormDialog({ open, onOpenChange, editingOvertime, onSubmit, loading = false }: OvertimeFormDialogProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
 
@@ -75,8 +79,8 @@ export function OvertimeFormDialog({ open, onOpenChange, editingOvertime, onSubm
   useEffect(() => {
     const loadEmployees = async () => {
       try {
-        const response = await employeesService.getAll({ per_page: 100 });
-        setEmployees(response?.data || []);
+        const response = await employeesService.getSelectList();
+        setEmployees(response || []);
       } catch (error) {
         console.error("Error loading employees:", error);
       }
@@ -149,8 +153,8 @@ export function OvertimeFormDialog({ open, onOpenChange, editingOvertime, onSubm
               </SelectTrigger>
               <SelectContent>
                 {employees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id?.toString() || ""}>
-                    {emp.name}
+                  <SelectItem key={emp.value} value={emp.value?.toString() || ""}>
+                    {emp.label}
                   </SelectItem>
                 ))}
               </SelectContent>

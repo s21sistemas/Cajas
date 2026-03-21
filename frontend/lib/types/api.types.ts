@@ -52,7 +52,7 @@ export type ProductStatus = 'diseño' | 'en_producción' | 'completado' | 'activ
 export type MachineStatus = 'available' | 'running' | 'maintenance' | 'offline';
 export type ProcessStatus = 'active' | 'inactive' | 'pending' | 'completed';
 export type InventoryCategory = 'raw_material' | 'component' | 'tool' | 'consumable' | 'finished_product';
-export type WarehouseType = 'materia_prima' | 'producto_terminado';
+export type WarehouseType = 'materia_prima' | 'producto_terminado' | 'materials' | 'finished_product';
 
 // Common filter and search interfaces
 export interface BaseFilters {
