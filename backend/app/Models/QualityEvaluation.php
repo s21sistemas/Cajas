@@ -131,24 +131,6 @@ class QualityEvaluation extends Model
     }
 
     /**
-     * Encontrar el proceso objetivo para reproceso
-     */
-    protected function findReworkTargetProcess(WorkOrderProcess $currentProcess): ?WorkOrderProcess
-    {
-        // 1. Buscar proceso definido como reproceso
-        $reworkProcess = WorkOrderProcess::where('work_order_id', $currentProcess->work_order_id)
-            ->where('is_rework_process', true)
-            ->first();
-
-        if ($reworkProcess) {
-            return $reworkProcess;
-        }
-
-        // 2. Regresar al proceso anterior
-        return $currentProcess->getPreviousInSequence();
-    }
-
-    /**
      * Crear movimiento de trazabilidad
      */
     protected function createMovement(

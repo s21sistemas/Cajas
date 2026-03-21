@@ -23,26 +23,14 @@ return new class extends Migration
             // Relaciones
             $table->foreignId('product_id')->constrained('products');
             $table->foreignId('client_id')->nullable()->constrained('clients')->nullOnDelete();
-            $table->foreignId('supplier_id')->nullable()->constrained('suppliers')->nullOnDelete();
             
             // Datos básicos
             $table->string('product_name');
-            $table->string('supplier_name')->nullable();
 
             // Producción / Compra
             $table->integer('quantity')->default(0);
             $table->integer('completed')->default(0);
             $table->unsignedTinyInteger('progress')->default(0);
-
-            // Precios
-            $table->decimal('unit_price', 14, 2)->default(0)->comment('Precio unitario');
-            $table->decimal('subtotal', 14, 2)->default(0)->comment('Subtotal sin IVA');
-            $table->decimal('iva', 14, 2)->default(0)->comment('Monto del IVA');
-            $table->decimal('total', 14, 2)->default(0)->comment('Total con IVA');
-
-            // Pago
-            $table->enum('payment_type', ['cash', 'credit'])->default('cash')->comment('Tipo de pago: cash=contado, credit=crédito');
-            $table->integer('credit_days')->default(0)->comment('Días de crédito (si payment_type=credit)');
 
             // Estados
             $table->enum('status', [
@@ -69,7 +57,7 @@ return new class extends Migration
             // Fechas
             $table->date('start_date')->nullable();
             $table->date('due_date')->nullable();
-            $table->date('expected_date')->nullable()->comment('Fecha esperada de entrega');
+            $table->date('end_date')->nullable()->comment('Fecha de finalización');
 
             // Tiempos
             $table->decimal('estimated_time', 8, 2)->default(0);

@@ -234,12 +234,14 @@ class WorkOrder extends Model
         });
         
         if ($allCompleted && $this->status !== 'completed') {
+            // Usar el método del WorkOrder para transferir a inventario
+            $result = $this->transferToFinishedInventory();
+            
             $this->update([
                 'status' => 'completed',
                 'progress' => 100,
                 'completed' => $this->quantity,
-                'production_status' => self::PRODUCTION_STATUS_COMPLETED,
-                'production_completed_at' => now(),
+                'end_date' => now(),
             ]);
         }
     }
@@ -267,5 +269,77 @@ class WorkOrder extends Model
         $this->update([
             'progress' => round($averageProgress, 2),
         ]);
+    }
+
+    /**
+     * Transferir las piezas producidas al inventario de productos terminados
+     * Se llama cuando todas las producciones de la orden de trabajo están completadas
+     */
+    public function transferToFinishedInventory(): array
+    {
+        $result = [
+            'success' => false,
+            'message' => '',
+            'quantity_transferred' => 0,
+        ];
+        
+        // Obtener las producciones completadas de esta orden de trabajo
+        $productions = $this->productions()
+            ->where('status', 'completed')
+            ->get();
+        
+        if ($productions->isEmpty()) {
+            $result['message'] = 'No hay producciones completadas para transferir';
+            return $result;
+        }
+        
+        // Sumar las piezas buenas de todas las producciones
+        $totalGoodParts = $productions->target_parts;
+        
+        if ($totalGoodParts <= 0) {
+            $result['message'] = 'No hay piezas buenas para transferir';
+            return $result;
+        }
+        
+        // Verificar si tenemos un producto asociado
+        $productId = $this->product_id;
+        $productName = $this->product_name;
+        
+        if (!$productId && !$productName) {
+            $result['message'] = 'La orden de trabajo no tiene un producto asociado';
+            return $result;
+        }
+        
+        // Buscar o crear el item en inventario de productos terminados
+        $inventoryItem = InventoryItem::where('product_id', $productId)
+            ->where('category', 'finished_product')
+            ->first();
+        
+        if ($inventoryItem) {
+            // Actualizar cantidad existente
+            $inventoryItem->quantity += $totalGoodParts;
+            $inventoryItem->last_movement = now();
+            $inventoryItem->save();
+        } else {
+            // Crear nuevo item en inventario
+            $product = Product::find($productId);
+            
+            InventoryItem::create([
+                'code' => $product->code,
+                'name' => $productName ?? 'Producto terminado',
+                'category' => '',
+                'warehouse' => 'finished_product', // Productos Terminados
+                'quantity' => $totalGoodParts,
+                'unit' => 'pza',
+                'unit_cost' => $this->unit_price ?? 0,
+                'last_movement' => now(),
+            ]);
+        }
+        
+        $result['success'] = true;
+        $result['message'] = "Se transfirieron {$totalGoodParts} piezas al inventario de productos terminados";
+        $result['quantity_transferred'] = $totalGoodParts;
+        
+        return $result;
     }
 }

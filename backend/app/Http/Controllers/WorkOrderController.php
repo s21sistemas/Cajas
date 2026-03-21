@@ -191,7 +191,7 @@ class WorkOrderController extends Controller implements HasMiddleware
 
                 return [
                     'id' => $item->id,
-                    'saleItemId' => $item->id,
+                    'saleId' => $item->sale_id,
                     'productId' => $item->product_id,
                     'product_id' => $item->product_id,
                     'productName' => $product->name,

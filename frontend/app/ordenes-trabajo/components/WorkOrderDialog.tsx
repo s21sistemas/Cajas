@@ -85,6 +85,50 @@ export function WorkOrderDialog({
     allProductsRef.current = products;
   };
 
+  // Resetear el formulario cuando se abre el diálogo para nueva orden
+  const prevOpenRef = useRef(open);
+  const prevWorkOrderRef = useRef(workOrder);
+  
+  useEffect(() => {
+    // Detectar cambio de cerrado a abierto
+    const wasClosed = !prevOpenRef.current;
+    const isNowOpen = open;
+    const isNewOrder = !workOrder;
+    const wasEditing = prevWorkOrderRef.current !== null;
+    
+    if (wasClosed && isNowOpen && isNewOrder) {
+      // Nueva orden - resetear todo
+      setFormData({
+        product_id: null,
+        client_id: null,
+        sale_id: null,
+        quantity: 1,
+        priority: "medium",
+        start_date: new Date().toISOString().split('T')[0],
+        due_date: "",
+        notes: "",
+      });
+      setProductsLoaded(false); // Permitir recargar productos
+      setSaleProducts(allProducts);
+    } else if (isNowOpen && workOrder) {
+      // Edición - cargar datos existentes
+      setFormData({
+        product_id: workOrder.productId,
+        client_id: workOrder.clientId,
+        sale_id: workOrder.saleId,
+        quantity: workOrder.quantity,
+        priority: workOrder.priority || "medium",
+        start_date: workOrder.startDate || new Date().toISOString().split('T')[0],
+        due_date: workOrder.dueDate || "",
+        notes: workOrder.notes || "",
+      });
+    }
+    
+    // Actualizar refs
+    prevOpenRef.current = open;
+    prevWorkOrderRef.current = workOrder;
+  }, [open, workOrder]);
+
   console.log(error);
 
   // Obtener errores del prop o del formato de error de Laravel
@@ -176,7 +220,8 @@ export function WorkOrderDialog({
       setLoadingProducts(true);
       try {
         // Cargar los items de la venta
-        const response = await salesService.getItems(formData.sale_id);
+        // const response = await salesService.getItems(formData.sale_id);
+        const response = await workOrdersService.getAvailableProducts(formData.sale_id);
         console.log('Sale items response:', response);
         
         // El API devuelve { success: true, data: [...] }
@@ -186,19 +231,19 @@ export function WorkOrderDialog({
           // Transformar los items de la venta al formato esperado - solo con ID válido
           const validItems = items
             .filter((item: any) => {
-              const productId = item.product?.id ?? item.product_id ?? item.id;
+              const productId = item.productId ?? item.product_id;
               return productId && productId > 0;
             })
             .map((item: any) => {
               // Buscar el ID del producto - puede estar en diferentes lugares
-              const productId = item.product?.id ?? item.product_id ?? item.id;
+              const productId = item.productId ?? item.product_id;
               return {
                 id: productId,
                 saleItemId: item.id,
                 productId: productId,
-                productName: item.product?.name || item.description || item.product_name || 'Producto sin nombre',
+                productName: item.productName || item.description || item.product_name || 'Producto sin nombre',
                 quantity: item.quantity || 1,
-                unitPrice: item.unit_price || item.price || 0,
+                unitPrice: item.unitPrice || item.unit_price || 0,
                 subtotal: item.subtotal || (item.quantity * (item.unit_price || item.price || 0)),
               };
             });
