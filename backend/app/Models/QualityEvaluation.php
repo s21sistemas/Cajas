@@ -93,15 +93,11 @@ class QualityEvaluation extends Model
                 $newScrapParts = $production->scrap_parts + $this->quantity_scrap;
                 
                 $production->update([
+                    'status' => 'pending',
                     'quality_status' => 'SCRAP',
                     'good_parts' => $newGoodParts,
                     'scrap_parts' => $newScrapParts,
                 ]);
-                
-                // Acumular scrap en la orden
-                if ($workOrder) {
-                    $workOrder->increment('total_scrap', $this->quantity_scrap);
-                }
                 
                 // Registrar movimiento de trazabilidad
                 $this->createMovement('QUALITY_SCRAP', $this->quantity_scrap);
@@ -123,10 +119,6 @@ class QualityEvaluation extends Model
                 // Registrar movimiento de retorno
                 $this->createMovement('QUALITY_REWORK', $this->quantity_rework);
                 
-                // Acumular rework en la orden
-                if ($workOrder) {
-                    $workOrder->increment('total_rework', $this->quantity_rework);
-                }
                 
                 return [
                     'success' => true,

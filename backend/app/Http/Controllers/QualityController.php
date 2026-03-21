@@ -46,7 +46,7 @@ class QualityController extends Controller
     public function pendingEvaluations(Request $request): JsonResponse
     {
         $query = Production::with(['workOrder', 'process', 'operator'])
-            ->where('quality_status', Production::QUALITY_STATUS_PENDING)
+            ->whereIn('quality_status', [Production::QUALITY_STATUS_PENDING, Production::QUALITY_STATUS_SCRAP])
             ->where('status', 'completed')
             ->orWhereNull('quality_status');
 
@@ -142,7 +142,8 @@ class QualityController extends Controller
         // Validar que la producción no haya sido evaluada
         $production = Production::find($validated['production_id']);
         
-        if ($production->quality_status && $production->quality_status !== Production::QUALITY_STATUS_PENDING) {
+        if ($production->quality_status && $production->quality_status !== Production::QUALITY_STATUS_PENDING &&
+        $production->quality_status !== Production::QUALITY_STATUS_SCRAP) {
             return response()->json([
                 'success' => false,
                 'message' => 'Esta producción ya ha sido evaluada',
