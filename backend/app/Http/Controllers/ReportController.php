@@ -299,7 +299,7 @@ class ReportController extends Controller
                     'productions' => $data,
                     'startDate' => $startDate,
                     'endDate' => $endDate,
-                ]);
+                ])->setPaper('a4', 'landscape'); // Orientación horizontal
                 return $pdf->download('reporte-produccion.pdf');
             }
 
