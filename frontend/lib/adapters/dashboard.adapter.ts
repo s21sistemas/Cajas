@@ -6,8 +6,8 @@
 
 import { machinesService } from "../services/machines.service";
 import { workOrdersService } from "../services/work-orders.service";
-import { hrService } from "../services/hr.service";
 import { inventoryService } from "../services/inventory.service";
+import { reportsService } from "../services/reports.service";
 
 // Tipos del dashboard (compatibles con mock-data)
 export interface DashboardMachine {
@@ -82,9 +82,9 @@ async function getCachedMachines(): Promise<DashboardMachine[]> {
     return machinesPromise;
   }
   
-  machinesPromise = machinesService.getAll({ per_page: 100 }).then((response) => {
+  machinesPromise = machinesService.getAll({ perPage: 100 }).then((response) => {
     // Handle paginated response - extract data from response.data
-    const machinesArray = response.data?.data || response.data || [];
+    const machinesArray = response.data ?? response ?? [];
     const data = machinesArray.map((machine: any) => ({
       id: String(machine.id),
       code: machine.code || `M-${machine.id}`,
@@ -149,13 +149,21 @@ export async function fetchDashboardKPIs(): Promise<DashboardKPIs> {
     const machines = await getCachedMachines();
     const orders = await getCachedOrders();
     
-    // Llamadas independientes para employees e inventory (solo se usan aquí)
-    const [employeesResponse, inventoryResponse] = await Promise.all([
-      hrService.getEmployees({}),
+    // Obtener datos del dashboard desde el backend (período por defecto: mes actual)
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    
+    const dashboardData = await reportsService.getDashboard({
+      start_date: startDate,
+      end_date: endDate,
+    });
+    
+    // Llamada independiente solo para inventory (operators viene del backend)
+    const [inventoryResponse] = await Promise.all([
       inventoryService.getAll({}),
     ]);
     
-    const employees = employeesResponse.data;
     const inventoryItems = inventoryResponse.data;
 
     const machinesRunning = machines.filter((m: any) => m.status === "running").length;
@@ -167,21 +175,29 @@ export async function fetchDashboardKPIs(): Promise<DashboardKPIs> {
       (item: any) => item.quantity <= item.minStock
     ).length;
 
+    // Calcular scrap rate (porcentaje) desde los valores crudos
+    const totalProduction = dashboardData.production?.total || 0;
+    const totalScrap = dashboardData.production?.scrap || 0;
+    const scrapRate = (totalProduction + totalScrap) > 0 
+      ? Math.round((totalScrap / (totalProduction + totalScrap)) * 100 * 100) / 100
+      : 0;
+
+    // Usar datos reales del backend
     return {
-      totalProduction: Math.floor(Math.random() * 5000) + 10000,
-      productionChange: Math.random() * 10 - 5,
-      efficiency: 85 + Math.random() * 10,
-      efficiencyChange: Math.random() * 4 - 2,
-      scrapRate: 2 + Math.random() * 2,
-      scrapRateChange: Math.random() * 1 - 0.5,
+      totalProduction: dashboardData.production?.total || 0,
+      productionChange: dashboardData.production?.change ?? 0,
+      efficiency: dashboardData.production?.efficiency || 0,
+      efficiencyChange: dashboardData.production?.efficiency_change ?? 0,
+      scrapRate: scrapRate,
+      scrapRateChange: dashboardData.production?.scrap_change ?? 0,
       machinesRunning,
       machinesAvailable,
       machinesMaintenance,
-      activeOperators: employees.length,
-      pendingOrders,
-      completedOrders,
-      lowStockItems,
-      criticalAlerts: 0,
+      activeOperators: dashboardData.operators?.total || 0,
+      pendingOrders: dashboardData.workOrders?.pending || pendingOrders,
+      completedOrders: dashboardData.workOrders?.completed || completedOrders,
+      lowStockItems: dashboardData.inventory?.low_stock || lowStockItems,
+      criticalAlerts: dashboardData.alerts?.critical ?? 0,
     };
   } catch (error) {
     console.error("Error fetching dashboard KPIs:", error);
@@ -194,98 +210,107 @@ export async function fetchDashboardKPIs(): Promise<DashboardKPIs> {
 // Función para obtener datos del gráfico de producción
 export async function fetchProductionChartData(): Promise<ProductionChartData[]> {
   try {
-    const data: ProductionChartData[] = [];
-    const today = new Date();
-
-    for (let i = 14; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
-      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      const baseTarget = isWeekend ? 800 : 1500;
-      const variance = Math.random() * 200 - 100;
-
-      data.push({
-        date: dateStr,
-        produced: Math.floor(baseTarget + variance),
-        target: baseTarget,
-        scrap: Math.floor(Math.random() * 30 + 10),
-      });
+    // Obtener datos del dashboard desde el backend
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    
+    const dashboardData = await reportsService.getDashboard({
+      start_date: startDate,
+      end_date: endDate,
+    });
+    
+    // Usar datos diarios del backend
+    const dailyData = dashboardData.production?.daily || [];
+    
+    // Si hay datos reales del backend, usarlos
+    if (dailyData.length > 0) {
+      return dailyData.map((day: any) => ({
+        date: new Date(day.date).toLocaleDateString("es-MX", { day: "2-digit", month: "short" }),
+        produced: day.produced || 0,
+        target: day.target || 1500,
+        scrap: day.scrap || 0,
+      }));
     }
-
-    return data;
+    
+    // Si no hay datos de producción, no generar mock - devolver array vacío
+    // El componente gráfico mostrará un estado vacío o mensaje apropiado
+    return [];
+    
   } catch (error) {
     console.error("Error fetching production chart data:", error);
-    return getMockProductionData();
+    return [];
   }
 }
 
-// Función para obtener utilización de máquinas (reutiliza máquinas del cache)
+// Función para obtener utilización de máquinas (usa API real del backend)
 export async function fetchMachineUtilization(): Promise<MachineUtilization[]> {
   try {
-    const machines = await getCachedMachines();
-
-    return machines.map((machine) => {
-      const isRunning = machine.status === "running";
-      const isMaintenance = machine.status === "maintenance";
-      const utilization = isRunning ? 70 + Math.random() * 25 : isMaintenance ? 0 : Math.random() * 20;
-      const totalMinutes = 8 * 60;
-      const uptime = Math.floor((utilization / 100) * totalMinutes);
-      const downtime = totalMinutes - uptime;
-
-      return {
-        machineId: machine.id,
-        machineName: machine.name,
-        utilization: Math.round(utilization),
-        uptime,
-        downtime,
-      };
-    });
+    // Usar el endpoint real de utilización del backend
+    const response = await machinesService.getUtilization();
+    const rawData = response as any;
+    
+    // El backend devuelve: machine_id, name, status, utilizationRate, uptime, downtime
+    const dataArray = rawData.data ?? rawData ?? [];
+    
+    return dataArray.map((item: any) => ({
+      machineId: String(item.machine_id || item.id || ''),
+      machineName: item.name || item.machineName || 'Máquina',
+      utilization: item.utilizationRate ?? item.utilization ?? 0,
+      uptime: item.uptime ?? 0,
+      downtime: item.downtime ?? 0,
+    }));
   } catch (error) {
     console.error("Error fetching machine utilization:", error);
-    cachedMachines = null;
-    return getMockUtilizationData();
+    // Si falla el endpoint, fallback a cálculo basado en status
+    return getMachineUtilizationFromStatus();
   }
 }
 
-// Función para obtener actividad reciente (reutiliza máquinas y órdenes del cache)
+// Función helper: obtener utilización basada en status de máquina (fallback)
+async function getMachineUtilizationFromStatus(): Promise<MachineUtilization[]> {
+  const machines = await getCachedMachines();
+  
+  return machines.map((machine) => {
+    const isRunning = machine.status === "running";
+    const isMaintenance = machine.status === "maintenance";
+    const utilization = isRunning ? 70 + Math.random() * 25 : isMaintenance ? 0 : Math.random() * 20;
+    const totalMinutes = 8 * 60;
+    const uptime = Math.floor((utilization / 100) * totalMinutes);
+    const downtime = totalMinutes - uptime;
+
+    return {
+      machineId: machine.id,
+      machineName: machine.name,
+      utilization: Math.round(utilization),
+      uptime,
+      downtime,
+    };
+  });
+}
+
+// Función para obtener actividad reciente (usa API real del backend)
 export async function fetchRecentActivity(): Promise<RecentActivity[]> {
   try {
-    const orders = await getCachedOrders();
-    const machines = await getCachedMachines();
-    const activities: RecentActivity[] = [];
-
-    orders.slice(0, 3).forEach((order: any) => {
-      activities.push({
-        id: `order-${order.id}`,
-        type: "order",
-        title: `Orden ${order.code || order.id}`,
-        description: order.productName || "Producción de caja",
-        timestamp: order.createdAt || new Date().toISOString(),
-        status: order.status,
-      });
-    });
-
-    machines.slice(0, 2).forEach((machine) => {
-      if (machine.status === "maintenance") {
-        activities.push({
-          id: `maintenance-${machine.id}`,
-          type: "maintenance",
-          title: `Mantenimiento: ${machine.name}`,
-          description: "Máquina en mantenimiento",
-          timestamp: new Date().toISOString(),
-          status: "in_progress",
-        });
-      }
-    });
-
-    return activities.sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
+    // Usar el endpoint real de actividades del backend
+    const response = await machinesService.getActivities();
+    const rawData = response as any;
+    const activitiesData = rawData.data ?? rawData ?? [];
+    
+    // Mapear los datos del backend al formato del dashboard
+    return activitiesData.map((item: any) => ({
+      id: item.id,
+      type: item.type as RecentActivity['type'],
+      title: item.title,
+      description: item.description,
+      timestamp: item.timestamp,
+      status: item.type === 'completed' ? 'completed' : 
+             item.type === 'maintenance' ? 'in_progress' : 
+             item.type === 'alert' ? 'pending' : 'completed',
+    }));
   } catch (error) {
     console.error("Error fetching recent activity:", error);
-    cachedMachines = null;
-    cachedOrders = null;
+    // Fallback a datos mock si falla el endpoint
     return getMockActivityData();
   }
 }

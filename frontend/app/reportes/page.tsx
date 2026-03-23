@@ -49,11 +49,29 @@ const COLORS = ["#4ade80", "#60a5fa", "#fbbf24", "#f87171", "#a78bfa"];
 export default function ReportesPage() {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<{
-    production: { label: string; produced: number; target: number }[];
+    production: { 
+      total?: number; 
+      scrap?: number; 
+      efficiency?: number; 
+      change?: number; 
+      efficiency_change?: number; 
+      scrap_change?: number;
+      daily?: { label: string; produced: number; target: number }[];
+    };
     machines: { id: string | number; name: string; status: string; utilization: number }[];
-    employees: { id: string; name: string; department: string; efficiency?: number }[];
+    employees: { 
+      total: number; 
+      by_department?: Record<string, number>; 
+      efficiency?: number; 
+      attendance_rate?: number;
+    };
     inventory: { id: string | number; name: string; currentStock: number; category: string }[];
+    workOrders?: { total: number; pending: number; completed: number; in_progress: number };
+    operators?: { total: number };
   } | null>(null);
+
+  // Guardar datos originales del dashboard para las stats
+  const [rawDashboardData, setRawDashboardData] = useState<any>(null);
 
   const [selectedPeriod, setSelectedPeriod] = useState("month");
 
@@ -77,8 +95,62 @@ export default function ReportesPage() {
     ],
   });
 
-  // Cost trend data
-  const [costTrendData, setCostTrendData] = useState<{ month: string; materiales: number; manoObra: number; servicios: number }[]>([]);
+  // Función para calcular fechas según el período seleccionado
+  const getDateRange = (period: string): { start: string; end: string } => {
+    const now = new Date();
+    const end = now.toISOString().split('T')[0];
+    let start: string;
+
+    switch (period) {
+      case 'week':
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - 7);
+        start = weekStart.toISOString().split('T')[0];
+        break;
+      case 'month':
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        start = monthStart.toISOString().split('T')[0];
+        break;
+      case 'quarter':
+        const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+        start = quarterStart.toISOString().split('T')[0];
+        break;
+      case 'year':
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        start = yearStart.toISOString().split('T')[0];
+        break;
+      default:
+        start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    }
+
+    return { start, end };
+  };
+
+  // Función para exportar reporte
+  const handleExport = async () => {
+    try {
+      const { start, end } = getDateRange(selectedPeriod);
+      const blob = await reportsService.downloadExecutivePDF({
+        start_date: start,
+        end_date: end,
+      });
+      
+      // Crear enlace de descarga
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reporte-ejecutivo-${start}-al-${end}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error al exportar reporte:', error);
+      alert('Error al exportar el reporte');
+    }
+  };
+  const [costTrendData, setCostTrendData] = useState<Array<Record<string, any>>>([]);
+  const [costCategories, setCostCategories] = useState<string[]>([]);
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -100,30 +172,55 @@ export default function ReportesPage() {
     low_stock: '',
   });
 
+  // Effect principal: carga datos del dashboard con filtros
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        // Fetch dashboard data
-        const dashboard = await reportsService.getDashboard();
+        // Calcular rango de fechas según el período seleccionado
+        const { start, end } = getDateRange(selectedPeriod);
+        
+        // Construir filtros para la API - combinar período con filtros adicionales
+        const apiFilters: any = {
+          start_date: start,
+          end_date: end,
+        };
+        
+        // Agregar filtros adicionales solo si tienen valor
+        if (filters.machine_id) apiFilters.machine_id = filters.machine_id;
+        if (filters.product_id) apiFilters.product_id = filters.product_id;
+        if (filters.operator_id) apiFilters.operator_id = filters.operator_id;
+        if (filters.client_id) apiFilters.client_id = filters.client_id;
+        if (filters.category) apiFilters.category = filters.category;
+        if (filters.status) apiFilters.status = filters.status;
+        if (filters.type) apiFilters.type = filters.type;
+        if (filters.low_stock) apiFilters.low_stock = filters.low_stock;
+        
+        // Fetch dashboard data con todos los filtros
+        const dashboard = await reportsService.getDashboard(apiFilters);
+        setRawDashboardData(dashboard); // Guardar datos originales para stats
         setDashboardData({
-          production: [{ 
-            label: 'Producción', 
-            produced: dashboard.production?.total || 0, 
-            target: (dashboard.production?.total || 0) + (dashboard.production?.scrap || 0) 
-          }],
+          production: { 
+            total: dashboard.production?.total || 0,
+            scrap: dashboard.production?.scrap || 0,
+            efficiency: dashboard.production?.efficiency || 0,
+            change: dashboard.production?.change || 0,
+            efficiency_change: dashboard.production?.efficiency_change || 0,
+            scrap_change: dashboard.production?.scrap_change || 0,
+            daily: dashboard.production?.daily || []
+          },
           machines: dashboard.machines?.map((m: any) => ({
             id: m.id,
             name: m.name,
             status: m.status,
             utilization: m.utilization || 0
           })) || [],
-          employees: dashboard.employees?.by_department ? Object.entries(dashboard.employees.by_department).map(([department, count]) => ({
-            id: String(Math.random()),
-            name: department,
-            department: department,
-            efficiency: 0
-          })) : [],
+          employees: { 
+            total: dashboard.employees?.total || 0,
+            by_department: dashboard.employees?.by_department || {},
+            efficiency: dashboard.employees?.efficiency || 0,
+            attendance_rate: dashboard.employees?.attendance_rate || 0
+          },
           inventory: dashboard.inventory?.items ? dashboard.inventory.items.map((item: any) => ({
             id: item.id,
             name: item.name,
@@ -144,6 +241,18 @@ export default function ReportesPage() {
         try {
           const trend = await reportsService.getCostTrend(6);
           setCostTrendData(trend);
+          // Extraer categorías únicas de los datos
+          if (trend.length > 0) {
+            const allKeys = new Set<string>();
+            trend.forEach(item => {
+              Object.keys(item).forEach(key => {
+                if (key !== 'month') {
+                  allKeys.add(key);
+                }
+              });
+            });
+            setCostCategories(Array.from(allKeys));
+          }
         } catch (e) {
           console.error('Error fetching cost trend:', e);
         }
@@ -153,8 +262,9 @@ export default function ReportesPage() {
         setLoading(false);
       }
     };
-    fetchData();
-  }, []);
+    
+    fetchDashboardData();
+  }, [selectedPeriod, filters]);
 
   // Handler functions for report generation
   const openReportModal = (reportType: string) => {
@@ -320,7 +430,7 @@ export default function ReportesPage() {
   const productionEfficiency = dashboardData.production.map((p) => ({
     ...p,
     produced: p.produced || 0,
-    target: p.target || 1,
+    target: p.target || 0,
     efficiency: p.target && p.produced ? Math.round((p.produced / p.target) * 100) : 0,
   }));
 
@@ -353,22 +463,42 @@ export default function ReportesPage() {
     }, {} as Record<string, number>)
   ).map(([name, value]) => ({ name, value }));
 
-  const employeeByDepartment = Object.entries(
-    dashboardData.employees.reduce((acc, emp) => {
-      if (emp.department) {
-        acc[emp.department] = (acc[emp.department] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>)
-  ).map(([name, value]) => ({ name, value }));
+  const employeeByDepartment = dashboardData.employees?.by_department 
+    ? Object.entries(dashboardData.employees.by_department).map(([name, value]) => ({ name, value }))
+    : [];
 
-  const costTrend = costTrendData.length > 0 ? costTrendData : [
-    { month: "Ene", materiales: 45000, manoObra: 32000, servicios: 8000 },
-    { month: "Feb", materiales: 48000, manoObra: 33000, servicios: 7500 },
-    { month: "Mar", materiales: 42000, manoObra: 31000, servicios: 9000 },
-    { month: "Abr", materiales: 51000, manoObra: 34000, servicios: 8500 },
-    { month: "May", materiales: 47000, manoObra: 32500, servicios: 7800 },
-    { month: "Jun", materiales: 53000, manoObra: 35000, servicios: 9200 },
+  // Colores para categorías dinámicas
+  const categoryColors: Record<string, string> = {
+    materiales: '#4ade80',
+    mano_obra: '#60a5fa',
+    servicios: '#fbbf24',
+    mantenimiento: '#f472b6',
+    otros: '#a78bfa',
+  };
+
+  const getCategoryColor = (category: string) => {
+    return categoryColors[category] || '#9ca3af';
+  };
+
+  const getCategoryLabel = (category: string) => {
+    const labels: Record<string, string> = {
+      materiales: 'Materiales',
+      mano_obra: 'Mano de Obra',
+      servicios: 'Servicios',
+      mantenimiento: 'Mantenimiento',
+      otros: 'Otros',
+    };
+    return labels[category] || category;
+  };
+
+  const costTrend = costTrendData.length > 0 ? costTrendData : [];
+  const displayCostTrend = costTrend.length > 0 ? costTrend : [
+    { month: "Ene", materiales: 0, mano_obra: 0, servicios: 0 },
+    { month: "Feb", materiales: 0, mano_obra: 0, servicios: 0 },
+    { month: "Mar", materiales: 0, mano_obra: 0, servicios: 0 },
+    { month: "Abr", materiales: 0, mano_obra: 0, servicios: 0 },
+    { month: "May", materiales: 0, mano_obra: 0, servicios: 0 },
+    { month: "Jun", materiales: 0, mano_obra: 0, servicios: 0 },
   ];
 
   return (
@@ -395,7 +525,7 @@ export default function ReportesPage() {
                 <SelectItem value="year">Este Ano</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />
               Exportar
             </Button>
@@ -412,8 +542,12 @@ export default function ReportesPage() {
               <Factory className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">94.2%</div>
-              <p className="text-xs text-chart-1">+2.1% vs mes anterior</p>
+              <div className="text-2xl font-bold text-foreground">
+                {rawDashboardData?.production?.efficiency?.toFixed(1) || 0}%
+              </div>
+              <p className="text-xs text-chart-1">
+                {rawDashboardData?.production?.total || 0} unidades producidas
+              </p>
             </CardContent>
           </Card>
           <Card className="bg-card border-border">
@@ -424,8 +558,14 @@ export default function ReportesPage() {
               <TrendingUp className="h-4 w-4 text-chart-2" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">87.5%</div>
-              <p className="text-xs text-chart-1">+5.3% vs mes anterior</p>
+              <div className="text-2xl font-bold text-foreground">
+                {rawDashboardData?.machines?.length > 0 
+                  ? (rawDashboardData.machines.reduce((acc: number, m: any) => acc + (m.utilization || 0), 0) / rawDashboardData.machines.length).toFixed(1) 
+                  : 0}%
+              </div>
+              <p className="text-xs text-chart-1">
+                {rawDashboardData?.machines?.length || 0} máquinas activas
+              </p>
             </CardContent>
           </Card>
           <Card className="bg-card border-border">
@@ -436,8 +576,12 @@ export default function ReportesPage() {
               <DollarSign className="h-4 w-4 text-chart-3" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">$12.45</div>
-              <p className="text-xs text-destructive">+$0.32 vs mes anterior</p>
+              <div className="text-2xl font-bold text-foreground">
+                ${rawDashboardData?.finance?.balance ? (rawDashboardData.finance.balance / (rawDashboardData.production?.total || 1)).toFixed(2) : '0.00'}
+              </div>
+              <p className="text-xs text-chart-1">
+                Balance: ${rawDashboardData?.finance?.balance?.toLocaleString() || 0}
+              </p>
             </CardContent>
           </Card>
           <Card className="bg-card border-border">
@@ -448,8 +592,12 @@ export default function ReportesPage() {
               <Package className="h-4 w-4 text-chart-1" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">847</div>
-              <p className="text-xs text-chart-1">+12% vs mes anterior</p>
+              <div className="text-2xl font-bold text-foreground">
+                {rawDashboardData?.workOrders?.completed || 0}
+              </div>
+              <p className="text-xs text-chart-1">
+                {rawDashboardData?.workOrders?.total || 0} órdenes total
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -618,7 +766,7 @@ export default function ReportesPage() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={400}>
-                  <AreaChart data={costTrend}>
+                  <AreaChart data={displayCostTrend}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis dataKey="month" stroke="#9ca3af" />
                     <YAxis stroke="#9ca3af" />
@@ -629,33 +777,50 @@ export default function ReportesPage() {
                         borderRadius: "8px",
                       }}
                     />
-                    <Area
-                      type="monotone"
-                      dataKey="materiales"
-                      stackId="1"
-                      stroke="#4ade80"
-                      fill="#4ade80"
-                      fillOpacity={0.6}
-                      name="Materiales"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="manoObra"
-                      stackId="1"
-                      stroke="#60a5fa"
-                      fill="#60a5fa"
-                      fillOpacity={0.6}
-                      name="Mano de Obra"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="servicios"
-                      stackId="1"
-                      stroke="#fbbf24"
-                      fill="#fbbf24"
-                      fillOpacity={0.6}
-                      name="Servicios"
-                    />
+                    {costCategories.length > 0 ? (
+                      costCategories.map((category, index) => (
+                        <Area
+                          key={category}
+                          type="monotone"
+                          dataKey={category}
+                          stackId="1"
+                          stroke={getCategoryColor(category)}
+                          fill={getCategoryColor(category)}
+                          fillOpacity={0.6}
+                          name={getCategoryLabel(category)}
+                        />
+                      ))
+                    ) : (
+                      <>
+                        <Area
+                          type="monotone"
+                          dataKey="materiales"
+                          stackId="1"
+                          stroke="#4ade80"
+                          fill="#4ade80"
+                          fillOpacity={0.6}
+                          name="Materiales"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="mano_obra"
+                          stackId="1"
+                          stroke="#60a5fa"
+                          fill="#60a5fa"
+                          fillOpacity={0.6}
+                          name="Mano de Obra"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="servicios"
+                          stackId="1"
+                          stroke="#fbbf24"
+                          fill="#fbbf24"
+                          fillOpacity={0.6}
+                          name="Servicios"
+                        />
+                      </>
+                    )}
                   </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -719,7 +884,7 @@ export default function ReportesPage() {
                       <span className="text-foreground">Total Empleados</span>
                     </div>
                     <span className="text-xl font-bold text-foreground">
-                      {dashboardData.employees.length}
+                      {dashboardData.employees?.total || dashboardData.employees.length || 0}
                     </span>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-secondary">
@@ -727,21 +892,18 @@ export default function ReportesPage() {
                       <TrendingUp className="h-5 w-5 text-chart-1" />
                       <span className="text-foreground">Eficiencia Promedio</span>
                     </div>
-                    <span className="text-xl font-bold text-chart-1">92%</span>
+                    <span className="text-xl font-bold text-chart-1">
+                      {dashboardData.employees?.efficiency ?? dashboardData.production?.efficiency ?? 0}%
+                    </span>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-secondary">
                     <div className="flex items-center gap-3">
                       <Calendar className="h-5 w-5 text-chart-2" />
                       <span className="text-foreground">Asistencia</span>
                     </div>
-                    <span className="text-xl font-bold text-chart-2">98.5%</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-secondary">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-chart-3" />
-                      <span className="text-foreground">Capacitaciones</span>
-                    </div>
-                    <span className="text-xl font-bold text-chart-3">24</span>
+                    <span className="text-xl font-bold text-chart-2">
+                      {dashboardData.employees?.attendance_rate ?? 0}%
+                    </span>
                   </div>
                 </CardContent>
               </Card>

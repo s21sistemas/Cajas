@@ -88,5 +88,17 @@ export const machinesService = {
     averageUtilization: number;
   }> => {
     return api.get('/machines/stats');
+  },
+
+  // Get recent activities from all sources
+  getActivities: (): Promise<{
+    id: string;
+    type: 'production' | 'maintenance' | 'inventory' | 'machine' | 'alert' | 'completed';
+    title: string;
+    description: string;
+    time: string;
+    timestamp: string;
+  }[]> => {
+    return api.get('/machines/activities');
   }
 };

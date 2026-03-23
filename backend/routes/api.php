@@ -142,6 +142,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/machines/{machine}/maintenance', [MachineController::class, 'scheduleMaintenance']);
     Route::post('/machines/{machine}/maintenance/complete', [MachineController::class, 'completeMaintenance']);
     Route::get('/machines/utilization', [MachineController::class, 'utilization']);    
+    Route::get('/machines/activities', [MachineController::class, 'activities']);
     Route::apiResource('machines', MachineController::class);
     Route::get('/machines/{machine}/movements', [MachineController::class, 'movements']);
     Route::get('/machines/{machine}/movements/report', [MachineController::class, 'movementsReport']);

@@ -20,6 +20,15 @@ export interface DashboardProduction {
   total: number;
   scrap: number;
   efficiency: number;
+  change?: number;
+  efficiency_change?: number;
+  scrap_change?: number;
+  daily?: {
+    date: string;
+    produced: number;
+    scrap: number;
+    target: number;
+  }[];
 }
 
 export interface DashboardMachine {
@@ -40,6 +49,8 @@ export interface DashboardWorkOrders {
 export interface DashboardEmployee {
   total: number;
   by_department: Record<string, number>;
+  efficiency?: number;
+  attendance_rate?: number;
 }
 
 export interface DashboardInventoryItem {
@@ -82,10 +93,19 @@ export interface DashboardResponse {
   machines: DashboardMachine[];
   workOrders: DashboardWorkOrders;
   employees: DashboardEmployee;
+  operators?: {
+    total: number;
+  };
   inventory: DashboardInventory;
   sales: DashboardSales;
   purchases: DashboardPurchases;
   finance: DashboardFinance;
+  alerts?: {
+    critical: number;
+    machines_maintenance: number;
+    orders_overdue: number;
+    low_stock_warning: boolean;
+  };
 }
 
 // Reporte de Máquinas

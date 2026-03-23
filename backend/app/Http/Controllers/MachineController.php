@@ -385,18 +385,18 @@ class MachineController extends Controller implements HasMiddleware
         $machines = Machine::all();
 
         $utilization = $machines->map(function ($machine) {
+            $stats = $machine->getCurrentWeekUtilization();
+            
             return [
+                'machine_id' => $machine->id,
                 'id' => $machine->id,
                 'code' => $machine->code,
                 'name' => $machine->name,
                 'status' => $machine->status,
-                'utilizationRate' => match ($machine->status) {
-                    'running' => rand(70, 95),
-                    'available' => rand(10, 30),
-                    'maintenance' => 0,
-                    'offline' => 0,
-                    default => 0,
-                },
+                'utilizationRate' => $stats['utilization'],
+                'utilization' => $stats['utilization'],
+                'uptime' => $stats['activeHours'] ?? 0,
+                'downtime' => max(0, ($stats['totalHours'] ?? 0) - ($stats['activeHours'] ?? 0)),
             ];
         });
 
@@ -410,13 +410,28 @@ class MachineController extends Controller implements HasMiddleware
     {
         $machines = Machine::all();
 
+        $totalUtilization = 0;
+        $countWithData = 0;
+        
+        foreach ($machines as $machine) {
+            $stats = $machine->getCurrentWeekUtilization();
+            if (isset($stats['utilization']) && $stats['utilization'] > 0) {
+                $totalUtilization += $stats['utilization'];
+                $countWithData++;
+            }
+        }
+        
+        $averageUtilization = $countWithData > 0 
+            ? round($totalUtilization / $countWithData, 1)
+            : 0;
+
         $data = [
             'total' => $machines->count(),
             'running' => $machines->where('status', 'running')->count(),
             'available' => $machines->where('status', 'available')->count(),
             'maintenance' => $machines->where('status', 'maintenance')->count(),
             'offline' => $machines->where('status', 'offline')->count(),
-            'averageUtilization' => 0,
+            'averageUtilization' => $averageUtilization,
         ];
 
         return response()->json($data);
@@ -429,6 +444,137 @@ class MachineController extends Controller implements HasMiddleware
     {
         $machines = Machine::select('id', 'name', 'code')->orderBy('name')->get();
         return response()->json($machines);
+    }
+
+    /**
+     * Get recent activities from all sources.
+     */
+    public function activities()
+    {
+        $activities = [];
+        
+        // 1. Productions recientes (últimas 24 horas)
+        $productions = \App\Models\Production::with(['workOrder', 'machine', 'operator'])
+            ->where('created_at', '>=', now()->subHours(24))
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get();
+            
+        foreach ($productions as $production) {
+            $activities[] = [
+                'id' => 'production-' . $production->id,
+                'type' => 'production',
+                'title' => $production->status === 'completed' ? 'Producción completada' : 'Producción iniciada',
+                'description' => ($production->workOrder ? $production->workOrder->work_order_number : 'Sin OT') . 
+                    ' - ' . ($production->machine ? $production->machine->name : 'Sin máquina'),
+                'time' => $this->getRelativeTime($production->created_at),
+                'timestamp' => $production->created_at->toIso8601String(),
+            ];
+        }
+
+        // 2. Machine Movements recientes (últimas 24 horas)
+        $movements = \App\Models\MachineMovement::with(['machine', 'operator'])
+            ->where('start_time', '>=', now()->subHours(24))
+            ->orderBy('start_time', 'desc')
+            ->limit(10)
+            ->get();
+            
+        foreach ($movements as $movement) {
+            $typeLabel = match($movement->type) {
+                'start' => 'Máquina iniciada',
+                'stop' => 'Máquina detenida',
+                'maintenance' => 'Mantenimiento',
+                'break' => 'Pausa',
+                default => 'Movimiento',
+            };
+            
+            $activities[] = [
+                'id' => 'movement-' . $movement->id,
+                'type' => $movement->type === 'maintenance' ? 'maintenance' : 'machine',
+                'title' => $typeLabel,
+                'description' => ($movement->machine ? $movement->machine->name : 'Sin máquina'),
+                'time' => $this->getRelativeTime($movement->start_time),
+                'timestamp' => $movement->start_time->toIso8601String(),
+            ];
+        }
+
+        // 3. Warehouse Movements recientes (últimas 24 horas)
+        $warehouseMovements = \App\Models\WarehouseMovement::with(['item', 'location'])
+            ->where('created_at', '>=', now()->subHours(24))
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get();
+            
+        foreach ($warehouseMovements as $wm) {
+            $typeLabel = match($wm->type) {
+                'in' => 'Entrada de material',
+                'out' => 'Salida de material',
+                'transfer' => 'Transferencia',
+                'adjustment' => 'Ajuste de inventario',
+                default => 'Movimiento',
+            };
+            
+            $activities[] = [
+                'id' => 'warehouse-' . $wm->id,
+                'type' => 'inventory',
+                'title' => $typeLabel,
+                'description' => ($wm->item ? $wm->item->name : 'Sin item') . ' - ' . $wm->quantity . ' unidades',
+                'time' => $this->getRelativeTime($wm->created_at),
+                'timestamp' => $wm->created_at->toIso8601String(),
+            ];
+        }
+
+        // 4. Maintenance Orders recientes (últimas 24 horas)
+        $maintenanceOrders = \App\Models\MaintenanceOrder::with(['machine'])
+            ->where('created_at', '>=', now()->subHours(24))
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get();
+            
+        foreach ($maintenanceOrders as $mo) {
+            $statusLabel = match($mo->status) {
+                'pending' => 'Mantenimiento programado',
+                'in_progress' => 'Mantenimiento en progreso',
+                'completed' => 'Mantenimiento completado',
+                default => 'Mantenimiento',
+            };
+            
+            $activities[] = [
+                'id' => 'maintenance-' . $mo->id,
+                'type' => 'maintenance',
+                'title' => $statusLabel,
+                'description' => ($mo->machine ? $mo->machine->name : 'Sin máquina') . ' - ' . ($mo->maintenance_type ?? 'General'),
+                'time' => $this->getRelativeTime($mo->created_at),
+                'timestamp' => $mo->created_at->toIso8601String(),
+            ];
+        }
+
+        // Ordenar todas las actividades por timestamp
+        usort($activities, function($a, $b) {
+            return strtotime($b['timestamp']) - strtotime($a['timestamp']);
+        });
+
+        // Limitar a las 15 más recientes
+        $activities = array_slice($activities, 0, 15);
+
+        return response()->json($activities);
+    }
+
+    /**
+     * Get relative time string.
+     */
+    private function getRelativeTime($carbon): string
+    {
+        $diff = now()->diffInMinutes($carbon);
+        
+        if ($diff < 1) return 'Hace un momento';
+        if ($diff < 60) return "Hace {$diff} min";
+        
+        $hours = floor($diff / 60);
+        if ($hours < 24) return "Hace {$hours} hora" . ($hours > 1 ? 's' : '');
+        
+        $days = floor($hours / 24);
+        return "Hace {$days} día" . ($days > 1 ? 's' : '');
     }
     
     /**

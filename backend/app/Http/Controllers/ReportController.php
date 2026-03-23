@@ -31,44 +31,159 @@ class ReportController extends Controller
         $startDate = $request->input('start_date', now()->startOfMonth()->toDateString());
         $endDate = $request->input('end_date', now()->endOfMonth()->toDateString());
 
-        // Producción
-        $productions = Production::whereBetween('created_at', [$startDate, $endDate])->get();
-        $totalProduction = 0;
-        foreach ($productions as $p) {
-            if ($p->workOrder) {
-                $totalProduction += $p->workOrder->quantity;
-            }
-        }
+        // Filtros adicionales
+        $machineId = $request->input('machine_id');
+        $productId = $request->input('product_id');
+        $operatorId = $request->input('operator_id');
+        $clientId = $request->input('client_id');
+        $category = $request->input('category');
+        $status = $request->input('status');
+        $type = $request->input('type');
+        $lowStock = $request->input('low_stock');
+
+        // Construcción de queries con filtros
+        $productionQuery = Production::whereBetween('created_at', [$startDate, $endDate]);
+        if ($machineId) $productionQuery->where('machine_id', $machineId);
+        if ($operatorId) $productionQuery->where('operator_id', $operatorId);
+        if ($productId) $productionQuery->where('product_id', $productId);
+
+        $productions = $productionQuery->get();
+        $totalProduction = $productions->sum('good_parts');
         $totalScrap = $productions->sum('scrap_parts');
         
-        // Máquinas
-        $machines = Machine::all()->map(function($machine) use ($startDate, $endDate) {
-            $machineProductions = Production::where('machine_id', $machine->id)
-                ->whereBetween('created_at', [$startDate, $endDate])
+        // Producción diaria agrupada por fecha
+        $dailyProductionQuery = Production::whereBetween('created_at', [$startDate, $endDate]);
+        if ($machineId) $dailyProductionQuery->where('machine_id', $machineId);
+        if ($operatorId) $dailyProductionQuery->where('operator_id', $operatorId);
+        if ($productId) $dailyProductionQuery->where('product_id', $productId);
+        
+        $dailyProduction = $dailyProductionQuery
+            ->selectRaw('DATE(created_at) as date, SUM(good_parts) as produced, SUM(scrap_parts) as scrap')
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get();
+        
+        // Calcular objetivo base (1500 por día hábil, 800 fines de semana)
+        $dailyProductionData = $dailyProduction->map(function($day) {
+            $date = new \DateTime($day->date);
+            $dayOfWeek = (int)$date->format('N');
+            $isWeekend = $dayOfWeek >= 6;
+            return [
+                'date' => $day->date,
+                'produced' => (int) $day->produced,
+                'scrap' => (int) $day->scrap,
+                'target' => $isWeekend ? 800 : 1500,
+            ];
+        });
+
+        // === NUEVO: Calcular cambios comparison (vs períodos anteriores) ===
+        
+        // Production Change: vs mes anterior
+        $lastMonthStart = (new \DateTime($startDate))->modify('-1 month')->format('Y-m-01');
+        $lastMonthEnd = (new \DateTime($startDate))->modify('last day of previous month')->format('Y-m-d');
+        $lastMonthProduction = Production::whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])->sum('good_parts');
+        $productionChange = $lastMonthProduction > 0 ? round((($totalProduction - $lastMonthProduction) / $lastMonthProduction) * 100, 1) : 0;
+
+        // Efficiency Change: vs semana anterior
+        $currentStart = new \DateTime($startDate);
+        $currentEnd = new \DateTime($endDate);
+        $weekStart = $currentStart->format('Y-m-d');
+        $weekEnd = min($currentEnd, (clone $currentStart)->modify('+6 days')->format('Y-m-d'));
+        
+        $prevWeekStart = (clone $currentStart)->modify('-7 days')->format('Y-m-d');
+        $prevWeekEnd = (clone $currentStart)->modify('-1 day')->format('Y-m-d');
+        
+        $currentWeekProductions = Production::whereBetween('created_at', [$weekStart, $weekEnd])->get();
+        $prevWeekProductions = Production::whereBetween('created_at', [$prevWeekStart, $prevWeekEnd])->get();
+        
+        $currentTotal = $currentWeekProductions->sum('good_parts');
+        $currentScrap = $currentWeekProductions->sum('scrap_parts');
+        $prevTotal = $prevWeekProductions->sum('good_parts');
+        $prevScrap = $prevWeekProductions->sum('scrap_parts');
+        
+        $currentEfficiency = ($currentTotal + $currentScrap) > 0 ? round(($currentTotal / ($currentTotal + $currentScrap)) * 100, 2) : 0;
+        $prevEfficiency = ($prevTotal + $prevScrap) > 0 ? round(($prevTotal / ($prevTotal + $prevScrap)) * 100, 2) : 0;
+        $efficiencyChange = round($currentEfficiency - $prevEfficiency, 1);
+
+        // Scrap Rate Change: vs semana anterior (invertido porque menos scrap es mejor)
+        $currentScrapRate = ($currentTotal + $currentScrap) > 0 ? round(($currentScrap / ($currentTotal + $currentScrap)) * 100, 2) : 0;
+        $prevScrapRate = ($prevTotal + $prevScrap) > 0 ? round(($prevScrap / ($prevTotal + $prevScrap)) * 100, 2) : 0;
+        $scrapRateChange = round($currentScrapRate - $prevScrapRate, 1);
+
+        // Critical Alerts: máquinas en mantenimiento + órdenes atrasadas + inventory bajo
+        $machinesInMaintenance = Machine::where('status', 'maintenance')->count();
+        $overdueOrders = WorkOrder::where('due_date', '<', now()->toDateString())
+            ->whereNotIn('status', ['completed', 'cancelled'])->count();
+        $lowStockItems = InventoryItem::whereRaw('quantity <= min_stock')->count();
+        $criticalAlerts = $machinesInMaintenance + $overdueOrders + ($lowStockItems > 0 ? 1 : 0);
+        
+        // Máquinas - con filtro opcional
+        $machinesQuery = Machine::query();
+        if ($machineId) $machinesQuery->where('id', $machineId);
+        if ($status) $machinesQuery->where('status', $status);
+        
+        $machines = $machinesQuery->get()->map(function($machine) use ($startDate, $endDate, $machineId) {
+            // Usar MachineMovement para calcular utilización
+            $machineMovements = MachineMovement::where('machine_id', $machine->id)
+                ->whereBetween('start_time', [$startDate, $endDate])
                 ->get();
-            $totalHours = $machineProductions->sum(function($p) {
-                if ($p->start_time && $p->end_time) {
-                    return $p->start_time->diffInMinutes($p->end_time) / 60;
+            
+            $totalHours = $machineMovements->sum(function($m) {
+                if ($m->start_time && $m->end_time) {
+                    return $m->start_time->diffInMinutes($m->end_time) / 60;
                 }
                 return 0;
             });
+            
             return [
                 'id' => $machine->id,
                 'name' => $machine->name,
                 'status' => $machine->status,
-                'utilization' => $totalHours > 0 ? min(100, ($totalHours / 200) * 100) : 0, // Asumiendo 200 hrs mes base
+                'utilization' => $totalHours > 0 ? min(100, ($totalHours / 200) * 100) : 0,
                 'total_hours' => round($totalHours, 2),
             ];
         });
 
-        // Órdenes de trabajo
-        $workOrders = WorkOrder::whereBetween('created_at', [$startDate, $endDate])->get();     
+        // Órdenes de trabajo - con filtro opcional
+        $workOrdersQuery = WorkOrder::query();
+        if ($machineId) $workOrdersQuery->where('machine_id', $machineId);
+        if ($productId) $workOrdersQuery->where('product_id', $productId);
+        if ($clientId) $workOrdersQuery->where('client_id', $clientId);
+        if ($status) $workOrdersQuery->where('status', $status);
+        if ($category) $workOrdersQuery->where('category', $category);
+        $workOrders = $workOrdersQuery->whereBetween('created_at', [$startDate, $endDate])->get();
         
         // Empleados
-        $employees = Employee::where('status', 'active')->get();
+        $employeesQuery = Employee::query();
+        if ($operatorId) $employeesQuery->where('id', $operatorId);
+        $employees = $employeesQuery->where('status', 'active')->get();
+        
+        // Métricas de RRHH - Asistencia (basado en ausencias del mes actual)
+        $currentMonthStart = now()->startOfMonth();
+        $currentMonthEnd = now()->endOfMonth();
+        $totalEmployees = $employees->count();
+        $absencesThisMonth = Absence::whereBetween('date', [$currentMonthStart, $currentMonthEnd])
+            ->where('status', 'approved')
+            ->count();
+        
+        // Calcular días laborables en el mes (aproximadamente 22 días)
+        $workingDaysInMonth = 22;
+        $totalPossibleAttendance = $totalEmployees * $workingDaysInMonth;
+        $attendanceRate = $totalPossibleAttendance > 0 
+            ? round((($totalPossibleAttendance - $absencesThisMonth) / $totalPossibleAttendance) * 100, 1) 
+            : 0;
+        
+        // Operadores (módulo separado de empleados)
+        $operatorsQuery = Operator::query();
+        if ($operatorId) $operatorsQuery->where('id', $operatorId);
+        $operators = $operatorsQuery->where('active', true)->get();
 
-        // Inventario
-        $inventory = InventoryItem::all()->map(function($item) {
+        // Inventario - con filtro opcional
+        $inventoryQuery = InventoryItem::query();
+        if ($productId) $inventoryQuery->where('id', $productId);
+        if ($category) $inventoryQuery->where('category', $category);
+        if ($lowStock === 'true') $inventoryQuery->whereRaw('quantity <= min_stock');
+        $inventory = $inventoryQuery->get()->map(function($item) {
             return [
                 'id' => $item->id,
                 'name' => $item->name,
@@ -99,6 +214,10 @@ class ReportController extends Controller
                 'total' => $totalProduction,
                 'scrap' => $totalScrap,
                 'efficiency' => $totalProduction > 0 ? round(($totalProduction / ($totalProduction + $totalScrap)) * 100, 2) : 0,
+                'change' => $productionChange,
+                'efficiency_change' => $efficiencyChange,
+                'scrap_change' => $scrapRateChange,
+                'daily' => $dailyProductionData,
             ],
             'machines' => $machines,
             'workOrders' => [
@@ -110,6 +229,11 @@ class ReportController extends Controller
             'employees' => [
                 'total' => $employees->count(),
                 'by_department' => $employees->groupBy('department')->map->count(),
+                'efficiency' => $totalProduction > 0 ? round(($totalProduction / ($totalProduction + $totalScrap)) * 100, 1) : 0,
+                'attendance_rate' => $attendanceRate,
+            ],
+            'operators' => [
+                'total' => $operators->count(),
             ],
             'inventory' => [
                 'total_items' => $inventory->count(),
@@ -128,6 +252,12 @@ class ReportController extends Controller
                 'income' => $income,
                 'expenses' => $expenses,
                 'balance' => $income - $expenses,
+            ],
+            'alerts' => [
+                'critical' => $criticalAlerts,
+                'machines_maintenance' => $machinesInMaintenance,
+                'orders_overdue' => $overdueOrders,
+                'low_stock_warning' => $lowStockItems > 0,
             ],
         ]);
     }
@@ -712,19 +842,23 @@ class ReportController extends Controller
                 return ['id' => $o->id, 'name' => $o->name];
             });
 
-        $categories = [
-            ['value' => 'materia_prima', 'label' => 'Materia Prima'],
-            ['value' => 'producto_term', 'label' => 'Producto Terminado'],
-            ['value' => 'embalaje', 'label' => 'Embalaje'],
-            ['value' => 'insumos', 'label' => 'Insumos'],
-        ];
+        // Obtener categorías únicas de inventarios (inventory_items)
+        $inventoryCategories = DB::table('inventory_items')
+            ->whereNotNull('category')
+            ->where('category', '!=', '')
+            ->distinct()
+            ->orderBy('category')
+            ->pluck('category')
+            ->map(function($cat) {
+                return ['value' => $cat, 'label' => ucfirst(str_replace('_', ' ', $cat))];
+            });
 
         return response()->json([
             'machines' => $machines,
             'products' => $products,
             'clients' => $clients,
             'operators' => $operators,
-            'categories' => $categories,
+            'categories' => $inventoryCategories,
         ]);
     }
 
@@ -736,6 +870,12 @@ class ReportController extends Controller
         $months = $request->input('months', 6);
         $startDate = now()->subMonths($months)->startOfMonth();
         $endDate = now()->endOfMonth();
+
+        // Obtener categorías únicas de la tabla movements
+        $categories = Movement::whereNotNull('category')
+            ->where('category', '!=', '')
+            ->distinct()
+            ->pluck('category');
 
         $movements = Movement::whereBetween('date', [$startDate, $endDate])
             ->get();
@@ -750,16 +890,16 @@ class ReportController extends Controller
                 return $m->date && $m->date->format('Y-m') === $monthStr;
             });
 
-            $materiales = $monthMovements->where('category', 'materiales')->sum('amount');
-            $manoObra = $monthMovements->where('category', 'mano_obra')->sum('amount');
-            $servicios = $monthMovements->where('category', 'servicios')->sum('amount');
-
-            $trend[] = [
+            $monthData = [
                 'month' => $monthLabel,
-                'materiales' => $materiales ?: rand(40000, 55000),
-                'manoObra' => $manoObra ?: rand(30000, 36000),
-                'servicios' => $servicios ?: rand(7000, 10000),
             ];
+
+            // Agregar cada categoría dinámicamente
+            foreach ($categories as $category) {
+                $monthData[$category] = (float) $monthMovements->where('category', $category)->sum('amount');
+            }
+
+            $trend[] = $monthData;
         }
 
         return response()->json($trend);

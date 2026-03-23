@@ -18,6 +18,25 @@ interface ProductionChartProps {
 }
 
 export function ProductionChart({ data }: ProductionChartProps) {
+  // Mostrar mensaje cuando no hay datos
+  if (!data || data.length === 0) {
+    return (
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold text-card-foreground">
+            Producción vs Meta (Últimos 15 días)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-[300px]">
+          <div className="text-center text-muted-foreground">
+            <p className="text-lg font-medium">No hay datos de producción</p>
+            <p className="text-sm">Registre producciones para ver la gráfica</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-2">

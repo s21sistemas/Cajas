@@ -26,7 +26,7 @@ return new class extends Migration
             $table->string('unit')->nullable();
             $table->string('warehouse', 100)->nullable();
 
-            $table->foreignId('warehouse_location_id')->constrained('warehouse_locations')->nullable();
+            $table->foreignId('warehouse_location_id')->nullable()->constrained('warehouse_locations');
 
             $table->timestamp('last_movement')->nullable();
 
