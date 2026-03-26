@@ -62,6 +62,7 @@ export default function AlmacenUbicacionesPage() {
         perPage,
         search: search || undefined,
       });
+      console.log(response);
       setItems(response.data || []);
       setTotalItems(response.meta?.total || 0);
       setLastPage(response.meta?.last_page || 1);
@@ -77,11 +78,12 @@ export default function AlmacenUbicacionesPage() {
     setLoadingStats(true);
     try {
       const response = await inventoryService.getWarehouseStats();
+      console.log(response);
       setStats({
-        total: response.totalLocations || 0,
+        total: response.total || 0,
         totalCapacity: response.totalCapacity || 0,
         totalOccupancy: response.totalOccupancy || 0,
-        averageOccupancy: response.utilizationPercentage || 0,
+        averageOccupancy: response.averageOccupancy || 0,
       });
     } catch (error) {
       console.error("Error loading stats:", error);

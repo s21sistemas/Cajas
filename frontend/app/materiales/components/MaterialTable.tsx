@@ -72,8 +72,8 @@ export function MaterialTable({
                 <TableHead className="text-muted-foreground">Código</TableHead>
                 <TableHead className="text-muted-foreground">Nombre</TableHead>
                 <TableHead className="text-muted-foreground">Categoría</TableHead>
-                <TableHead className="text-muted-foreground">Stock</TableHead>
-                <TableHead className="text-muted-foreground">Stock Mín.</TableHead>
+                {/* <TableHead className="text-muted-foreground">Stock</TableHead> */}
+                {/* <TableHead className="text-muted-foreground">Stock Mín.</TableHead> */}
                 <TableHead className="text-muted-foreground">Precio</TableHead>
                 <TableHead className="text-muted-foreground">Costo</TableHead>
                 <TableHead className="text-muted-foreground text-right">Acciones</TableHead>
@@ -113,12 +113,12 @@ export function MaterialTable({
                     </TableCell>
                     <TableCell className="text-foreground">{material.name}</TableCell>
                     <TableCell className="text-foreground">{categoryLabels[material.category || ''] || material.category || '-'}</TableCell>
-                    <TableCell className="text-foreground">
+                    {/* <TableCell className="text-foreground">
                       <span className={material.stock <= (material.minStock ?? 0) ? "text-red-500 font-medium" : ""}>
                         {material.stock}
                       </span>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{material.minStock}</TableCell>
+                    <TableCell className="text-muted-foreground">{material.minStock}</TableCell> */}
                     <TableCell className="text-foreground">
                       {material.price ? `${Number(material.price).toFixed(2)}` : '-'}
                     </TableCell>

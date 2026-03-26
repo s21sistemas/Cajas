@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('code')->nullable()->unique();
             $table->string('name');
 
-            $table->string('rfc', 13)->nullable()->index();
+            $table->string('rfc')->nullable()->index();
 
             $table->string('email')->nullable();
             $table->string('phone')->nullable();

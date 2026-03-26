@@ -7,6 +7,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Package, Settings } from "lucide-react";
 import type { Product } from "@/lib/types";
 
 const statusConfig: Record<string, { label: string; class: string }> = {
@@ -84,6 +93,62 @@ export function ProductViewDialog({ product, open, onOpenChange, formatCurrency 
                 </Badge>
               </div>
             </div>
+
+            {/* Lista de Materiales (BOM) */}
+            {product.materials && product.materials.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Package className="h-4 w-4" />
+                  <label className="text-sm font-medium">Materiales (BOM)</label>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Material</TableHead>
+                      <TableHead className="text-right">Cantidad</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {product.materials.map((pm) => (
+                      <TableRow key={pm.id}>
+                        <TableCell>{pm.material?.name || pm.materialId}</TableCell>
+                        <TableCell className="text-right">{pm.quantity}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {/* Lista de Procesos */}
+            {product.processes && product.processes.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Settings className="h-4 w-4" />
+                  <label className="text-sm font-medium">Procesos</label>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Orden</TableHead>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead className="text-right">Tiempo (min)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {product.processes.map((pp) => (
+                      <TableRow key={pp.id}>
+                        <TableCell>{pp.sequence}</TableCell>
+                        <TableCell>{pp.name}</TableCell>
+                        <TableCell>{pp.processType}</TableCell>
+                        <TableCell className="text-right">{pp.estimatedTimeMin || '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>

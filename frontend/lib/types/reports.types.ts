@@ -48,7 +48,7 @@ export interface DashboardWorkOrders {
 
 export interface DashboardEmployee {
   total: number;
-  by_department: Record<string, number>;
+  byDepartment: Record<string, number>;
   efficiency?: number;
   attendance_rate?: number;
 }

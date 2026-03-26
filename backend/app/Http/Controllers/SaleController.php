@@ -57,21 +57,33 @@ class SaleController extends Controller implements HasMiddleware
      */
     public function selectList()
     {
-        $sales = Sale::with(['client:id,name'])
-            ->select('id', 'code', 'client_id', 'client_name', 'total', 'status')
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(function ($sale) {
-                return [
-                    'id' => $sale->id,
-                    'code' => $sale->code,
-                    'client_id' => $sale->client_id,
-                    'client_name' => $sale->client->name ?? $sale->client_name,
-                    'total' => $sale->total,
-                    'status' => $sale->status,
-                    'code' => $sale->code,
-                ];
+        $sales = Sale::with([
+            'client:id,name',
+            'workOrders',
+            'saleItems:id,sale_id,product_id'
+        ])
+        ->select('id', 'code', 'client_id', 'client_name', 'total', 'status')
+        ->orderByDesc('created_at')
+        ->get()
+        ->map(function ($sale) {
+
+            $hasPendingWorkOrders = $sale->saleItems->contains(function ($item) use ($sale) {
+                return !$sale->workOrders->contains(function ($wo) use ($item) {
+                    return $wo->sale_id == $item->sale_id
+                        && $wo->product_id == $item->product_id;
+                });
             });
+
+            return [
+                'id' => $sale->id,
+                'code' => $sale->code,
+                'client_id' => $sale->client_id,
+                'client_name' => $sale->client->name ?? $sale->client_name,
+                'total' => $sale->total,
+                'status' => $sale->status,
+                'has_pending_workorders' => $hasPendingWorkOrders,
+            ];
+        });
 
         return response()->json($sales);
     }

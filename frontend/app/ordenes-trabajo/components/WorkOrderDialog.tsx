@@ -143,7 +143,9 @@ export function WorkOrderDialog({
           const response = await salesService.getSelectList();
           // Verificar que response sea un array
           if (Array.isArray(response)) {
-            setSales(response);
+            setSales(
+              response.filter(sale => sale.hasPendingWorkorders)
+            );
           } else {
             setSales([]);
           }

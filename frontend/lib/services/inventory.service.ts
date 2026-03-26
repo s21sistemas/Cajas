@@ -148,10 +148,10 @@ export const inventoryService = {
 
   // Get warehouse statistics
   getWarehouseStats: (): Promise<{
-    totalLocations: number;
+    total: number;
     totalCapacity: number;
     totalOccupancy: number;
-    utilizationPercentage: number;
+    averageOccupancy: number;
     byZone: Record<string, { capacity: number; occupancy: number }>;
   }> => {
     return api.get('/warehouse-locations/stats');

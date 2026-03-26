@@ -4,7 +4,16 @@ import { useState, useEffect, useRef } from "react";
 import { ERPLayout } from "@/components/erp/erp-layout";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Plus, Upload } from "lucide-react";
 import { quotesService, type QuoteStats } from "@/lib/services";
 import { useToast } from "@/components/erp/action-toast";
 import { ConfirmDialog } from "@/components/erp/confirm-dialog";
@@ -24,6 +33,10 @@ export default function CotizacionesPage() {
   const [viewingQuote, setViewingQuote] = useState<Quote | null>(null);
   const [deletingQuote, setDeletingQuote] = useState<Quote | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [approvingQuote, setApprovingQuote] = useState<Quote | null>(null);
+  const [uploadingQuote, setUploadingQuote] = useState<Quote | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadNotes, setUploadNotes] = useState("");
   const [stats, setStats] = useState<QuoteStats>({
     total: 0,
     draft: 0,
@@ -205,6 +218,63 @@ export default function CotizacionesPage() {
     }
   };
 
+  const handleApprove = async (quote: Quote) => {
+    setApprovingQuote(quote);
+  };
+
+  const handleConfirmApprove = async () => {
+    if (!approvingQuote) return;
+    setSubmitting(true);
+    try {
+      await quotesService.update(approvingQuote.id, { status: 'approved' });
+      showToast("success", "Cotización aprobada", "La cotización ha sido aprobada correctamente");
+      setApprovingQuote(null);
+      fetchQuotes(search, currentPage);
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      showToast("error", "Error al aprobar", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUploadDocument = (quote: Quote) => {
+    setUploadingQuote(quote);
+    setUploadFile(null);
+    setUploadNotes("");
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadFile(file);
+    }
+  };
+
+  const handleSubmitUpload = async () => {
+    if (!uploadingQuote || !uploadFile) return;
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('document', uploadFile);
+      formData.append('notes', uploadNotes);
+      
+      await quotesService.approveDocument(uploadingQuote.id, formData);
+      showToast("success", "Documento subido", "El documento se ha subido correctamente y la cotización ha sido aprobada");
+      setUploadingQuote(null);
+      setUploadFile(null);
+      setUploadNotes("");
+      fetchQuotes(search, currentPage);
+      fetchStats();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Error desconocido";
+      showToast("error", "Error al subir documento", errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const formatCurrency = (value: number | null) => {
     return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value || 0);
   };
@@ -250,6 +320,8 @@ export default function CotizacionesPage() {
             onDelete={setDeletingQuote}
             onSendEmail={handleSendEmail}
             onDownloadPdf={handleDownloadPdf}
+            onApprove={handleApprove}
+            onUploadDocument={handleUploadDocument}
             loading={loading}
             currentPage={currentPage}
             lastPage={lastPage}
@@ -285,6 +357,51 @@ export default function CotizacionesPage() {
           variant="destructive"
           onConfirm={handleDelete}
         />
+
+        <ConfirmDialog
+          open={!!approvingQuote}
+          onOpenChange={() => setApprovingQuote(null)}
+          title="Aprobar Cotización"
+          description={`¿Estás seguro de aprobar la cotización "${approvingQuote?.code}"? Esta acción cambiará el estado a aprobado.`}
+          confirmText="Aprobar"
+          onConfirm={handleConfirmApprove}
+        />
+
+        <Dialog open={!!uploadingQuote} onOpenChange={() => setUploadingQuote(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Subir Documento de Aprobación</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="document">Documento (PDF, JPG, PNG)</Label>
+                <Input
+                  id="document"
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png"
+                  onChange={handleFileChange}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notas (opcional)</Label>
+                <Input
+                  id="notes"
+                  value={uploadNotes}
+                  onChange={(e) => setUploadNotes(e.target.value)}
+                  placeholder="Notas adicionales"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setUploadingQuote(null)} disabled={submitting}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSubmitUpload} disabled={!uploadFile || submitting}>
+                {submitting ? 'Subiendo...' : 'Subir y Aprobar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </ERPLayout>
     </ProtectedRoute>
   );

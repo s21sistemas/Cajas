@@ -153,13 +153,13 @@ export function QualityEvaluationDialog({
                   Scrap
                 </Label>
               </div>
-              <div className="flex items-center space-x-2">
+              {/* <div className="flex items-center space-x-2">
                 <RadioGroupItem value="REWORK" id="rework" />
                 <Label htmlFor="rework" className="flex items-center gap-1 cursor-pointer">
                   <RefreshCcw className="h-4 w-4 text-yellow-500" />
                   Reproceso
                 </Label>
-              </div>
+              </div> */}
             </RadioGroup>
           </div>
 
@@ -190,7 +190,7 @@ export function QualityEvaluationDialog({
                   className="bg-secondary border-border"
                 />
               </div>
-              <div>
+              {/* <div>
                 <Label htmlFor="qtyRework">Cant. Reproceso</Label>
                 <Input
                   id="qtyRework"
@@ -201,7 +201,7 @@ export function QualityEvaluationDialog({
                   onChange={(e) => setQuantityRework(parseInt(e.target.value) || 0)}
                   className="bg-secondary border-border"
                 />
-              </div>
+              </div> */}
             </div>
           )}
 

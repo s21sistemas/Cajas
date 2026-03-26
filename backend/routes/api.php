@@ -72,6 +72,8 @@ Route::post('/operator/login', [AuthController::class, 'operatorLogin']);
 // Rutas de autenticación de clientes (públicas)
 Route::post('/client/login', [ClientAuthController::class, 'login']);
 Route::post('/client/set-password', [ClientAuthController::class, 'setPassword']);
+Route::post('/client/request-password-reset', [ClientAuthController::class, 'requestPasswordReset']);
+Route::post('/client/reset-password', [ClientAuthController::class, 'resetPassword']);
 Route::get('/client/approval-info', [ClientAuthController::class, 'getApprovalInfo']);
 Route::post('/client/approve-document', [ClientAuthController::class, 'approveDocument']);
 
@@ -213,6 +215,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('quotes.pdf')
         ->withoutMiddleware([\Spatie\Permission\Middleware\PermissionMiddleware::class]);
     Route::post('/quotes/{quote}/send-email', [QuoteController::class, 'sendEmail'])->name('quotes.send-email');
+    Route::post('/quotes/{quote}/approve-document', [QuoteController::class, 'approveDocument'])->name('quotes.approve-document');
     Route::post('/quotes/{quote}/items', [QuoteItemController::class, 'store'])->name('quotes.items.store');
     Route::put('/quotes/{quote}/items/{item}', [QuoteItemController::class, 'update'])->name('quotes.items.update');
     Route::delete('/quotes/{quote}/items/{item}', [QuoteItemController::class, 'destroy'])->name('quotes.items.destroy');

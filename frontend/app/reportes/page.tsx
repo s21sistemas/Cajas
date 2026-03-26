@@ -56,12 +56,12 @@ export default function ReportesPage() {
       change?: number; 
       efficiency_change?: number; 
       scrap_change?: number;
-      daily?: { label: string; produced: number; target: number }[];
+      daily?: { date: string; produced: number; target: number }[];
     };
     machines: { id: string | number; name: string; status: string; utilization: number }[];
     employees: { 
       total: number; 
-      by_department?: Record<string, number>; 
+      byDepartment?: Record<string, number>; 
       efficiency?: number; 
       attendance_rate?: number;
     };
@@ -198,6 +198,8 @@ export default function ReportesPage() {
         
         // Fetch dashboard data con todos los filtros
         const dashboard = await reportsService.getDashboard(apiFilters);
+        console.log('primeros datos');
+        console.log(dashboard.employees);
         setRawDashboardData(dashboard); // Guardar datos originales para stats
         setDashboardData({
           production: { 
@@ -217,7 +219,7 @@ export default function ReportesPage() {
           })) || [],
           employees: { 
             total: dashboard.employees?.total || 0,
-            by_department: dashboard.employees?.by_department || {},
+            byDepartment: dashboard.employees?.byDepartment || {},
             efficiency: dashboard.employees?.efficiency || 0,
             attendance_rate: dashboard.employees?.attendance_rate || 0
           },
@@ -426,12 +428,17 @@ export default function ReportesPage() {
     );
   }
 
+  console.log(dashboardData);
+
   // Generate report data
-  const productionEfficiency = dashboardData.production.map((p) => ({
+  const productionEfficiency = (dashboardData.production.daily ?? []).map((p) => ({
     ...p,
     produced: p.produced || 0,
     target: p.target || 0,
-    efficiency: p.target && p.produced ? Math.round((p.produced / p.target) * 100) : 0,
+    efficiency:
+      p.target && p.produced
+        ? Math.round((p.produced / p.target) * 100)
+        : 0,
   }));
 
   const machineUtilization = dashboardData.machines.map((m) => ({
@@ -452,20 +459,28 @@ export default function ReportesPage() {
       name: "Mantenimiento",
       value: dashboardData.machines.filter((m) => m.status === "maintenance").length,
     },
+    {
+      name: "Disponible",
+      value: dashboardData.machines.filter((m) => m.status === "available").length,
+    },
   ];
 
   const inventoryByCategory = Object.entries(
     dashboardData.inventory.reduce((acc, item) => {
       if (item.category && item.currentStock) {
-        acc[item.category] = (acc[item.category] || 0) + item.currentStock;
+        acc[item.category] = (acc[item.category] || 0) + Number(item.currentStock);
       }
       return acc;
     }, {} as Record<string, number>)
   ).map(([name, value]) => ({ name, value }));
-
-  const employeeByDepartment = dashboardData.employees?.by_department 
-    ? Object.entries(dashboardData.employees.by_department).map(([name, value]) => ({ name, value }))
+  console.log('empleados');
+  console.log(dashboardData.employees);
+  const employeeByDepartment = dashboardData.employees?.byDepartment 
+    ? Object.entries(dashboardData.employees.byDepartment).map(([name, value]) => ({ name, value }))
     : [];
+
+
+  console.log(employeeByDepartment);
 
   // Colores para categorías dinámicas
   const categoryColors: Record<string, string> = {
@@ -525,10 +540,10 @@ export default function ReportesPage() {
                 <SelectItem value="year">Este Ano</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={handleExport}>
+            {/* <Button variant="outline" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />
               Exportar
-            </Button>
+            </Button> */}
           </div>
         </div>
 
@@ -884,7 +899,7 @@ export default function ReportesPage() {
                       <span className="text-foreground">Total Empleados</span>
                     </div>
                     <span className="text-xl font-bold text-foreground">
-                      {dashboardData.employees?.total || dashboardData.employees.length || 0}
+                      {dashboardData.employees?.total || 0}
                     </span>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-secondary">
@@ -923,7 +938,7 @@ export default function ReportesPage() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={inventoryByCategory}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <CartesianGrid strokeDasharray="4 4" stroke="#374151" />
                     <XAxis dataKey="name" stroke="#9ca3af" />
                     <YAxis stroke="#9ca3af" />
                     <Tooltip

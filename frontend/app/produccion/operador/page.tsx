@@ -717,7 +717,7 @@ export default function OperadorProduccionPage() {
                           )}
                         </div>
                         <div className="flex flex-wrap gap-1">
-                          {wo.materials.slice(0, 4).map((mat) => (
+                          {wo.materials.slice(0, 10).map((mat) => (
                             <span
                               key={mat.id}
                               className={`px-1.5 py-0.5 rounded ${
@@ -730,8 +730,8 @@ export default function OperadorProduccionPage() {
                               {mat.code}: {mat.availableStock}/{mat.requiredQuantity}
                             </span>
                           ))}
-                          {wo.materials.length > 4 && (
-                            <span className="text-muted-foreground">+{wo.materials.length - 4} más</span>
+                          {wo.materials.length > 10 && (
+                            <span className="text-muted-foreground">+{wo.materials.length - 10} más</span>
                           )}
                         </div>
                       </div>

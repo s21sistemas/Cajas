@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use App\Models\Client;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\PasswordResetMail;
 
 class ClientAuthController extends Controller
 {
@@ -65,20 +67,13 @@ class ClientAuthController extends Controller
             return response()->json(['error' => 'Token inválido'], 401);
         }
 
-        if ($client->approval_token_expires_at && $client->approval_token_expires_at->isPast()) {
+        if ($client->approval_token_expires_at && is_string($client->approval_token_expires_at) ? strtotime($client->approval_token_expires_at) < time() : $client->approval_token_expires_at->isPast()) {
             return response()->json(['error' => 'El token ha expirado'], 401);
         }
 
         $client->password = Hash::make($request->password);
         $client->password_set_at = now();
-        $client->approval_token = null;
-        $client->approval_token_expires_at = null;
-        $client->save();
-
-        // Generar nueva sesión
-        $sessionToken = Str::random(60);
-        $client->approval_token = hash('sha256', $sessionToken);
-        $client->approval_token_expires_at = now()->addHours(24);
+        // Mantener el mismo token de aprobación para que el usuario pueda seguir usándolo
         $client->save();
 
         return response()->json([
@@ -88,17 +83,16 @@ class ClientAuthController extends Controller
                 'name' => $client->name,
                 'email' => $client->email,
             ],
-            'session_token' => $sessionToken,
+            'session_token' => $request->token,
         ]);
     }
 
     /**
-     * Generar link de aprobación para una venta o cotización
+     * Generar link de aprobación para una cotización
      */
     public function generateApprovalLink(Request $request)
     {
         $data = $request->validate([
-            'sale_id' => 'nullable|exists:sales,id',
             'quote_id' => 'nullable|exists:quotes,id',
             'client_id' => 'required|exists:clients,id',
         ]);
@@ -117,7 +111,7 @@ class ClientAuthController extends Controller
         $client->save();
 
         // Generar URL de aprobación
-        $approvalUrl = config('app.frontend_url', 'http://localhost:3000') . '/auth/client-approval?token=' . $approvalToken;
+        $approvalUrl = config('app.frontend_url', 'http://localhost:3000') . '/cliente?token=' . $approvalToken;
 
         return response()->json([
             'approval_url' => $approvalUrl,
@@ -131,7 +125,7 @@ class ClientAuthController extends Controller
     }
 
     /**
-     * Obtener información de aprobación desde el token
+     * Obtener información de aprobación desde el token - Solo cotizaciones
      */
     public function getApprovalInfo(Request $request)
     {
@@ -148,27 +142,13 @@ class ClientAuthController extends Controller
             return response()->json(['error' => 'Token inválido'], 401);
         }
 
-        if ($client->approval_token_expires_at && $client->approval_token_expires_at->isPast()) {
+        if ($client->approval_token_expires_at && (is_string($client->approval_token_expires_at) ? strtotime($client->approval_token_expires_at) < time() : $client->approval_token_expires_at->isPast())) {
             return response()->json(['error' => 'El token ha expirado'], 401);
         }
 
-        // Obtener ventas o cotizaciones pendientes de aprobación
-        $sales = \App\Models\Sale::where('client_id', $client->id)
-            ->whereNull('approved_at')
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(function ($sale) {
-                return [
-                    'id' => $sale->id,
-                    'type' => 'sale',
-                    'code' => $sale->code,
-                    'total' => $sale->total,
-                    'status' => $sale->status,
-                    'created_at' => $sale->created_at,
-                ];
-            });
-
+        // Solo obtener cotizaciones pendientes de aprobación (status 'sent' o 'pending')
         $quotes = \App\Models\Quote::where('client_id', $client->id)
+            ->whereIn('status', ['sent', 'pending'])
             ->orderByDesc('created_at')
             ->get()
             ->map(function ($quote) {
@@ -190,20 +170,19 @@ class ClientAuthController extends Controller
             ],
             'has_password' => !empty($client->password),
             'pending_approvals' => [
-                'sales' => $sales,
                 'quotes' => $quotes,
             ],
         ]);
     }
 
     /**
-     * Aprobar una venta o cotización y subir documento
+     * Aprobar una cotización y subir documento
      */
     public function approveDocument(Request $request)
     {
         $data = $request->validate([
             'token' => 'required|string',
-            'type' => 'required|in:sale,quote',
+            'type' => 'required|in:quote',
             'id' => 'required|integer',
             'document' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
             'notes' => 'nullable|string',
@@ -216,33 +195,23 @@ class ClientAuthController extends Controller
             return response()->json(['error' => 'Token inválido'], 401);
         }
 
-        if ($client->approval_token_expires_at && $client->approval_token_expires_at->isPast()) {
+        if ($client->approval_token_expires_at && (is_string($client->approval_token_expires_at) ? strtotime($client->approval_token_expires_at) < time() : $client->approval_token_expires_at->isPast())) {
             return response()->json(['error' => 'El token ha expirado'], 401);
         }
 
         // Guardar documento
         $path = $request->file('document')->store('approval_documents', 'public');
 
-        // Actualizar la venta o cotización
-        if ($data['type'] === 'sale') {
-            $sale = \App\Models\Sale::find($data['id']);
-            if (!$sale || $sale->client_id != $client->id) {
-                return response()->json(['error' => 'Venta no encontrada'], 404);
-            }
-            $sale->approved_at = now();
-            $sale->approval_document_path = $path;
-            $sale->approval_notes = $data['notes'] ?? null;
-            $sale->save();
-        } else {
-            $quote = \App\Models\Quote::find($data['id']);
-            if (!$quote || $quote->client_id != $client->id) {
-                return response()->json(['error' => 'Cotización no encontrada'], 404);
-            }
-            $quote->approved_at = now();
-            $quote->approval_document_path = $path;
-            $quote->approval_notes = $data['notes'] ?? null;
-            $quote->save();
+        // Actualizar la cotización
+        $quote = \App\Models\Quote::find($data['id']);
+        if (!$quote || $quote->client_id != $client->id) {
+            return response()->json(['error' => 'Cotización no encontrada'], 404);
         }
+        $quote->approved_at = now();
+        $quote->approval_document_path = $path;
+        $quote->approval_notes = $data['notes'] ?? null;
+        $quote->status = 'approved';
+        $quote->save();
 
         return response()->json([
             'message' => 'Documento subido y aprobación registrada',
@@ -278,6 +247,74 @@ class ClientAuthController extends Controller
                 'email' => $client->email,
             ],
         ]);
+    }
+
+    /**
+     * Solicitar recuperación de contraseña
+     */
+    public function requestPasswordReset(Request $request)
+    {
+        $data = $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $client = Client::where('email', $data['email'])->first();
+
+        if (!$client) {
+            // No revelar si el email existe o no
+            return response()->json(['message' => 'Si el email existe, recibirás un enlace de recuperación']);
+        }
+
+        // Generar token de recuperación
+        $resetToken = Str::random(64);
+        $client->approval_token = hash('sha256', $resetToken);
+        $client->approval_token_expires_at = now()->addHours(2);
+        $client->save();
+
+        // Generar URL de recuperación
+        $resetUrl = config('app.frontend_url', 'http://localhost:3000') . '/cliente?reset_token=' . $resetToken;
+
+        // Enviar correo (simplificado - en producción usar Queue)
+        try {
+            Mail::to($client->email)->send(new PasswordResetMail($client, $resetUrl));
+        } catch (\Exception $e) {
+            // Log error pero continuar
+            \Log::error('Error sending password reset email: ' . $e->getMessage());
+        }
+
+        return response()->json(['message' => 'Si el email existe, recibirás un enlace de recuperación']);
+    }
+
+    /**
+     * Restablecer contraseña usando token
+     */
+    public function resetPassword(Request $request)
+    {
+        $data = $request->validate([
+            'token' => 'required|string',
+            'password' => 'required|string|min:6|confirmed',
+        ]);
+
+        $token = hash('sha256', $data['token']);
+        
+        $client = Client::where('approval_token', $token)->first();
+
+        if (!$client) {
+            return response()->json(['error' => 'Token inválido'], 401);
+        }
+
+        if ($client->approval_token_expires_at && (is_string($client->approval_token_expires_at) ? strtotime($client->approval_token_expires_at) < time() : $client->approval_token_expires_at->isPast())) {
+            return response()->json(['error' => 'El token ha expirado'], 401);
+        }
+
+        // Actualizar contraseña
+        $client->password = Hash::make($data['password']);
+        $client->password_set_at = now();
+        $client->approval_token = null;
+        $client->approval_token_expires_at = null;
+        $client->save();
+
+        return response()->json(['message' => 'Contraseña actualizada correctamente']);
     }
 
     /**

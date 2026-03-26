@@ -461,10 +461,17 @@ class MachineController extends Controller implements HasMiddleware
             ->get();
             
         foreach ($productions as $production) {
+            $statusLabels = [
+                'pending' => 'Producción pendiente',
+                'in_progress' => 'Producción en progreso',
+                'completed' => 'Producción completada',
+                'cancelled' => 'Producción cancelada',
+            ];
+            
             $activities[] = [
                 'id' => 'production-' . $production->id,
                 'type' => 'production',
-                'title' => $production->status === 'completed' ? 'Producción completada' : 'Producción iniciada',
+                'title' => $statusLabels[$production->status] ?? 'Producción creada',
                 'description' => ($production->workOrder ? $production->workOrder->work_order_number : 'Sin OT') . 
                     ' - ' . ($production->machine ? $production->machine->name : 'Sin máquina'),
                 'time' => $this->getRelativeTime($production->created_at),
@@ -499,7 +506,7 @@ class MachineController extends Controller implements HasMiddleware
         }
 
         // 3. Warehouse Movements recientes (últimas 24 horas)
-        $warehouseMovements = \App\Models\WarehouseMovement::with(['item', 'location'])
+        $warehouseMovements = \App\Models\WarehouseMovement::with(['inventoryItem', 'warehouseLocation'])
             ->where('created_at', '>=', now()->subHours(24))
             ->orderBy('created_at', 'desc')
             ->limit(10)
@@ -518,7 +525,7 @@ class MachineController extends Controller implements HasMiddleware
                 'id' => 'warehouse-' . $wm->id,
                 'type' => 'inventory',
                 'title' => $typeLabel,
-                'description' => ($wm->item ? $wm->item->name : 'Sin item') . ' - ' . $wm->quantity . ' unidades',
+                'description' => ($wm->inventoryItem ? $wm->inventoryItem->name : 'Sin item') . ' - ' . $wm->quantity . ' unidades',
                 'time' => $this->getRelativeTime($wm->created_at),
                 'timestamp' => $wm->created_at->toIso8601String(),
             ];

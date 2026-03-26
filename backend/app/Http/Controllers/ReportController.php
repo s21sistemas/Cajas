@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Models\Product;
 use App\Models\Client;
 use App\Models\Operator;
+use App\Models\Absence;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -48,41 +49,63 @@ class ReportController extends Controller
         if ($productId) $productionQuery->where('product_id', $productId);
 
         $productions = $productionQuery->get();
-        $totalProduction = $productions->sum('good_parts');
+        
+        // Obtener WorkOrders únicos relacionados con las producciones
+        $workOrders = $productions->pluck('workOrder')->unique('id');
+        
+        // Producción total: suma del campo 'completed' de los WorkOrders
+        $totalProduced = $workOrders->sum('completed');
+        
+        // Objetivo: suma del campo 'quantity' de los WorkOrders (target)
+        $totalTarget = $workOrders->sum('quantity');
+        
         $totalScrap = $productions->sum('scrap_parts');
         
-        // Producción diaria agrupada por fecha
+        // Producción diaria agrupada por fecha (obtenida del WorkOrder)
         $dailyProductionQuery = Production::whereBetween('created_at', [$startDate, $endDate]);
         if ($machineId) $dailyProductionQuery->where('machine_id', $machineId);
         if ($operatorId) $dailyProductionQuery->where('operator_id', $operatorId);
         if ($productId) $dailyProductionQuery->where('product_id', $productId);
         
-        $dailyProduction = $dailyProductionQuery
-            ->selectRaw('DATE(created_at) as date, SUM(good_parts) as produced, SUM(scrap_parts) as scrap')
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
+        // Obtener las producciones con su WorkOrder relacionado
+        $dailyProductions = $dailyProductionQuery->with('workOrder')->get();
         
-        // Calcular objetivo base (1500 por día hábil, 800 fines de semana)
-        $dailyProductionData = $dailyProduction->map(function($day) {
-            $date = new \DateTime($day->date);
-            $dayOfWeek = (int)$date->format('N');
-            $isWeekend = $dayOfWeek >= 6;
+        // Agrupar por fecha y obtener datos del WorkOrder
+        $dailyGrouped = $dailyProductions->groupBy(function($prod) {
+            return $prod->created_at->toDateString();
+        })->map(function($productions) {
+            $workOrders = $productions->pluck('workOrder')->unique('id');
             return [
-                'date' => $day->date,
-                'produced' => (int) $day->produced,
-                'scrap' => (int) $day->scrap,
-                'target' => $isWeekend ? 800 : 1500,
+                'produced' => $workOrders->sum('completed'),
+                'target' => $workOrders->sum('quantity'),
+                'scrap' => $productions->sum('scrap_parts'),
             ];
         });
+        
+        // Calcular objetivo base (1500 por día hábil, 800 fines de semana)
+        $dailyProductionDataArray = [];
+        foreach ($dailyGrouped as $date => $day) {
+            $dateObj = new \DateTime($date);
+            $dayOfWeek = (int)$dateObj->format('N');
+            $isWeekend = $dayOfWeek >= 6;
+            $dailyProductionDataArray[] = [
+                'date' => $date,
+                'label' => $date,
+                'produced' => (int) $day['produced'],
+                'scrap' => (int) $day['scrap'],
+                'target' => (int) $day['target'] ?: ($isWeekend ? 800 : 1500),
+            ];
+        }
 
         // === NUEVO: Calcular cambios comparison (vs períodos anteriores) ===
         
-        // Production Change: vs mes anterior
+        // Production Change: vs mes anterior (obtenido del campo completed de WorkOrders)
         $lastMonthStart = (new \DateTime($startDate))->modify('-1 month')->format('Y-m-01');
         $lastMonthEnd = (new \DateTime($startDate))->modify('last day of previous month')->format('Y-m-d');
-        $lastMonthProduction = Production::whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])->sum('good_parts');
-        $productionChange = $lastMonthProduction > 0 ? round((($totalProduction - $lastMonthProduction) / $lastMonthProduction) * 100, 1) : 0;
+        $lastMonthProductions = Production::whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])->get();
+        $lastMonthWorkOrders = $lastMonthProductions->pluck('workOrder')->unique('id');
+        $lastMonthProduction = $lastMonthWorkOrders->sum('completed');
+        $productionChange = $lastMonthProduction > 0 ? round((($totalProduced - $lastMonthProduction) / $lastMonthProduction) * 100, 1) : 0;
 
         // Efficiency Change: vs semana anterior
         $currentStart = new \DateTime($startDate);
@@ -211,13 +234,14 @@ class ReportController extends Controller
                 'end' => $endDate,
             ],
             'production' => [
-                'total' => $totalProduction,
+                'total' => $totalProduced,
+                'target' => $totalTarget,
                 'scrap' => $totalScrap,
-                'efficiency' => $totalProduction > 0 ? round(($totalProduction / ($totalProduction + $totalScrap)) * 100, 2) : 0,
+                'efficiency' => ($totalProduced + $totalScrap) > 0 ? round(($totalProduced / ($totalProduced + $totalScrap)) * 100, 2) : 0,
                 'change' => $productionChange,
                 'efficiency_change' => $efficiencyChange,
                 'scrap_change' => $scrapRateChange,
-                'daily' => $dailyProductionData,
+                'daily' => $dailyProductionDataArray,
             ],
             'machines' => $machines,
             'workOrders' => [
@@ -229,7 +253,7 @@ class ReportController extends Controller
             'employees' => [
                 'total' => $employees->count(),
                 'by_department' => $employees->groupBy('department')->map->count(),
-                'efficiency' => $totalProduction > 0 ? round(($totalProduction / ($totalProduction + $totalScrap)) * 100, 1) : 0,
+                'efficiency' => ($totalProduced + $totalScrap) > 0 ? round(($totalProduced / ($totalProduced + $totalScrap)) * 100, 1) : 0,
                 'attendance_rate' => $attendanceRate,
             ],
             'operators' => [

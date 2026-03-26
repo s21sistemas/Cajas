@@ -640,17 +640,14 @@ class QuoteController extends Controller implements HasMiddleware
         }
 
         try {
-            // Generar token de aprobación si no existe
-            $approvalToken = $quote->client->approval_token;
-            if (!$approvalToken) {
-                $approvalToken = Str::random(64);
-                $quote->client->approval_token = hash('sha256', $approvalToken);
-                $quote->client->approval_token_expires_at = now()->addDays(7);
-                $quote->client->save();
-            }
+            // Siempre generar un nuevo token de aprobación
+            $approvalToken = Str::random(64);
+            $quote->client->approval_token = hash('sha256', $approvalToken);
+            $quote->client->approval_token_expires_at = now()->addDays(7);
+            $quote->client->save();
 
             // Generar URL de aprobación
-            $approvalUrl = config('app.frontend_url', 'http://localhost:3000') . '/auth/cliente?token=' . $approvalToken;
+            $approvalUrl = config('app.frontend_url', 'http://localhost:3000') . '/cliente?token=' . $approvalToken;
 
             // Enviar el correo con el PDF adjunto y el link de aprobación
             Mail::to($quote->client->email)->send(new QuoteMail($quote, null, null, $approvalUrl));
@@ -670,6 +667,40 @@ class QuoteController extends Controller implements HasMiddleware
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error al enviar la cotización por correo',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Aprobar cotización y subir documento (para usuarios internos).
+     */
+    public function approveDocument(Request $request, Quote $quote)
+    {
+        $data = $request->validate([
+            'document' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
+            'notes' => 'nullable|string',
+        ]);
+
+        try {
+            // Guardar documento
+            $path = $request->file('document')->store('approval_documents', 'public');
+            
+            // Actualizar la cotización
+            $quote->update([
+                'status' => 'approved',
+                'approval_document_path' => $path,
+                'approval_notes' => $data['notes'] ?? null,
+                'approved_at' => now(),
+            ]);
+
+            return response()->json([
+                'message' => 'Cotización aprobada correctamente',
+                'quote' => $quote->fresh(['client', 'items']),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al aprobar la cotización',
                 'error' => $e->getMessage()
             ], 500);
         }

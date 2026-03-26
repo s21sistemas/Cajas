@@ -453,8 +453,8 @@ export function QuoteFormDialog({
                             value={item.quantity}
                             onChange={(e) => updateItem(index, "quantity", parseFloat(e.target.value) || 0)}
                             className="h-9"
-                            min="0.01"
-                            step="0.01"
+                            min="0"
+                            step="1"
                             required
                           />
                         </div>

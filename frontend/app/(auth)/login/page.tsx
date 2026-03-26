@@ -167,18 +167,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* Demo Credentials */}
-            <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-              <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                Credenciales de Demo
-              </h4>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p><strong>Email:</strong> test@example.com</p>
-                <p><strong>Contraseña:</strong> 123456</p>
-              </div>
-            </div>
-
             {/* Other Login Options */}
             <div className="mt-6 space-y-2">
               <p className="text-sm text-muted-foreground text-center">Otros accesos:</p>
@@ -196,16 +184,6 @@ export default function LoginPage() {
                   </Link>
                 </Button>
               </div>
-            </div>
-
-            {/* Operator Login Link */}
-            <div className="mt-4 text-center">
-              <Link 
-                href="/operador/login" 
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
-              >
-                ¿Eres operador de producción? Entrar al panel de operador
-              </Link>
             </div>
           </CardContent>
         </Card>

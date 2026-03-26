@@ -120,6 +120,8 @@ class ProductController extends Controller
      */
     public function show(Product $product)
     {
+        // Cargar relaciones para mostrar en detalles
+        $product->load(['materials.material', 'processes']);
         return response()->json($product);
     }
 

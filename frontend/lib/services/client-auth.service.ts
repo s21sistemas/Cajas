@@ -46,7 +46,7 @@ export const clientAuthService = {
       formData.append('notes', notes);
     }
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/client/approve-document`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/client/approve-document`, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',

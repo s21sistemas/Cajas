@@ -312,7 +312,7 @@ class WorkOrderController extends Controller implements HasMiddleware
                     'parent_production_id' => $previousProductionId,
                     'target_parts' => $data['quantity'],
                     'status' => 'pending',
-                    'start_time' => now(),
+                    // 'start_time' => now(),
                     // Asignar sale_id y client_id a la producción
                     'sale_id' => $data['sale_id'] ?? null,
                     'client_id' => $data['client_id'] ?? null,

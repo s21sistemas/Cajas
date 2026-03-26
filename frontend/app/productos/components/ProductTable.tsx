@@ -85,6 +85,8 @@ export function ProductTable({
                 <TableHead className="text-muted-foreground">Código</TableHead>
                 <TableHead className="text-muted-foreground">Nombre</TableHead>
                 <TableHead className="text-muted-foreground">Categoría</TableHead>
+                {/* <TableHead className="text-muted-foreground">Stock</TableHead> */}
+                {/* <TableHead className="text-muted-foreground">Stock Mín.</TableHead> */}
                 <TableHead className="text-right text-muted-foreground">Precio</TableHead>
                 <TableHead className="text-muted-foreground">Estado</TableHead>
                 <TableHead className="text-right text-muted-foreground">Acciones</TableHead>
@@ -103,6 +105,8 @@ export function ProductTable({
                       </div>
                     </TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
@@ -113,7 +117,7 @@ export function ProductTable({
                 ))
               ) : products.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No hay productos registrados.
                   </TableCell>
                 </TableRow>
@@ -128,6 +132,12 @@ export function ProductTable({
                       </div>
                     </TableCell>
                     <TableCell className="text-foreground">{product.category || '-'}</TableCell>
+                    {/* <TableCell className="text-foreground">
+                      <span className={product.stock !== undefined && product.minStock !== undefined && product.stock <= product.minStock ? "text-red-500 font-medium" : ""}>
+                        {product.stock ?? '-'}
+                      </span>
+                    </TableCell> */}
+                    {/* <TableCell className="text-muted-foreground">{product.minStock ?? '-'}</TableCell> */}
                     <TableCell className="text-right text-foreground">{formatCurrency(product.price)}</TableCell>
                     <TableCell>
                       <Badge className={statusConfig[product.status]?.class}>

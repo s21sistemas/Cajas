@@ -107,8 +107,8 @@ class Machine extends Model
         
         return [
             'utilization' => min($utilization, 100), // Máximo 100%
-            'activeHours' => round($activeHours, 1),
-            'totalHours' => round($totalHours, 1),
+            'activeHours' => round($activeHours, 2),
+            'totalHours' => round($totalHours, 2),
             'startOfWeek' => $startOfWeek->format('Y-m-d'),
             'endOfWeek' => $endOfWeek->format('Y-m-d'),
         ];

@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, Eye, Pencil, Trash2, Mail, FileDown } from "lucide-react";
+import { Search, MoreHorizontal, Eye, Pencil, Trash2, Mail, FileDown, FileCheck, Upload } from "lucide-react";
 import type { Quote, QuoteStatus } from "@/lib/types";
 
 interface QuoteTableProps {
@@ -31,6 +31,8 @@ interface QuoteTableProps {
   onDelete: (quote: Quote) => void;
   onSendEmail?: (quote: Quote) => void;
   onDownloadPdf?: (quote: Quote) => void;
+  onApprove?: (quote: Quote) => void;
+  onUploadDocument?: (quote: Quote) => void;
   loading?: boolean;
   currentPage: number;
   lastPage: number;
@@ -67,6 +69,8 @@ export function QuoteTable({
   onDelete,
   onSendEmail,
   onDownloadPdf,
+  onApprove,
+  onUploadDocument,
   loading = false,
   currentPage,
   lastPage,
@@ -174,6 +178,16 @@ export function QuoteTable({
                           {onSendEmail && quote.status !== 'sent' && quote.status !== 'approved' && quote.status !== 'rejected' && (
                             <DropdownMenuItem onClick={() => onSendEmail(quote)}>
                               <Mail className="h-4 w-4 mr-2" /> Enviar por correo
+                            </DropdownMenuItem>
+                          )}
+                          {onApprove && quote.status !== 'approved' && quote.status !== 'rejected' && (
+                            <DropdownMenuItem onClick={() => onApprove(quote)}>
+                              <FileCheck className="h-4 w-4 mr-2" /> Aprobar cotización
+                            </DropdownMenuItem>
+                          )}
+                          {onUploadDocument && quote.status !== 'approved' && quote.status !== 'rejected' && (
+                            <DropdownMenuItem onClick={() => onUploadDocument(quote)}>
+                              <Upload className="h-4 w-4 mr-2" /> Subir documento
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem onClick={() => onEdit(quote)}>

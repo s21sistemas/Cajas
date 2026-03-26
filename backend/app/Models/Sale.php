@@ -65,6 +65,14 @@ class Sale extends Model
         return $this->hasMany(OrderPedido::class);
     }
 
+    /**
+     * Relación con Órdenes de Trabajo
+     */
+    public function workOrders()
+    {
+        return $this->hasMany(WorkOrder::class);
+    }
+
     public function recalculateTotals(float $taxRate = 16): void
     {
         $items = $this->saleItems()->get();

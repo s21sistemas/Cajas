@@ -41,8 +41,8 @@ export const quotesService = {
     return api.delete<any>(`/quotes/${id}`);
   },
 
-  sendEmail: async (id: number, email: string) => {
-    return api.post<any>(`/quotes/${id}/send-email`, { email });
+  sendEmail: async (id: number) => {
+    return api.post<any>(`/quotes/${id}/send-email`);
   },
 
   getStats: async () => {
@@ -66,5 +66,14 @@ export const quotesService = {
     window.URL.revokeObjectURL(url);
     
     return response;
+  },
+
+  // Aprobar cotización y subir documento (para usuarios internos)
+  approveDocument: async (quoteId: number, formData: FormData) => {
+    return api.post<any>(`/quotes/${quoteId}/approve-document`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
   },
 };
